@@ -1,0 +1,200 @@
+package vault
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	vault "github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/api/auth/approle"
+	"go.uber.org/zap"
+)
+
+var (
+	log *zap.Logger
+)
+
+type VaultParameters struct {
+	// connection parameters
+	Address         string
+	ApproleRoleID   string
+	ApproleSecretID string
+
+	// the locations / field names of our kv2 secrets
+	Kv2Path          string
+	Kv2MountPath     string
+	Kv2UserField     string
+	Kv2PasswordField string
+}
+
+type Vault struct {
+	mu         sync.Mutex
+	client     *vault.Client
+	Parameters VaultParameters
+	isLoggedIn bool
+}
+
+// NewVaultAppRoleClient logs in to Vault using the AppRole authentication
+// method, returning an authenticated client and the auth token itself, which
+// can be periodically renewed.
+func NewVaultAppRoleClient(ctx context.Context, parameters VaultParameters) (*Vault, error) {
+	config := vault.DefaultConfig()
+	config.Address = parameters.Address
+
+	client, err := vault.NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("unable to initialize vault client: %w", err)
+	}
+
+	vault := &Vault{
+		client:     client,
+		Parameters: parameters,
+	}
+
+	return vault, nil
+}
+
+// A combination of a RoleID and a SecretID is required to log into Vault
+// with AppRole authentication method.
+func (v *Vault) login(ctx context.Context) (*vault.Secret, error) {
+
+	approleSecretID := &approle.SecretID{
+		FromString: v.Parameters.ApproleSecretID,
+	}
+
+	appRoleAuth, err := approle.NewAppRoleAuth(
+		v.Parameters.ApproleRoleID,
+		approleSecretID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to initialize approle authentication method: %w", err)
+	}
+
+	authInfo, err := v.client.Auth().Login(ctx, appRoleAuth)
+	if err != nil {
+		return nil, fmt.Errorf("unable to login using approle auth method: %w", err)
+	}
+	if authInfo == nil {
+		return nil, fmt.Errorf("no approle info was returned after login")
+	}
+
+	return authInfo, nil
+}
+
+// GetKV2 fetches the latest version of secret api key from kv-v2
+func (v *Vault) GetKV2(ctx context.Context, sec string) (*vault.KVSecret, error) {
+	var kvSecret *vault.KVSecret
+
+	kvSecret, err := v.client.KVv2(v.Parameters.Kv2MountPath).Get(ctx, fmt.Sprintf("%s/%s", v.Parameters.Kv2Path, sec))
+	if err != nil {
+		return kvSecret, fmt.Errorf("unable to read secret: %w", err)
+	}
+
+	return kvSecret, nil
+}
+
+func wait(sleepTime time.Duration, c chan bool) {
+	time.Sleep(sleepTime)
+	c <- true
+}
+
+func (v *Vault) IsLoggedIn() bool {
+	return v.isLoggedIn
+}
+
+func (v *Vault) setLoggedIn(b bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.isLoggedIn = b
+}
+
+func (v *Vault) RenewToken(ctx context.Context, doneRenew, tokenLifecycle chan bool, wg *sync.WaitGroup) {
+	log = zap.L()
+	retry := make(chan bool, 1)
+	defer wg.Done()
+	retry <- true
+
+	for {
+		select {
+		case <-doneRenew:
+			log.Info("stopping renew token go routine")
+			return
+		case <-retry:
+			vaultLoginResp, err := v.login(ctx)
+			if err != nil {
+				log.Error("unable to authenticate to vault", zap.Error(err))
+				v.setLoggedIn(false)
+				go wait(10*time.Second, retry)
+			} else {
+				wg.Add(1)
+				v.setLoggedIn(true)
+				tokenErr := v.manageTokenLifecycle(ctx, vaultLoginResp, tokenLifecycle, wg)
+				if tokenErr != nil {
+					log.Error("unable to start managing token lifecycle", zap.Error(tokenErr))
+				}
+			}
+		}
+	}
+}
+
+// Starts token lifecycle management. Returns only fatal errors as errors,
+// otherwise returns nil so we can attempt login again.
+func (v *Vault) manageTokenLifecycle(ctx context.Context, token *vault.Secret, done chan bool, wg *sync.WaitGroup) error {
+	var renewal *vault.RenewOutput
+
+	log = zap.L()
+
+	renew := token.Auth.Renewable
+	if !renew {
+		log.Info("token is not configured to be renewable. re-attempting login")
+		return nil
+	}
+
+	watcher, err := v.client.NewLifetimeWatcher(&vault.LifetimeWatcherInput{
+		Secret:    token,
+		Increment: 3600,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to initialize new lifetime watcher for renewing auth token: %w", err)
+	}
+
+	go watcher.Start()
+	defer wg.Done()
+	defer func() {
+		var tok string
+		if renewal != nil {
+			tok = renewal.Secret.Auth.ClientToken
+		} else {
+			tok = token.Auth.ClientToken
+		}
+		log.Info("revoking token before app shutdown - " + tok)
+		err := v.client.Auth().Token().RevokeSelfWithContext(ctx, tok)
+		if err != nil {
+			log.Error("unable to revoke token", zap.Error(err))
+		}
+	}()
+	defer watcher.Stop()
+
+	for {
+		select {
+		case <-done:
+			log.Info("stopping token watcher go routine")
+			return nil
+		// `DoneCh` will return if renewal fails, or if the remaining lease
+		// duration is under a built-in threshold and either renewing is not
+		// extending it or renewing is disabled.
+		case err := <-watcher.DoneCh():
+			if err != nil {
+				log.Error("failed to renew token. re-attempting login", zap.Error(err))
+				return nil
+			}
+			// This occurs once the token has reached max TTL.
+			log.Info("token can no longer be renewed. re-attempting login")
+			return nil
+
+		case renewal = <-watcher.RenewCh():
+			log.Info(fmt.Sprintf("successfully renewed: %#v", renewal))
+		}
+	}
+}

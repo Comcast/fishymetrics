@@ -1,0 +1,21 @@
+{{- if .Values.horizontalPodAutoscaler.enabled -}}
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ template "fishymetrics.name" . }}
+  labels:
+    {{- include "fishymetrics.common.metaLabels" . | nindent 4 }}
+    {{- include "fishymetrics.common.matchLabels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ template "fishymetrics.name" . }}
+  minReplicas: {{ .Values.horizontalPodAutoscaler.minReplicas }}
+  maxReplicas: {{ .Values.horizontalPodAutoscaler.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        targetAverageUtilization: {{ .Values.horizontalPodAutoscaler.targetMemoryUtilizationPercentage }}
+{{- end -}}

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "fishymetrics.name" . }}
+  labels:
+    {{- include "fishymetrics.common.metaLabels" . | nindent 4 }}
+    {{- include "fishymetrics.common.matchLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.exporter.port }}
+      targetPort: {{ .Values.exporter.port }}
+      protocol: TCP
+      name: exporter
+  selector:
+    app: {{ template "fishymetrics.name" . }}
+    release: {{ .Release.Name }}

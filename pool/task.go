@@ -1,0 +1,57 @@
+package pool
+
+import "sync"
+
+// Task encapsulates a work item that should go in a work pool
+type Task struct {
+	// Err holds an error that occurred during a task. Its
+	// result is only meaningful after Run has been called
+	// for the pool that holds it.
+	Err error
+
+	Body       []byte
+	MetricType string
+
+	f func() ([]byte, string, error)
+}
+
+// MoonshotTask encapsulates a work item that should go in a
+// moonshot work pool.
+type MoonshotTask struct {
+	// Err holds an error that occurred during a task. Its
+	// result is only meaningful after Run has been called
+	// for the pool that holds it.
+	Err error
+
+	Body       []byte
+	MetricType string
+	Device     string
+
+	f func() ([]byte, string, string, error)
+}
+
+// NewTask initializes a new task based on a given work
+// function.
+func NewTask(f func() ([]byte, string, error)) *Task {
+	return &Task{f: f}
+}
+
+// NewMoonshotTask initializes a new task based on a given
+// HPE moonshot work function.
+func NewMoonshotTask(f func() ([]byte, string, string, error)) *MoonshotTask {
+	return &MoonshotTask{f: f}
+}
+
+// Run runs a Task and does appropriate accounting via a
+// given sync.WorkGroup.
+func (t *Task) Run(wg *sync.WaitGroup) {
+	t.Body, t.MetricType, t.Err = t.f()
+	wg.Done()
+}
+
+// Run runs a Task and does appropriate accounting via a
+// given sync.WorkGroup.
+func (t *MoonshotTask) Run(wg *sync.WaitGroup) {
+	t.Body, t.Device, t.MetricType, t.Err = t.f()
+	wg.Done()
+}

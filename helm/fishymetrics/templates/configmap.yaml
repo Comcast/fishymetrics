@@ -1,0 +1,60 @@
+{{- if .Values.elastic.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fishymetrics.name" . }}-vector-config
+  labels:
+    {{- include "fishymetrics.common.metaLabels" . | nindent 4 }}
+    {{- include "fishymetrics.common.matchLabels" . | nindent 4 }}
+data:
+  vector.toml: |+
+    log_schema.host_key = "host"
+    log_schema.timestamp_key = "@timestamp"
+
+    [sources.fishymetrics]
+    type = "file"
+    file_key = "filename"
+    ignore_older_secs = 600
+    include = [ "/var/log/fishymetrics/fishymetrics.log" ]
+    read_from = "beginning"
+
+    [transforms.structured_json]
+    type = "remap"
+    inputs = ["fishymetrics"]
+    source = '''
+      content, parse_error = parse_json(.message)
+      if is_null(parse_error) {
+        ., err = merge(., content)
+        .trace.id = del(.trace_id)
+        .message = del(.msg)
+        .url.path = del(.url)
+        .error.message = del(.error)
+        if .ts != null {
+          ."@timestamp" = del(.ts)
+        }
+      }
+    '''
+
+    [sinks.daas]
+    type = "elasticsearch"
+    inputs = ["structured_json"]
+    endpoints = [{{ .Values.elastic.endpoint | quote }}]
+    api_version = "v7"
+    mode = "bulk"
+
+    auth.strategy = "basic"
+    auth.user = "${ELASTICSEARCH_USERNAME}"
+    auth.password = "${ELASTICSEARCH_PASSWORD}"
+
+    buffer.type = "memory"
+    buffer.max_events = 50000
+    buffer.when_full = "drop_newest"
+
+    bulk.action = "create"
+    bulk.index = {{ .Values.elastic.indexName | quote }}
+
+    healthcheck.enabled = false
+
+    tls.verify_certificate = false
+    tls.verify_hostname = false
+{{- end -}}

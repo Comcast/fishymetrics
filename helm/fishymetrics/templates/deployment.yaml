@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fishymetrics.name" . }}
+  labels:
+    {{- include "fishymetrics.common.metaLabels" . | nindent 4 }}
+    {{- include "fishymetrics.common.matchLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ template "fishymetrics.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "fishymetrics.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repo }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.exporter.port }}
+              name: exporter
+          env:
+            - name: USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fishymetrics.name" . }}-creds
+                  key: username
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fishymetrics.name" . }}-creds
+                  key: password
+            - name: VAULT_ADDRESS
+              value: {{ .Values.vault.address }}
+            - name: VAULT_ROLE_ID
+              value: {{ .Values.vault.roleId }}
+            - name: VAULT_SECRET_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fishymetrics.name" . }}-creds
+                  key: vault-secret-id
+            - name: VAULT_KV2_MOUNT_PATH
+              value: {{ .Values.vault.kv2MountPath }}
+            - name: VAULT_KV2_PATH
+              value: {{ .Values.vault.kv2Path }}
+            - name: VAULT_KV2_USER_FIELD
+              value: {{ .Values.vault.kv2UserField }}
+            - name: VAULT_KV2_PASS_FIELD
+              value: {{ .Values.vault.kv2PasswordField }}
+            - name: EXPORTER_PORT
+              value: {{ .Values.exporter.port | quote }}
+            - name: LOG_PATH
+              value: {{ .Values.logPath }}
+            - name: OOB_SCHEME
+              value: {{ .Values.oob.scheme }}
+            - name: OOB_TIMEOUT
+              value: {{ .Values.oob.timeout }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+            - name: logging-dir
+              mountPath: {{ .Values.logPath }}
+        {{- if .Values.elastic.enabled }}
+        - name: {{ .Chart.Name }}-vector
+          image: "{{ .Values.elastic.image.repo }}:{{ .Values.elastic.image.tag }}"
+          imagePullPolicy: {{ .Values.elastic.image.pullPolicy }}
+          env:
+            - name: ELASTICSEARCH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fishymetrics.name" . }}-creds
+                  key: elastic-user
+            - name: ELASTICSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fishymetrics.name" . }}-creds
+                  key: elastic-pass
+          resources:
+{{ toYaml .Values.elastic.resources | indent 12 }}
+          volumeMounts:
+            - name: vector-config
+              mountPath: /etc/vector
+            - name: logging-dir
+              mountPath: {{ .Values.logPath }}
+        {{- end }}
+      volumes:
+        - name: logging-dir
+          emptyDir:
+            sizeLimit: 1Gi
+        {{- if .Values.elastic.enabled }}
+        - name: vector-config
+          configMap:
+            name: {{ template "fishymetrics.name" . }}-vector-config
+        {{- end }}
+    {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+    {{- end }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+    {{- end }}
