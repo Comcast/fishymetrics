@@ -519,16 +519,24 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 			}
 		default:
 			if s, ok := mm.Status.(map[string]interface{}); ok {
-				if s["State"].(string) == "Enabled" {
-					if s["Health"].(string) == "OK" {
-						state = OK
-					} else if s["Health"].(string) == "" {
-						state = OK
+				switch s["State"].(type) {
+				case string:
+					if s["State"].(string) == "Enabled" {
+						switch s["Health"].(type) {
+						case string:
+							if s["Health"].(string) == "OK" {
+								state = OK
+							} else if s["Health"].(string) == "" {
+								state = OK
+							} else {
+								state = BAD
+							}
+						case nil:
+							state = OK
+						}
 					} else {
 						state = BAD
 					}
-				} else {
-					state = BAD
 				}
 			}
 		}

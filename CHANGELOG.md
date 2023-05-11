@@ -4,7 +4,10 @@ All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/) and this change
 log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
-## [0.8.0]
+## Unreleased
+
+## Fixed
+- Cisco UCS C220 - add additional edge cases when collecting memory metrics [#2](https://github.com/Comcast/fishymetrics/issues/2)
 
 ## Updated
 - removed references to internal URLs/FQDNs to opensource the project
