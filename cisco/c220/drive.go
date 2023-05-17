@@ -27,9 +27,7 @@ import (
 type StorageControllerMetrics struct {
 	Name              string                   `json:"Name"`
 	StorageController StorageControllerWrapper `json:"StorageControllers"`
-	Drives            []struct {
-		Url string `json:"@odata.id"`
-	} `json:"Drives"`
+	Drives            []Drive                  `json:"Drives"`
 }
 
 // StorageController contains status metadata of the C220 chassis storage controller
@@ -63,6 +61,28 @@ func (w *StorageControllerWrapper) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	return json.Unmarshal(data, &w.StorageController)
+}
+
+type Drive struct {
+	Url string `json:"@odata.id"`
+}
+
+type Error struct {
+	Error ErrorBody `json:"error"`
+}
+
+type ErrorBody struct {
+	Code         string         `json:"code"`
+	Message      string         `json:"message"`
+	ExtendedInfo []ExtendedInfo `json:"@Message.ExtendedInfo"`
+}
+
+type ExtendedInfo struct {
+	OdataType  string   `json:"@odata.type"`
+	MessageID  string   `json:"MessageId"`
+	Message    string   `json:"Message"`
+	MessageArg []string `json:"MessageArgs"`
+	Severity   string   `json:"Severity"`
 }
 
 // /redfish/v1/Systems/WZPXXXXX/Storage/MRAID/Drives/X

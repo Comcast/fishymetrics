@@ -162,6 +162,12 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoint+"/Processors/CPU1", PROCESSOR, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoint+"/Processors/CPU2", PROCESSOR, target, retryClient)))
 
+	// DIMMs
+	for _, dimm := range dimms.Members {
+		tasks = append(tasks,
+			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, retryClient)))
+	}
+
 	// Raid controller
 	raidCtrl, isPresent, err := checkRaidController(fqdn.String()+sysEndpoint+"/Storage/MRAID", target, retryClient)
 	if err != nil {
@@ -181,11 +187,6 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 			tasks = append(tasks,
 				pool.NewTask(common.Fetch(fqdn.String()+dsk.Url, DRIVE, target, retryClient)))
 		}
-	}
-
-	for _, dimm := range dimms.Members {
-		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, retryClient)))
 	}
 
 	p := pool.NewPool(tasks, 1)
@@ -275,12 +276,19 @@ func (e *Exporter) scrape() {
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))
 				deviceState = 2
-			} else {
-				deviceState = 0
+				e.up.Set(float64(deviceState))
+				log.Error("error from "+C220, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
+				return
+
+			} else if strings.Contains(task.Err.Error(), "errorCode: 554") {
+				// if we got an 554 error code from the /nuova endpoint, we set the storage controller state to 2
+				drv := (*e.deviceMetrics)["driveMetrics"]
+				(*drv)["driveStatus"].WithLabelValues("", e.chassisSerialNumber, "", "", "").Set(2.0)
 			}
-			e.up.Set(float64(deviceState))
+
 			log.Error("error from "+C220, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
-			return
+			// change task.Meta to SKIP so we don't get an error from the exporter
+			task.MetricType = "SKIP"
 		}
 
 		switch task.MetricType {
@@ -722,7 +730,7 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (Collectio
 	defer resp.Body.Close()
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
 				retryCount = retryCount + 1
@@ -764,7 +772,7 @@ func checkRaidController(url, host string, client *retryablehttp.Client) (Storag
 	defer resp.Body.Close()
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 2 && resp.StatusCode == http.StatusNotFound {
+			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
 				retryCount = retryCount + 1

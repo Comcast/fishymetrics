@@ -60,8 +60,8 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		DriveMetrics = &metrics{
-			"storageControllerStatus": newServerMetric("c220_storage_controller_status", "Current storage controller status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "chassisSerialNumber", "firmwareVersion", "memberId", "model"}),
-			"driveStatus":             newServerMetric("c220_drive_status", "Current drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "chassisSerialNumber", "capacityBytes", "id", "model"}),
+			"storageControllerStatus": newServerMetric("c220_storage_controller_status", "Current storage controller status 1 = OK, 0 = BAD, -1 = DISABLED, 2 = Max sesssions reached", nil, []string{"name", "chassisSerialNumber", "firmwareVersion", "memberId", "model"}),
+			"driveStatus":             newServerMetric("c220_drive_status", "Current drive status 1 = OK, 0 = BAD, -1 = DISABLED, 2 = Max sesssions reached", nil, []string{"name", "chassisSerialNumber", "capacityBytes", "id", "model"}),
 		}
 
 		DeviceMetrics = &metrics{
