@@ -95,7 +95,7 @@ func Test_C220_Memory_Metrics(t *testing.T) {
 	exporter = &Exporter{
 		ctx:                 context.Background(),
 		host:                "fishymetrics.com",
-		biosVersion:         "C220M5.4.0.4i.0.0831191119",
+		biosVersion:         "C220M5.4.0.4i.0.zzzzzzzzz",
 		chassisSerialNumber: "SN78901",
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "up",

@@ -53,7 +53,7 @@ func Test_C220_Drive_Metrics(t *testing.T) {
 		Name: "MRAID",
 		Drives: []Drive{
 			{
-				Url: "/redfish/v1/Systems/WZP21310UHE/Storage/MRAID/Drives/PD-1",
+				Url: "/redfish/v1/Systems/WZP1111111/Storage/MRAID/Drives/PD-1",
 			},
 		},
 		StorageController: []StorageController{
@@ -61,7 +61,7 @@ func Test_C220_Drive_Metrics(t *testing.T) {
 				MemberId:        "RAID",
 				Model:           "Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)",
 				Name:            "Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)",
-				FirmwareVersion: "5.080.00-2361",
+				FirmwareVersion: "555555",
 				Status: Status{
 					State:        "Enabled",
 					Health:       "OK",
@@ -83,7 +83,7 @@ func Test_C220_Drive_Metrics(t *testing.T) {
 				MemberId:        "RAID",
 				Model:           "Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)",
 				Name:            "Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)",
-				FirmwareVersion: "5.080.00-2361",
+				FirmwareVersion: "555555",
 				Status: Status{
 					State:        "Enabled",
 					Health:       "BAD",
@@ -114,7 +114,7 @@ func Test_C220_Drive_Metrics(t *testing.T) {
 	exporter = &Exporter{
 		ctx:                 context.Background(),
 		host:                "fishymetrics.com",
-		biosVersion:         "C220M5.4.0.4i.0.0831191119",
+		biosVersion:         "C220M5.4.0.4i.0.zzzzzzzzz",
 		chassisSerialNumber: "SN78901",
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "up",
@@ -136,7 +136,7 @@ func Test_C220_Drive_Metrics(t *testing.T) {
 			response:     HealthyStorageControllerMetricsResponse,
 			metricHeader: scHeader,
 			expected: `
-				c220_storage_controller_status{chassisSerialNumber="SN78901",firmwareVersion="5.080.00-2361",memberId="RAID",model="Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)",name="Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)"} 1
+				c220_storage_controller_status{chassisSerialNumber="SN78901",firmwareVersion="555555",memberId="RAID",model="Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)",name="Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)"} 1
 			`,
 		},
 		{
@@ -144,7 +144,7 @@ func Test_C220_Drive_Metrics(t *testing.T) {
 			response:     BadStorageControllerMetricsResponse,
 			metricHeader: scHeader,
 			expected: `
-			c220_storage_controller_status{chassisSerialNumber="SN78901",firmwareVersion="5.080.00-2361",memberId="RAID",model="Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)",name="Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)"} 0
+			c220_storage_controller_status{chassisSerialNumber="SN78901",firmwareVersion="555555",memberId="RAID",model="Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)",name="Cisco 12G Modular Raid Controller with 2GB cache (max 16 drives)"} 0
 			`,
 		},
 	}
