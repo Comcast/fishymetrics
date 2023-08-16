@@ -21,9 +21,6 @@ docker:
 
 test:
 	go test -v -p 1 -race ${FLAGS} ${TEST_PKGS}
-	go get -u github.com/go-playground/overalls
-	$(GOPATH)/bin/overalls -project=github.com/comcast/fishymetrics
-	@mv overalls.coverprofile overalls.out
 
 clean:
 	rm -rf build/
