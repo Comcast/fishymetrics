@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -121,7 +121,7 @@ func Fetch(uri, metricType, host string, client *retryablehttp.Client) func() ([
 			}
 		}
 
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, metricType, fmt.Errorf("Error reading Response Body - " + err.Error())
 		}
@@ -156,7 +156,7 @@ func IMCPost(uri, classId, cookie string, client *retryablehttp.Client) ([]byte,
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
@@ -174,7 +174,7 @@ func IMCLogin(uri, target string, client *retryablehttp.Client) (string, error) 
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return aaaLogin.OutCookie, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}

@@ -8,8 +8,6 @@ replicas: 1
 exporter:
   port: 9533
 
-logPath: "/var/log/fishymetrics"
-
 oob:
   username: ""
   password: ""
@@ -25,18 +23,21 @@ vault:
   kv2UserField: "user"
   kv2PasswordField: "password"
 
-elastic:
+vector:
   enabled: false
+
+  endpoint: "http://0.0.0.0:4444"
 
   image:
     repo: timberio/vector
-    tag: 0.26.0-alpine
+    tag: 0.32.2-alpine
     pullPolicy: IfNotPresent
 
-  user: ""
-  pass: ""
-  endpoint: ""
-  indexName: ""
+  elasticsearch:
+    user: ""
+    pass: ""
+    endpoint: ""
+    indexName: ""
 
   resources: {}
     # limits:

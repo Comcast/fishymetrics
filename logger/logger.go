@@ -19,6 +19,7 @@ package logger
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 
 	"go.uber.org/zap"
@@ -36,11 +37,24 @@ type lumberjackSink struct {
 	*lumberjack.Logger
 }
 
+type LoggerConfig struct {
+	LogMethod      string
+	LogFile        LogFile
+	VectorEndpoint string
+}
+
+type LogFile struct {
+	Path       string
+	MaxSize    int
+	MaxBackups int
+	MaxAge     int
+}
+
 func (lumberjackSink) Sync() error {
 	return nil
 }
 
-func Initialize(svc, hostname, logPath string) {
+func Initialize(svc, hostname string, config LoggerConfig) {
 
 	atomicLevel = zap.NewAtomicLevel()
 
@@ -62,21 +76,51 @@ func Initialize(svc, hostname, logPath string) {
 			},
 		))
 
-	ljWriteSyncer := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   logPath + "/" + svc + ".log",
-		MaxSize:    256, // megabytes
-		MaxBackups: 1,
-		MaxAge:     1, // days
-	})
+	if config.LogMethod == "file" {
+		ljWriteSyncer := zapcore.AddSync(&lumberjack.Logger{
+			Filename:   config.LogFile.Path + "/" + svc + ".log",
+			MaxSize:    config.LogFile.MaxSize, // megabytes
+			MaxBackups: config.LogFile.MaxBackups,
+			MaxAge:     config.LogFile.MaxAge, // days
+		})
 
-	ljCore := zapcore.NewCore(
-		zapcore.NewJSONEncoder(ProdEncoderConf()),
-		ljWriteSyncer,
-		atomicLevel)
+		ljCore := zapcore.NewCore(
+			zapcore.NewJSONEncoder(ProdEncoderConf()),
+			ljWriteSyncer,
+			atomicLevel)
 
-	logger = logger.WithOptions(zap.WrapCore(func(zapcore.Core) zapcore.Core {
-		return zapcore.NewTee(logger.Core(), ljCore)
-	}))
+		logger = logger.WithOptions(zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapcore.NewTee(logger.Core(), ljCore)
+		}))
+	}
+
+	if config.LogMethod == "vector" {
+		url, err := url.Parse(config.VectorEndpoint)
+		if err != nil {
+			panic(err)
+		}
+
+		err = zap.RegisterSink(url.Scheme, initVectorSink)
+		if err != nil {
+			panic(err)
+		}
+
+		vecWriteSyncer, _, err := zap.Open(url.String())
+		if err != nil {
+			panic(err)
+		}
+
+		ws := zapcore.Lock(vecWriteSyncer)
+
+		vectorCore := zapcore.NewCore(
+			zapcore.NewJSONEncoder(ProdEncoderConf()),
+			ws,
+			atomicLevel)
+
+		logger = logger.WithOptions(zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapcore.NewTee(logger.Core(), vectorCore)
+		}))
+	}
 
 	zap.ReplaceGlobals(logger)
 }
