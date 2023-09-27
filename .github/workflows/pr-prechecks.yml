@@ -24,7 +24,11 @@ jobs:
 
       - name: Run Whitesource/Mend scan
         run: |
-           curl -LJO https://github.com/whitesource/unified-agent-distribution/releases/latest/download/wss-unified-agent.jar    
+           curl -LJO https://github.com/whitesource/unified-agent-distribution/releases/latest/download/wss-unified-agent.jar
+           export WS_CHECHKPOLICIES=true
+           export WS_FORCECHECKALLDEPENDENCIES=true
+           export WS_FORCEUPDATE=true
+           export WS_UPDATEINVENTORY=true
            java -jar wss-unified-agent.jar -apiKey ${{ secrets.MEND_API_KEY }} -product fishymetrics -project pr-scan
 
   build:
