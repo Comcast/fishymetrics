@@ -22,6 +22,9 @@ spec:
         - name: {{ .Chart.Name }}-vector
           image: "{{ .Values.vector.image.repo }}:{{ .Values.vector.image.tag }}"
           imagePullPolicy: {{ .Values.vector.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.vector.port }}
+              name: vector
           env:
             - name: ELASTICSEARCH_USERNAME
               valueFrom:

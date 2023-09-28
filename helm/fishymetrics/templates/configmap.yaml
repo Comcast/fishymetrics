@@ -13,7 +13,7 @@ data:
 
     [sources.fishymetrics]
     type = "http_server"
-    address = "0.0.0.0:4444"
+    address = "0.0.0.0:{{ .Values.vector.port }}"
     encoding = "json"
     headers = ["User-Agent"]
     path_key = "vector_http_path"

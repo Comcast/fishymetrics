@@ -26,7 +26,8 @@ vault:
 vector:
   enabled: false
 
-  endpoint: "http://0.0.0.0:4444"
+  endpoint: "http://localhost:4444"
+  port: 4444
 
   image:
     repo: timberio/vector

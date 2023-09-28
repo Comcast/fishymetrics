@@ -112,10 +112,21 @@ func Initialize(svc, hostname string, config LoggerConfig) {
 
 		ws := zapcore.Lock(vecWriteSyncer)
 
+		zcFields := make([]zapcore.Field, 0, 2)
+		zcFields = append(zcFields, zapcore.Field{
+			Key:    "app",
+			Type:   zapcore.StringType,
+			String: svc,
+		}, zapcore.Field{
+			Key:    "host",
+			Type:   zapcore.StringType,
+			String: hostname,
+		})
+
 		vectorCore := zapcore.NewCore(
 			zapcore.NewJSONEncoder(ProdEncoderConf()),
 			ws,
-			atomicLevel)
+			atomicLevel).With(zcFields)
 
 		logger = logger.WithOptions(zap.WrapCore(func(zapcore.Core) zapcore.Core {
 			return zapcore.NewTee(logger.Core(), vectorCore)
