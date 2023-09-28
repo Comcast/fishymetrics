@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -56,12 +57,17 @@ const (
 )
 
 var (
-	username     *string
-	password     *string
-	oobTimeout   *time.Duration
-	oobScheme    *string
-	logPath      *string
-	exporterPort *string
+	username          *string
+	password          *string
+	oobTimeout        *time.Duration
+	oobScheme         *string
+	logMethod         *string
+	logFilePath       *string
+	logFileMaxSize    *int
+	logFileMaxBackups *int
+	logFileMaxAge     *int
+	vectorEndpoint    *string
+	exporterPort      *string
 
 	log *zap.Logger
 
@@ -179,7 +185,12 @@ func main() {
 	password = flag.String("password", "", "OOB static password")
 	oobTimeout = flag.Duration("timeout", 15*time.Second, "OOB scrape timeout")
 	oobScheme = flag.String("scheme", "https", "OOB Scheme to use")
-	logPath = flag.String("log-path", "/var/log/fishymetrics", "directory path where log files are written")
+	logMethod = flag.String("log-method", "", "options: [file|vector], logging will also write to stdout")
+	logFilePath = flag.String("log-file-path", "/var/log/fishymetrics", "directory path where log files are written if log-method is file")
+	logFileMaxSize = flag.Int("log-file-max-size", 256, "max file size in megabytes if log-method is file")
+	logFileMaxBackups = flag.Int("log-file-max-backups", 1, "max file backups before they are rotated if log-method is file")
+	logFileMaxAge = flag.Int("log-file-max-age", 1, "max file age in days before they are rotated if log-method is file")
+	vectorEndpoint = flag.String("vector-endpoint", "http://0.0.0.0:4444", "vector endpoint to send structured json logs to")
 	exporterPort = flag.String("port", "9533", "exporter port")
 	vaultAddr = flag.String("vault-addr", "https://vault.com", "Vault instance address to get chassis credentials from")
 	vaultRoleId = flag.String("vault-role-id", "", "Vault Role ID for AppRole")
@@ -208,8 +219,40 @@ func main() {
 		*oobScheme = os.Getenv("OOB_SCHEME")
 	}
 
-	if os.Getenv("LOG_PATH") != "" {
-		*logPath = os.Getenv("LOG_PATH")
+	if os.Getenv("LOG_METHOD") != "" {
+		*logMethod = os.Getenv("LOG_METHOD")
+	}
+
+	if os.Getenv("LOG_FILE_PATH") != "" {
+		*logFilePath = os.Getenv("LOG_FILE_PATH")
+	}
+
+	if os.Getenv("LOG_FILE_MAX_SIZE") != "" {
+		i, err := strconv.Atoi(os.Getenv("LOG_FILE_MAX_SIZE"))
+		if err != nil {
+			i = 256 // set to default
+		}
+		*logFileMaxSize = i
+	}
+
+	if os.Getenv("LOG_FILE_MAX_BACKUPS") != "" {
+		i, err := strconv.Atoi(os.Getenv("LOG_FILE_MAX_BACKUPS"))
+		if err != nil {
+			i = 1 // set to default
+		}
+		*logFileMaxBackups = i
+	}
+
+	if os.Getenv("LOG_FILE_MAX_AGE") != "" {
+		i, err := strconv.Atoi(os.Getenv("LOG_FILE_MAX_AGE"))
+		if err != nil {
+			i = 1 // set to default
+		}
+		*logFileMaxAge = i
+	}
+
+	if os.Getenv("VECTOR_ENDPOINT") != "" {
+		*vectorEndpoint = os.Getenv("VECTOR_ENDPOINT")
 	}
 
 	if os.Getenv("EXPORTER_PORT") != "" {
@@ -244,18 +287,32 @@ func main() {
 		*vaultKv2PasswordField = os.Getenv("VAULT_KV2_PASS_FIELD")
 	}
 
-	// validate logPath exists and is a directory
-	fd, err := os.Stat(*logPath)
-	if os.IsNotExist(err) {
-		panic(err)
-	}
-	if !fd.IsDir() {
-		panic(fmt.Errorf("%s is not a directory", *logPath))
+	// validate logFilePath exists and is a directory
+	if *logMethod == "file" {
+		fd, err := os.Stat(*logFilePath)
+		if os.IsNotExist(err) {
+			panic(err)
+		}
+		if !fd.IsDir() {
+			panic(fmt.Errorf("%s is not a directory", *logFilePath))
+		}
 	}
 
-	logger.Initialize(app, hostname, *logPath)
+	// init logger config
+	logConfig := logger.LoggerConfig{
+		LogMethod: *logMethod,
+		LogFile: logger.LogFile{
+			Path:       *logFilePath,
+			MaxSize:    *logFileMaxSize,
+			MaxBackups: *logFileMaxBackups,
+			MaxAge:     *logFileMaxAge,
+		},
+		VectorEndpoint: *vectorEndpoint,
+	}
+
+	logger.Initialize(app, hostname, logConfig)
 	log = zap.L()
-	defer log.Sync()
+	defer logger.Flush()
 
 	// configure vault client if vaultRoleId & vaultSecretId are set
 	if *vaultRoleId != "" && *vaultSecretId != "" {

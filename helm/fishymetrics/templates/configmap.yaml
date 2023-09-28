@@ -1,4 +1,4 @@
-{{- if .Values.elastic.enabled -}}
+{{- if .Values.vector.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,33 +12,29 @@ data:
     log_schema.timestamp_key = "@timestamp"
 
     [sources.fishymetrics]
-    type = "file"
-    file_key = "filename"
-    ignore_older_secs = 600
-    include = [ "/var/log/fishymetrics/fishymetrics.log" ]
-    read_from = "beginning"
+    type = "http_server"
+    address = "0.0.0.0:{{ .Values.vector.port }}"
+    encoding = "json"
+    headers = ["User-Agent"]
+    path_key = "vector_http_path"
 
     [transforms.structured_json]
     type = "remap"
     inputs = ["fishymetrics"]
     source = '''
-      content, parse_error = parse_json(.message)
-      if is_null(parse_error) {
-        ., err = merge(., content)
-        .trace.id = del(.trace_id)
-        .message = del(.msg)
-        .url.path = del(.url)
-        .error.message = del(.error)
-        if .ts != null {
-          ."@timestamp" = del(.ts)
-        }
+      .trace.id = del(.trace_id)
+      .message = del(.msg)
+      .url.path = del(.url)
+      .error.message = del(.error)
+      if .ts != null {
+        ."@timestamp" = del(.ts)
       }
     '''
 
     [sinks.daas]
     type = "elasticsearch"
     inputs = ["structured_json"]
-    endpoints = [{{ .Values.elastic.endpoint | quote }}]
+    endpoints = [{{ .Values.vector.elasticsearch.endpoint | quote }}]
     api_version = "v7"
     mode = "bulk"
 
@@ -51,7 +47,7 @@ data:
     buffer.when_full = "drop_newest"
 
     bulk.action = "create"
-    bulk.index = {{ .Values.elastic.indexName | quote }}
+    bulk.index = {{ .Values.vector.elasticsearch.indexName | quote }}
 
     healthcheck.enabled = false
 

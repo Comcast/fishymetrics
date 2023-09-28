@@ -18,6 +18,30 @@ spec:
         release: {{ .Release.Name }}
     spec:
       containers:
+        {{- if .Values.vector.enabled }}
+        - name: {{ .Chart.Name }}-vector
+          image: "{{ .Values.vector.image.repo }}:{{ .Values.vector.image.tag }}"
+          imagePullPolicy: {{ .Values.vector.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.vector.port }}
+              name: vector
+          env:
+            - name: ELASTICSEARCH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fishymetrics.name" . }}-creds
+                  key: elastic-user
+            - name: ELASTICSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fishymetrics.name" . }}-creds
+                  key: elastic-pass
+          resources:
+{{ toYaml .Values.vector.resources | indent 12 }}
+          volumeMounts:
+            - name: vector-config
+              mountPath: /etc/vector
+        {{- end }}
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repo }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -54,49 +78,24 @@ spec:
               value: {{ .Values.vault.kv2PasswordField }}
             - name: EXPORTER_PORT
               value: {{ .Values.exporter.port | quote }}
-            - name: LOG_PATH
-              value: {{ .Values.logPath }}
+            {{- if .Values.vector.enabled }}
+            - name: LOG_METHOD
+              value: "vector"
+            - name: VECTOR_ENDPOINT
+              value: {{ .Values.vector.endpoint }}
+            {{- end }}
             - name: OOB_SCHEME
               value: {{ .Values.oob.scheme }}
             - name: OOB_TIMEOUT
               value: {{ .Values.oob.timeout }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
-          volumeMounts:
-            - name: logging-dir
-              mountPath: {{ .Values.logPath }}
-        {{- if .Values.elastic.enabled }}
-        - name: {{ .Chart.Name }}-vector
-          image: "{{ .Values.elastic.image.repo }}:{{ .Values.elastic.image.tag }}"
-          imagePullPolicy: {{ .Values.elastic.image.pullPolicy }}
-          env:
-            - name: ELASTICSEARCH_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ template "fishymetrics.name" . }}-creds
-                  key: elastic-user
-            - name: ELASTICSEARCH_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ template "fishymetrics.name" . }}-creds
-                  key: elastic-pass
-          resources:
-{{ toYaml .Values.elastic.resources | indent 12 }}
-          volumeMounts:
-            - name: vector-config
-              mountPath: /etc/vector
-            - name: logging-dir
-              mountPath: {{ .Values.logPath }}
-        {{- end }}
+      {{- if .Values.vector.enabled }}
       volumes:
-        - name: logging-dir
-          emptyDir:
-            sizeLimit: 1Gi
-        {{- if .Values.elastic.enabled }}
         - name: vector-config
           configMap:
             name: {{ template "fishymetrics.name" . }}-vector-config
-        {{- end }}
+      {{- end }}
     {{- if .Values.affinity }}
       affinity:
 {{ toYaml .Values.affinity | indent 8 }}
