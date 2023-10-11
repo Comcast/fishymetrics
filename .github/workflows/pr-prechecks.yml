@@ -29,7 +29,7 @@ jobs:
            export WS_FORCECHECKALLDEPENDENCIES=true
            export WS_FORCEUPDATE=true
            export WS_UPDATEINVENTORY=true
-           java -jar wss-unified-agent.jar -apiKey ${{ secrets.MEND_API_KEY }} -product fishymetrics -project pr-scan
+           java -jar wss-unified-agent.jar -apiKey ${{ secrets.MEND_API_KEY }} -product ${{ secrets.MEND_PRODUCT_NAME }} -project WS-fishymetrics
 
   build:
     runs-on: ubuntu-latest
