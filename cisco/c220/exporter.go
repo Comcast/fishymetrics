@@ -542,6 +542,8 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 						case nil:
 							state = OK
 						}
+					} else if s["State"].(string) == "Absent" {
+						return nil
 					} else {
 						state = BAD
 					}
