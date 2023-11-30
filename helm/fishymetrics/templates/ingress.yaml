@@ -43,6 +43,9 @@ spec:
                   number: {{ $servicePort }}
   {{- end -}}
   {{- end -}}
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end -}}
   {{- if .Values.ingress.tls }}
   tls:
 {{ toYaml .Values.ingress.tls | indent 4 }}
