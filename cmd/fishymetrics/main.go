@@ -138,6 +138,8 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	switch moduleName {
 	case "moonshot":
 		exporter = moonshot.NewExporter(r.Context(), target, uri)
+	case "dl380":
+		exporter = dl380.NewExporter(r.Context(), target, uri)
 	case "dl360":
 		exporter = dl360.NewExporter(r.Context(), target, uri)
 	case "dl20":
@@ -150,7 +152,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		exporter, err = s3260m5.NewExporter(r.Context(), target, uri)
 	default:
 		log.Error("'module' parameter does not match available options", zap.String("module", moduleName), zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
-		http.Error(w, "'module' parameter does not match available options: [moonshot, dl360, dl20, c220, s3260m4, s3260m5]", http.StatusBadRequest)
+		http.Error(w, "'module' parameter does not match available options: [moonshot, dl360, dl380, dl20, c220, s3260m4, s3260m5]", http.StatusBadRequest)
 		return
 	}
 
