@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,13 @@ package dl380
 
 // /redfish/v1/systems/1/
 
-// MemoryMetrics is the top level json object for DL360 Memory metadata
+// MemoryMetrics is the top level json object for DL380 Memory metadata
 type MemoryMetrics struct {
 	ID            string        `json:"Id"`
 	MemorySummary MemorySummary `json:"MemorySummary"`
 }
 
-// MemorySummary is the json object for DL360 MemorySummary metadata
+// MemorySummary is the json object for DL380 MemorySummary metadata
 type MemorySummary struct {
 	Status                         StatusMemory `json:"Status"`
 	TotalSystemMemoryGiB           int          `json:"TotalSystemMemoryGiB"`
