@@ -22,25 +22,39 @@ package dl380
 // NVMeMetrics is the top level json object for DL380 NVMe Metrics Metadata
 // TODO: Ensure Physical Location maps to the ServiceLabel string within PartLocation
 // TODO: Ensure Status maps to the Health string within StatusNVMe
-type NVMeMetrics struct {
-	ID               string       `json:"Id"`
-	Model            string       `json:"Model"`
-	MediaType        string       `json:"MediaType"`
-	PhysicalLocation PartLocation `json:"PhysicalLocation"`
-	Protocol         string       `json:"Protocol"`
-	Status           StatusNVMe   `json:"Status"`
-	FailurePredicted bool         `json:"FailurePredicted"`
-	CapacityBytes    int          `json:"CapacityBytes"`
+type NVMeDriveMetrics struct {
+	ID               string          `json:"Id"`
+	Model            string          `json:"Model"`
+	Name             string          `json:"Name"`
+	MediaType        string          `json:"MediaType"`
+	PhysicalLocation PartLocation    `json:"PhysicalLocation"`
+	Protocol         string          `json:"Protocol"`
+	Status           nvmeDriveStatus `json:"Status"`
+	FailurePredicted bool            `json:"FailurePredicted"`
+	CapacityBytes    int             `json:"CapacityBytes"`
 }
 
-// PartLocation is a variable that determines the Box and the Bay location of a part
+// PartLocation is a variable that determines the Box and the Bay location of the NVMe drive
 type PartLocation struct {
 	ServiceLabel string `json:"ServiceLabel"`
 }
 
+// Contents of Oem
+type Oem struct {
+	Hpe    HpeCont `json:"Hpe"`
+	NVMeID string  `json:"NVMeId"`
+}
+
+// Contents of Hpe
+type HpeCont struct {
+	CurrentTemperatureCelsius int             `json:"CurrentTemperatureCelsius"`
+	DriveStatus               nvmeDriveStatus `json:"nvmeDriveStatus"`
+}
+
 // Status/Health for the NVMe drive
-type StatusNVMe struct {
+type nvmeDriveStatus struct {
 	Health string `json:"Health"`
+	State  string `json:"State"`
 }
 
 // Smart Array Drives
@@ -84,6 +98,8 @@ type DiskDriveMetrics struct {
 	Name          string          `json:"Name"`
 	Model         string          `json:"Model"`
 	Status        DiskDriveStatus `json:"Status"`
+	// Check for logical drive, if disk drive, should return nothing.
+	LogicalDriveName string `json:"LogicalDriveName,omitempty"`
 }
 
 // Disk Drive Status
