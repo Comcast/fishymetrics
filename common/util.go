@@ -70,6 +70,13 @@ type AaaLogoutPayload struct {
 	InCookie string   `xml:"inCookie,attr"`
 }
 
+// TODO: Create a FetchIterate function to further iterate through to get drive endpoints:
+//	if no sublinks, return list of length 1
+//  fetch_iterate would import Fetch
+// input is everything that would go to fetch
+// output is a [] of fetch returns
+//
+
 func Fetch(uri, metricType, host string, client *retryablehttp.Client) func() ([]byte, string, error) {
 	var resp *http.Response
 	var credential *Credential
