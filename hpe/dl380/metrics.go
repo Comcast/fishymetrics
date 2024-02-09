@@ -16,57 +16,72 @@
  * limitations under the License.
  */
 
- package dl380
+package dl380
 
- import (
-	 "github.com/prometheus/client_golang/prometheus"
- )
- 
- type metrics map[string]*prometheus.GaugeVec
- 
- func newServerMetric(metricName string, docString string, constLabels prometheus.Labels, labelNames []string) *prometheus.GaugeVec {
-	 return prometheus.NewGaugeVec(
-		 prometheus.GaugeOpts{
-			 Name:        metricName,
-			 Help:        docString,
-			 ConstLabels: constLabels,
-		 },
-		 labelNames,
-	 )
- }
- 
- func NewDeviceMetrics() *map[string]*metrics {
-	 var (
-		 ThermalMetrics = &metrics{
-			 "fanSpeed":          newServerMetric("dl380_thermal_fan_speed", "Current fan speed in the unit of percentage, possible values are 0 - 100", nil, []string{"name"}),
-			 "fanStatus":         newServerMetric("dl380_thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name"}),
-			 "sensorTemperature": newServerMetric("dl380_thermal_sensor_temperature", "Current sensor temperature reading in Celsius", nil, []string{"name"}),
-			 "sensorStatus":      newServerMetric("dl380_thermal_sensor_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"name"}),
-		 }
- 
-		 PowerMetrics = &metrics{
-			 "supplyOutput":        newServerMetric("dl380_power_supply_output", "Power supply output in watts", nil, []string{"memberId", "sparePartNumber"}),
-			 "supplyStatus":        newServerMetric("dl380_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"memberId", "sparePartNumber"}),
-			 "supplyTotalConsumed": newServerMetric("dl380_power_supply_total_consumed", "Total output of all power supplies in watts", nil, []string{"memberId"}),
-			 "supplyTotalCapacity": newServerMetric("dl380_power_supply_total_capacity", "Total output capacity of all the power supplies", nil, []string{"memberId"}),
-		 }
- 
-		 DriveMetrics = &metrics{
-			 "logicalDriveStatus": newServerMetric("dl380_logical_drive_status", "Current logical drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}),
-		 }
- 
-		 MemoryMetrics = &metrics{
-			 "memoryStatus": newServerMetric("dl380_memory_status", "Current memory status 1 = OK, 0 = BAD", nil, []string{"totalSystemMemoryGiB"}),
-		 }
- 
-		 Metrics = &map[string]*metrics{
-			 "thermalMetrics": ThermalMetrics,
-			 "powerMetrics":   PowerMetrics,
-			 "driveMetrics":   DriveMetrics,
-			 "memoryMetrics":  MemoryMetrics,
-		 }
-	 )
- 
-	 return Metrics
- }
- 
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+type metrics map[string]*prometheus.GaugeVec
+
+func newServerMetric(metricName string, docString string, constLabels prometheus.Labels, labelNames []string) *prometheus.GaugeVec {
+	return prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name:        metricName,
+			Help:        docString,
+			ConstLabels: constLabels,
+		},
+		labelNames,
+	)
+}
+
+func NewDeviceMetrics() *map[string]*metrics {
+	var (
+		ThermalMetrics = &metrics{
+			"fanSpeed":          newServerMetric("dl380_thermal_fan_speed", "Current fan speed in the unit of percentage, possible values are 0 - 100", nil, []string{"name"}),
+			"fanStatus":         newServerMetric("dl380_thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name"}),
+			"sensorTemperature": newServerMetric("dl380_thermal_sensor_temperature", "Current sensor temperature reading in Celsius", nil, []string{"name"}),
+			"sensorStatus":      newServerMetric("dl380_thermal_sensor_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"name"}),
+		}
+
+		PowerMetrics = &metrics{
+			"supplyOutput":        newServerMetric("dl380_power_supply_output", "Power supply output in watts", nil, []string{"memberId", "sparePartNumber"}),
+			"supplyStatus":        newServerMetric("dl380_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"memberId", "sparePartNumber"}),
+			"supplyTotalConsumed": newServerMetric("dl380_power_supply_total_consumed", "Total output of all power supplies in watts", nil, []string{"memberId"}),
+			"supplyTotalCapacity": newServerMetric("dl380_power_supply_total_capacity", "Total output capacity of all the power supplies", nil, []string{"memberId"}),
+		}
+		//TODO: Ensure casing of vars passed in the string are valid
+		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
+		NVMeDriveMetrics = &metrics{
+			"nvmeDriveStatus": newServerMetric("dl380_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"nvmeDriveStatus"}), // StatusNVMe values?
+		}
+		//TODO: Ensure casing of vars passed in the string are valid
+		DiskDriveMetrics = &metrics{
+			"diskDriveStatus": newServerMetric("dl380_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD", nil, []string{"diskDriveStatus"}), // DiskDriveStatus values?
+		}
+		//TODO: Ensure casing of vars passed in the string are valid
+		LogicalDriveMetrics = &metrics{
+			"logicalDriveStatus": newServerMetric("dl380_logical_drive_status", "Current Logical Drive Status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}), // LogicalDriveMetrics values?
+		}
+
+		//  DriveMetrics = &metrics{
+		// 	 "logicalDriveStatus": newServerMetric("dl380_logical_drive_status", "Current logical drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}),
+		//  }
+
+		MemoryMetrics = &metrics{
+			"memoryStatus": newServerMetric("dl380_memory_status", "Current memory status 1 = OK, 0 = BAD", nil, []string{"totalSystemMemoryGiB"}),
+		}
+
+		Metrics = &map[string]*metrics{
+			"thermalMetrics":      ThermalMetrics,
+			"powerMetrics":        PowerMetrics,
+			"nvmeMetrics":         NVMeDriveMetrics,
+			"diskDriveMetrics":    DiskDriveMetrics,
+			"logicalDriveMetrics": LogicalDriveMetrics,
+			//"driveMetrics":   DriveMetrics,
+			"memoryMetrics": MemoryMetrics,
+		}
+	)
+
+	return Metrics
+}
