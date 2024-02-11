@@ -77,6 +77,92 @@ type AaaLogoutPayload struct {
 // output is a [] of fetch returns
 //
 
+func FetchIterate(uri, metricType, host string, client *retryablehttp.Client) func() ([]byte, string, error) {
+	var resp *http.Response
+	var credential *Credential
+	var err error
+	retryCount := 0
+	endpoints := []string{uri} // Store the initial endpoint
+	output := [][]byte{}       // Output list of fetch returns
+
+	return func() ([]byte, string, error) {
+		// Add a 100 milliseconds delay in between requests because cisco devices respond in a non idiomatic manner
+		time.Sleep(100 * time.Millisecond)
+
+		// Check if there are any endpoints left to iterate through
+		if len(endpoints) == 0 {
+			if len(output) == 0 {
+				return nil, metricType, fmt.Errorf("no more endpoints to iterate through")
+			}
+			return output[0], metricType, nil
+		}
+
+		// Get the next endpoint from the list
+		nextEndpoint := endpoints[0]
+		endpoints = endpoints[1:]
+
+		req := BuildRequest(nextEndpoint, host)
+		resp, err = DoRequest(client, req)
+		if err != nil {
+			return nil, metricType, err
+		}
+		defer resp.Body.Close()
+		if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+			if resp.StatusCode == http.StatusNotFound {
+				for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+					time.Sleep(client.RetryWaitMin)
+					resp, err = DoRequest(client, req)
+					retryCount = retryCount + 1
+				}
+				if err != nil {
+					return nil, metricType, err
+				} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+					return nil, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
+				}
+			} else if resp.StatusCode == http.StatusUnauthorized {
+				// Credentials may have rotated, go to vault and get the latest
+				credential, err = ChassisCreds.GetCredentials(context.Background(), host)
+				if err != nil {
+					return nil, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
+				}
+				ChassisCreds.Set(host, credential)
+
+				// build new request with updated credentials
+				req = BuildRequest(nextEndpoint, host)
+
+				time.Sleep(client.RetryWaitMin)
+				resp, err = DoRequest(client, req)
+				if err != nil {
+					return nil, metricType, fmt.Errorf("Retry DoRequest failed - " + err.Error())
+				}
+				if resp.StatusCode == http.StatusUnauthorized {
+					return nil, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
+				}
+			} else {
+				return nil, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, metricType, fmt.Errorf("Error reading Response Body - " + err.Error())
+		}
+
+		// Parse the body to extract any additional endpoints
+		var endpointsFromResponse []string
+		// TODO: Parse the body to extract the endpoints and store them in the endpointsFromResponse slice
+
+		// Append the new endpoints to the existing list
+		endpoints = append(endpoints, endpointsFromResponse...)
+
+		// Add the body to the output list
+		output = append(output, body)
+
+		// Recursively call the FetchIterate function to iterate through the remaining endpoints
+		return FetchIterate(endpoints[0], metricType, host, client)()
+	}
+}
+
 func Fetch(uri, metricType, host string, client *retryablehttp.Client) func() ([]byte, string, error) {
 	var resp *http.Response
 	var credential *Credential
