@@ -40,6 +40,7 @@ import (
 	"github.com/comcast/fishymetrics/config"
 	"github.com/comcast/fishymetrics/hpe/dl20"
 	"github.com/comcast/fishymetrics/hpe/dl360"
+	"github.com/comcast/fishymetrics/hpe/dl380"
 	"github.com/comcast/fishymetrics/hpe/moonshot"
 	"github.com/comcast/fishymetrics/logger"
 	"github.com/comcast/fishymetrics/middleware/muxprom"
