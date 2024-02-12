@@ -107,3 +107,11 @@ type DiskDriveStatus struct {
 	Health string `json:"Health"`
 	State  string `json:"State"`
 }
+
+// Collection returns an array of the endpoints from the /ArrayControllers endpoint
+type Collection struct {
+	Members []struct {
+		URL string `json:"@odata.id"`
+	} `json:"Members"`
+	MembersCount int `json:"Members@odata.count"`
+}
