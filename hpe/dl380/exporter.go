@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -84,6 +84,8 @@ type Exporter struct {
 func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	var fqdn *url.URL
 	var tasks []*pool.Task
+	// controller is used when looping through ArrayControllers endpoint and appended to the endpoint for further looping
+	var controller string
 
 	log = zap.L()
 
@@ -125,6 +127,18 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 			Host:   target,
 		}
 	}
+
+	// ArrayControllers endpoint used for DiskDrives and LogicalDrives scrapes
+	arrayControllersEndpoints, err := getArrayControllerEndpoint(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", target, retryClient)
+	if err != nil {
+		log.Error("error when getting array controllers endpoint from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
+	if len(arrayControllersEndpoints.Members) > 0 {
+		controller = arrayControllersEndpoints.Links.
+	}
+
 	// TODO: iterate through ArrayControllers:
 	// List of everything passed to each common.Fetch: e.g.: (fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, retryClient)
 	// For each item in list, parse with new common.FetchIterate, returning a list of every endpoint needed
@@ -147,7 +161,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, retryClient)))
 
 	// Loop through Members in ArrayControllers. Further loop through each of those to find anything in the /LogicalDrives or /DiskDrives enpoints
-	for _, ac := range arrayControllers.Members {
+	for _, controller := range ac.Members {
 		tasks = append(tasks,
 			pool.NewTask(common.Fetch(fqdn.String()+uri+"/", DISKDRIVE, target, retryClient)))
 	}
@@ -253,9 +267,6 @@ func (e *Exporter) scrape() {
 			err = e.exportThermalMetrics(task.Body)
 		case POWER:
 			err = e.exportPowerMetrics(task.Body)
-		// TODO: does the DRIVE case need to be split into NVME, DDRIVE, LDRIVE?
-		// case DRIVE:
-		// 	err = e.exportDriveMetrics(task.Body)
 		case NVME:
 			err = e.exportNVMeDriveMetrics(task.Body)
 		case DISKDRIVE:
@@ -423,7 +434,7 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	var dlDrive = (*e.deviceMetrics)["logicalDriveMetrics"]
 	err := json.Unmarshal(body, &dld)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 DriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling DL380 logicalDriveMetrics - " + err.Error())
 	}
 	// Check logical drive is enabled then check status and convert string to numeric values
 	if dld.Status.State == "Enabled" {
@@ -467,6 +478,7 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	return nil
 }
 
+// getArrayControllerEndpoint collects the DL380 ArrayController members and adds them to the Collection for further looping
 func getArrayControllerEndpoint(url, host string, client *retryablehttp.Client) (Collection, error) {
 	var ac Collection
 	var resp *http.Response
@@ -495,9 +507,9 @@ func getArrayControllerEndpoint(url, host string, client *retryablehttp.Client) 
 			return ac, fmt.Errorf("Http status %d", resp.StatusCode)
 		}
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return ac, fmt.Errorf("Error reading Response Body - ", + err.Error())
+		return ac, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
 
 	err = json.Unmarshal(body, &ac)
@@ -508,3 +520,34 @@ func getArrayControllerEndpoint(url, host string, client *retryablehttp.Client) 
 	return ac, nil
 
 }
+
+// arrayControllerIterate loops through members in the arrayController, iterates through the "Links" of each,
+// and exports the metrics if found in LogicalDrives or PhysicalDrives endpoints.
+
+func (e *Exporter) arrayControllerIterate(ac Collection) {
+	for _, member := range ac.Members {
+		for _, link := range member.Links {
+			if link.Rel == "LogicalDrives" {
+				logicalDrives, err := getLogicalDrivesEndpoint(link.Href, e.host, e.pool.Client)
+				if err != nil {
+					log.Error("Error getting LogicalDrives endpoint", zap.Error(err))
+					continue
+				}
+				e.exportLogicalDriveMetrics(logicalDrives)
+
+			} else if link.Rel == "PhysicalDrives" {
+				physicalDrives, err := getPhysicalDrivesEndpoint(link.Href, e.host, e.pool.Client)
+				if err != nil {
+					log.Error("Error getting PhysicalDrives endpoint", zap.Error(err))
+					continue
+				}
+				e.exportPhysicalDriveMetrics(physicalDrives)
+			}
+		}
+	}
+}
+
+// TODO write getLogicalDrivesEndpoint function
+
+
+// TODO write getPhysicalDrivesEndpoint function
