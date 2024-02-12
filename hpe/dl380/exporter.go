@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -135,14 +136,21 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power", POWER, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"Chassis/1", NVME, target, retryClient)),
+		//
 		// if a logical drive, it will be in ArrayControllers/x/ -> Links -> DiskDrives/x/
 		// example: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/0/
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", DISKDRIVE, target, retryClient)),
 		// if a logical drive, it will be in ArrayControllers/x/ -> Links -> LogicalDrives/x/
-		// example: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/3/LogicalDrives/1/
-		// pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1", DRIVE, target, retryClient)),
+		// example: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/3/DiskDrives/1/
+		//
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", LOGICALDRIVE, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, retryClient)))
+
+	// Loop through Members in ArrayControllers. Further loop through each of those to find anything in the /LogicalDrives or /DiskDrives enpoints
+	for _, ac := range arrayControllers.Members {
+		tasks = append(tasks,
+			pool.NewTask(common.Fetch(fqdn.String()+uri+"/", DISKDRIVE, target, retryClient)))
+	}
 
 	// tasks need to be refactored, so that tasks will need to be iterated over
 	// TODO:
@@ -457,4 +465,46 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	(*dlMemory)["memoryStatus"].WithLabelValues(strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
 
 	return nil
+}
+
+func getArrayControllerEndpoint(url, host string, client *retryablehttp.Client) (Collection, error) {
+	var ac Collection
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return ac, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return ac, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return ac, fmt.Errorf("Http status %d", resp.StatusCode)
+			}
+		} else {
+			return ac, fmt.Errorf("Http status %d", resp.StatusCode)
+		}
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return ac, fmt.Errorf("Error reading Response Body - ", + err.Error())
+	}
+
+	err = json.Unmarshal(body, &ac)
+	if err != nil {
+		return ac, fmt.Errorf("Error Unmarshalling HPE DL380 ArrayController struct - " + err.Error())
+	}
+
+	return ac, nil
+
 }
