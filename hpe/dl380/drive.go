@@ -57,15 +57,6 @@ type nvmeDriveStatus struct {
 	State  string `json:"State"`
 }
 
-// Smart Array Drives
-// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/
-// Loop through "Members" [] for each Array controller
-//    Example Member: "@odata.id": "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/0/"
-//	  Check at the ArrayController Member level to see if there is anything in "Links":"LogicalDrives" -> If so, this is where the LOGICAL DRIVE info can be found, else, continue on to "DiskDrives"
-//    If a member is present in /redfish/v1/Systems/1/SmartStorage/ArrayControllers/<member>/LogicalDrives/ , LOOP through the "Members" list and follow that data link
-//			Example Memeber: "@odata.id": "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/3/LogicalDrives/1/"
-
-// (only iterate through this if the member count of is > 0.)
 // Logical Drives
 // TODO: Make sure Status maps to Health string in LogicalDriveStatus
 type LogicalDriveMetrics struct {
@@ -108,27 +99,58 @@ type DiskDriveStatus struct {
 	State  string `json:"State"`
 }
 
+// ArrayController
+type ArrayController struct {
+	Members      Members `json:"Members"`
+	MembersCount int     `json:"@odata.count"`
+}
+
+// ArrayController Members
+type Members struct {
+	URL string `json:"@odata.id"`
+}
+
+type Controller struct {
+	Links Links `json:"Links"`
+}
+
+// ArrayController LinksInMembers
+type LinksInMembers struct {
+	Links Links `json:"Links"`
+}
+
+// ArrayController Links
+type Links struct {
+	LogicalDrives driveURL `json:"LogicalDrives"`
+	DiskDrives    driveURL `json:"DiskDrives"`
+}
+
+// URL string from within Logical Drives or Disk Drives
+type driveURL struct {
+	URL string `json:"@odata.id"`
+}
+
+// // Main ArrayController JSON object
+
+// type ArrayControllerObject struct {
+// 	Links Links  `json:"Links"`
+// 	Model string `json:"Model"`
+// }
+
+// // Main ArrayController JSON object Links
+// type Links struct {
+// 	LogicalDrives struct {
+// 		URL string `json:"@odata.id"`
+// 	}
+// 	PhysicalDrives struct {
+// 		URL string `json:"@odata.id"`
+// 	}
+// }
+
 // Collection returns an array of the endpoints from the /ArrayControllers endpoint
 type Collection struct {
 	Members []struct {
 		URL string `json:"@odata.id"`
 	} `json:"Members"`
 	MembersCount int `json:"Members@odata.count"`
-}
-
-// Main ArrayController JSON object
-
-type ArrayControllerObject struct {
-	Links Links  `json:"Links"`
-	Model string `json:"Model"`
-}
-
-// Main ArrayController JSON object Links
-type Links struct {
-	LogicalDrives struct {
-		URL string `json:"@odata.id"`
-	}
-	PhysicalDrives struct {
-		URL string `json:"@odata.id"`
-	}
 }
