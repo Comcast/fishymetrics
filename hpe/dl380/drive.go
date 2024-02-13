@@ -115,3 +115,20 @@ type Collection struct {
 	} `json:"Members"`
 	MembersCount int `json:"Members@odata.count"`
 }
+
+// Main ArrayController JSON object
+
+type ArrayControllerObject struct {
+	Links Links  `json:"Links"`
+	Model string `json:"Model"`
+}
+
+// Main ArrayController JSON object Links
+type Links struct {
+	LogicalDrives struct {
+		URL string `json:"@odata.id"`
+	}
+	PhysicalDrives struct {
+		URL string `json:"@odata.id"`
+	}
+}
