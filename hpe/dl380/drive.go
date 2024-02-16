@@ -77,6 +77,11 @@ type LogicalDriveStatus struct {
 	State  string `json:"Enabled"`
 }
 
+type GenericDrive struct {
+	Members Members `json:"Members,omitempty"`
+	Links   Links   `json:"Links,omitempty"`
+}
+
 // Disk Drives
 type DiskDriveMetrics struct {
 	Id            string          `json:"Id"`
@@ -96,7 +101,7 @@ type DiskDriveStatus struct {
 	State  string `json:"State"`
 }
 
-// ArrayController: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/  (1)
+// ArrayController: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/  (1) like chas Collection
 type ArrayController struct {
 	Members      Members `json:"Members"`
 	MembersCount int     `json:"@odata.count"`
