@@ -58,7 +58,6 @@ type nvmeDriveStatus struct {
 }
 
 // Logical Drives
-// TODO: Make sure Status maps to Health string in LogicalDriveStatus
 type LogicalDriveMetrics struct {
 	Id                 string             `json:"Id"`
 	CapacityMiB        int                `json:"CapacityMiB"`
@@ -78,9 +77,7 @@ type LogicalDriveStatus struct {
 	State  string `json:"Enabled"`
 }
 
-// (Always iterate through this /DiskDrives)
 // Disk Drives
-// TODO: Make sure Status maps to Health string in DiskDriveStatus
 type DiskDriveMetrics struct {
 	Id            string          `json:"Id"`
 	CapacityMiB   int             `json:"CapacityMiB"`
@@ -99,13 +96,13 @@ type DiskDriveStatus struct {
 	State  string `json:"State"`
 }
 
-// ArrayController
+// ArrayController: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/  (1)
 type ArrayController struct {
 	Members      Members `json:"Members"`
 	MembersCount int     `json:"@odata.count"`
 }
 
-// ArrayController Members
+// ArrayController Members (2)
 type Members struct {
 	URL string `json:"@odata.id"`
 }
@@ -114,12 +111,12 @@ type Controller struct {
 	Links Links `json:"Links"`
 }
 
-// ArrayController LinksInMembers
+// ArrayController LinksInMembers (3) /redfish/v1/Systems/1/SmartStorage/ArrayControllers/{member}/
 type LinksInMembers struct {
 	Links Links `json:"Links"`
 }
 
-// ArrayController Links
+// ArrayController Links (4)
 type Links struct {
 	LogicalDrives driveURL `json:"LogicalDrives"`
 	DiskDrives    driveURL `json:"DiskDrives"`
@@ -130,27 +127,10 @@ type driveURL struct {
 	URL string `json:"@odata.id"`
 }
 
-// // Main ArrayController JSON object
-
-// type ArrayControllerObject struct {
-// 	Links Links  `json:"Links"`
-// 	Model string `json:"Model"`
-// }
-
-// // Main ArrayController JSON object Links
-// type Links struct {
-// 	LogicalDrives struct {
+// // Collection returns an array of the endpoints from the /ArrayControllers endpoint
+// type Collection struct {
+// 	Members []struct {
 // 		URL string `json:"@odata.id"`
-// 	}
-// 	PhysicalDrives struct {
-// 		URL string `json:"@odata.id"`
-// 	}
+// 	} `json:"Members"`
+// 	MembersCount int `json:"Members@odata.count"`
 // }
-
-// Collection returns an array of the endpoints from the /ArrayControllers endpoint
-type Collection struct {
-	Members []struct {
-		URL string `json:"@odata.id"`
-	} `json:"Members"`
-	MembersCount int `json:"Members@odata.count"`
-}
