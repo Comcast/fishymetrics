@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -126,21 +127,43 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		}
 	}
 
-	// ArrayControllers endpoint array for disk discovery
-	// ac, err := getArrayControllerEndpoint(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", target, retryClient)
-	// if err != nil {
-	// 	log.Error("error when getting ArrayControllers endpoint from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("TraceID")))
-	// }
+	// TODO: work on while loop - endpoints should be gathered recursively
+	//		logic should be applied to sort out the logical from the physical drives based on members & links
+	// Get logical and physical drive endpoints
+	//
+	// variables for use in drive endpoint while loop
+	done := false
+	initialParameter := fqdn.String() + uri + "/Systems/1/SmartStorage/ArrayControllers/"
+	parameter := initialParameter
+	outputs := []string{initialParameter}
+	// While loop to append all of the possible logical drive endpoints to the tasks pool
+	for !done {
 
-	// TODO: Add getArrayMetricsEndpoint func here to recursively call drive endpoints before task pool executes
+		output := getDriveEndpoint(url)
+		outputs = append(outputs, output)
+
+		// TODO: Add getArrayMetricsEndpoint func here to recursively call drive endpoints before task pool executes
+		arrayMetricsEndpoint, err := getArrayMetricsEndpoint(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/", target, retryClient)
+		if err != nil {
+			log.Error("error when getting ArrayControllers endpoint from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
+		}
+
+		if output == "done" {
+			done = true
+		} else {
+			parameter = output
+			//fmt.Printf("setting parameter to %s\n", output)
+		}
+	}
 
 	// Tasks for pool to perform
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power", POWER, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"Chassis/1", NVME, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", DISKDRIVE, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", LOGICALDRIVE, target, retryClient)),
+		//pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", DISKDRIVE, target, retryClient)),
+		//pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", LOGICALDRIVE, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, retryClient)))
 
 	// // DRIVES
@@ -408,4 +431,88 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	(*dlMemory)["memoryStatus"].WithLabelValues(strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
 
 	return nil
+}
+
+// getArrayMetricsEndpoint that gets the initial json response to loop through.
+func getArrayMetricsEndpoint(endpoint, host string, client *retryablehttp.Client) (ArrayController, error) {
+	var ac ArrayController
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(endpoint, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return ac, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return ac, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return ac, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else {
+			return ac, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return ac, fmt.Errorf("Error reading response body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &ac)
+	if err != nil {
+		return ac, fmt.Errorf("Error Unmarshalling DL380 ArrayController struct - " + err.Error())
+	}
+
+	return ac, nil
+}
+
+func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDrive, error) {
+	var drive GenericDrive
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return drive, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return drive, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return drive, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else {
+			return drive, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return drive, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &drive)
+	if err != nil {
+		return drive, fmt.Errorf("Error Unmarshalling S3260M5 Chassis struct - " + err.Error())
+	}
+
+	return drive, nil
 }
