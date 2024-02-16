@@ -146,13 +146,6 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 		return nil, err
 	}
 
-	// chassis serial number
-	chassisSN, err := getChassisSerialNumber(fqdn.String()+uri+"/Chassis/CMC", target, retryClient)
-	if err != nil {
-		log.Error("error when getting chassis serial number from "+S3260M5, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil, err
-	}
-
 	// DIMM endpoints array
 	dimms, err := getDIMMEndpoints(fqdn.String()+mgr+"/Memory", target, retryClient)
 	if err != nil {
@@ -167,6 +160,13 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 		return nil, err
 	}
 
+	// chassis serial number
+	chassisSN, err := getChassisSerialNumber(fqdn.String()+chass.Members[0].URL, target, retryClient)
+	if err != nil {
+		log.Error("error when getting chassis serial number from "+S3260M5, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
 	serial := path.Base(mgr)
 
 	tasks = append(tasks,
@@ -175,8 +175,16 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 	for _, ch := range chass.Members {
 		tasks = append(tasks,
 			pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Thermal", THERMAL, target, retryClient)),
-			pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, retryClient)),
 		)
+		if strings.Contains(mgrEndpoints.FirmwareVersion, "4.2") && !strings.Contains(ch.URL, "Server1") {
+			tasks = append(tasks,
+				pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, retryClient)),
+			)
+		} else if !strings.Contains(mgrEndpoints.FirmwareVersion, "4.2") {
+			tasks = append(tasks,
+				pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, retryClient)),
+			)
+		}
 	}
 
 	tasks = append(tasks,
@@ -442,7 +450,9 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	}
 
 	if mm.Status.State != "" {
-		if mm.Status.State == "Enabled" && mm.Status.Health == "OK" {
+		if mm.Status.State == "Absent" {
+			return nil
+		} else if mm.Status.State == "Enabled" && mm.Status.Health == "OK" {
 			state = OK
 		} else {
 			state = BAD
