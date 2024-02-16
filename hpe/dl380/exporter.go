@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -128,10 +127,12 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	}
 
 	// ArrayControllers endpoint array for disk discovery
-	ac, err := getArrayControllerEndpoint(fqdn.String()+uri+"/SmartStorage/ArrayControllers", target, retryClient)
-	if err != nil {
-		log.Error("error when getting ArrayControllers endpoint from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("TraceID")))
-	}
+	// ac, err := getArrayControllerEndpoint(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", target, retryClient)
+	// if err != nil {
+	// 	log.Error("error when getting ArrayControllers endpoint from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("TraceID")))
+	// }
+
+	// TODO: Add getArrayMetricsEndpoint func here to recursively call drive endpoints before task pool executes
 
 	// Tasks for pool to perform
 	tasks = append(tasks,
@@ -142,12 +143,12 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", LOGICALDRIVE, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, retryClient)))
 
-	// DRIVES
-	// Loop through Members in ArrayControllers using the URL from the ArrayControllers endpoint
-	for _, controller := range ac.Members {
-		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+controller.URL, ARRAYCONTROLLER, target, retryClient)))
-	}
+	// // DRIVES
+	// // Loop through Members in ArrayControllers using the URL from the ArrayControllers endpoint
+	// for _, controller := range ac.Members {
+	// 	tasks = append(tasks,
+	// 		pool.NewTask(common.Fetch(fqdn.String()+controller.URL, ARRAYCONTROLLER, target, retryClient)))
+	// }
 
 	// Prepare the pool of tasks
 	p := pool.NewPool(tasks, 1)
@@ -251,7 +252,7 @@ func (e *Exporter) scrape() {
 		case NVME:
 			err = e.exportNVMeDriveMetrics(task.Body)
 		case DISKDRIVE:
-			err = e.exportDiskDriveMetrics(task.Body)
+			err = e.exportPhysicalDriveMetrics(task.Body)
 		case LOGICALDRIVE:
 			err = e.exportLogicalDriveMetrics(task.Body)
 		case MEMORY:
@@ -276,7 +277,18 @@ func (e *Exporter) scrape() {
 
 }
 
-// TODO: Modify the below PowerMetrics to fit the DL380 data
+// TODO: Fill out this export function
+// exportPhysicalDriveMetrics collects the DL380's physical drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
+	return nil
+}
+
+// TODO: Fill out this export function
+// exportPhysicalDriveMetrics collects the DL380's physical drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
+	return nil
+}
+
 // exportPowerMetrics collects the DL380's power metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 
@@ -376,68 +388,6 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	return nil
 }
 
-// TODO: Make this work with new logic
-// exportDriveMetrics collects the DL380 drive metrics in json format and sets the prometheus gauges
-func (e *Exporter) exportDiskDriveMetrics(body []byte) error {
-
-	var state float64
-	var dd DiskDriveMetrics
-	var dDrive = (*e.deviceMetrics)["diskDriveMetrics"]
-	err := json.Unmarshal(body, &dd)
-	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 DiskDriveMetrics - " + err.Error())
-	}
-
-	// Check disk drive is enabled then check status and convert string to numeric values
-	if dd.Status.State == "Enabled" {
-		if dd.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
-		}
-	} else {
-		state = DISABLED
-	}
-
-	// Check "disk drive" if it is actually a logical drive
-	if dd.LogicalDriveName == "" {
-		// if drive is actually a logical drive, then skip it, otherwise, add metrics.
-		(*dDrive)["diskDriveStatus"].WithLabelValues(dd.Name, strconv.Itoa(dd.CapacityMiB)).Set(state)
-	}
-
-	return nil
-}
-
-// exportDriveMetrics collects the DL380 logicaldrive metrics in json format and sets the prometheus gauges
-func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
-
-	var state float64
-	var dld LogicalDriveMetrics
-	var dlDrive = (*e.deviceMetrics)["logicalDriveMetrics"]
-	err := json.Unmarshal(body, &dld)
-	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 logicalDriveMetrics - " + err.Error())
-	}
-	// Check logical drive is enabled then check status and convert string to numeric values
-	if dld.Status.State == "Enabled" {
-		if dld.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
-		}
-	} else {
-		state = DISABLED
-	}
-	// Check if drive is actually a logical drive
-	if dld.LogicalDriveName != "" {
-		// if drive is actually a logical drive, then add metrics.
-		(*dlDrive)["logicalDriveStatus"].WithLabelValues(dld.Name, strconv.Itoa(dld.LogicalDriveNumber), dld.Raid).Set(state)
-	}
-
-	return nil
-}
-
-// TODO: Modify the below MemoryMetrics to fit the DL380 data
 // exportMemoryMetrics collects the DL380 drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportMemoryMetrics(body []byte) error {
 
@@ -458,117 +408,4 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	(*dlMemory)["memoryStatus"].WithLabelValues(strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
 
 	return nil
-}
-
-// getArrayControllerEndpoint collects the DL380 ArrayController members and adds them to the Collection for further looping
-func getArrayControllerEndpoint(url, host string, client *retryablehttp.Client) (Collection, error) {
-	var ac Collection
-	var resp *http.Response
-	var err error
-	retryCount := 0
-	req := common.BuildRequest(url, host)
-
-	resp, err = common.DoRequest(client, req)
-	if err != nil {
-		return ac, err
-	}
-	defer resp.Body.Close()
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
-				time.Sleep(client.RetryWaitMin)
-				resp, err = common.DoRequest(client, req)
-				retryCount = retryCount + 1
-			}
-			if err != nil {
-				return ac, err
-			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-				return ac, fmt.Errorf("Http status %d", resp.StatusCode)
-			}
-		} else {
-			return ac, fmt.Errorf("Http status %d", resp.StatusCode)
-		}
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return ac, fmt.Errorf("Error reading Response Body - " + err.Error())
-	}
-
-	err = json.Unmarshal(body, &ac)
-	if err != nil {
-		return ac, fmt.Errorf("Error Unmarshalling HPE DL380 ArrayController struct - " + err.Error())
-	}
-
-	return ac, nil
-
-}
-
-// arrayControllerIterate loops through members in the arrayController, iterates through the "Links" of each,
-// and exports the metrics if found in LogicalDrives or PhysicalDrives endpoints.
-// func (e *Exporter) arrayControllerIterate(body []byte) error {
-// 	var ac Collection
-// 	var driveMemberData ArrayControllerObject
-// 	var dlLogicalDrive = (*e.deviceMetrics)["logicalDriveMetrics"]
-// 	var dlDiskDrive = (*e.deviceMetrics)["diskDriveMetrics"]
-// 	for _, member := range ac.Members {
-// 		// make an additional call and get the json from the URL for the member
-// 		driveMemberData, err := e.getDriveMemberData(member.URL)
-// 		if err != nil {
-// 			log.Error("Error getting member data", zap.Error(err))
-// 			continue
-// 		}
-// 		// make an additional call and get the json from the URL listed in Links/LogicalDrives for the individual member.
-// 		for _, member := range driveMemberData {
-// 			url := member.driveMemberData.Links.LogicalDrives.URL
-// 			// should the syntax be this?
-// 			//link := member.Links.LogicalDrives.URL
-
-// 			// Get the link to the Logical Drive
-// 			logicalDrivesData, err := e.getLogicalDrives(url) // TODO fix this too many arguments
-
-// 			// Process the Logical Drive Data into the LogicalDriveMetrics struct
-// 			for _, drive := range logicalDrivesData {
-
-// 				dlLogicalDrive, err := e.processLogicalDriveData()
-// 			}
-
-// 			if err != nil {
-// 				log.Error("Error getting LogicalDrives endpoint", zap.Error(err))
-// 				continue
-// 			}
-
-// 		}
-// 		// make an additional call and get the json from the URL listed in Links/PhysicalDrives
-// 		for _, member := range driveMemberData {
-// 			link := member.driveMemberData.Links.PhysicalDrives.URL
-// 			// should the syntax be this?
-// 			//link := member.Links.PhysicalDrives.URL
-// 			physicalDrivesData, err := e.getPhysicalDrives(link, e.host, e.pool.Client) // TODO fix this too many arguments
-// 			if err != nil {
-// 				log.Error("Error getting PhysicalDrives endpoint", zap.Error(err))
-// 				continue
-// 			}
-// 		}
-
-// 	}
-// }
-
-// TODO process the logicalDrivesData
-// if "Members@odata.count" == 0: no logical drives, check next endpoint.
-// if "Members@odata.count" > 0: logical drives exist.
-//          loop through Members, and grab the URL from @odata.id
-//          from here, you can grab all the metrics found in LogicalDriveMetrics struct.
-
-func processLogicalDriveData() ([]byte, error) {
-	// TODO process the logicalDrivesData
-}
-
-// TODO process the physicalDrivesData
-// if "Members@odata.count" == 0: no physical drives, check next endpoint.
-// if "Members@odata.count" > 0: physical Disk Drives exist.
-//          loop through Members, and grab the URL from @odata.id
-//          from here, you can grab all the metrics found in DiskDriveMetrics struct.
-
-func processPhysicalDriveData() {
-	// TODO process the physicalDrivesData
 }
