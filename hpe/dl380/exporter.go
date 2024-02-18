@@ -127,51 +127,52 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		}
 	}
 
-	// TODO: work on while loop - endpoints should be gathered recursively
-	//		logic should be applied to sort out the logical from the physical drives based on members & links
-	// Get logical and physical drive endpoints
-	//
-	// variables for use in drive endpoint while loop
-	done := false
-	initialParameter := fqdn.String() + uri + "/Systems/1/SmartStorage/ArrayControllers/"
-	parameter := initialParameter
-	outputs := []string{initialParameter}
-	// While loop to append all of the possible logical drive endpoints to the tasks pool
-	for !done {
+	// Recursively parsing through drive endpoints until final endpoints are found
+	var (
+		initialURL        = (fqdn.String() + uri + "/Systems/1/SmartStorage/ArrayControllers") // TODO: check this correctly parses into a full URL
+		url               = initialURL
+		logicalDriveURLs  []string
+		physicalDriveURLs []string
+	)
 
+	for {
 		output := getDriveEndpoint(url)
-		outputs = append(outputs, output)
-
-		// TODO: Add getArrayMetricsEndpoint func here to recursively call drive endpoints before task pool executes
-		arrayMetricsEndpoint, err := getArrayMetricsEndpoint(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/", target, retryClient)
-		if err != nil {
-			log.Error("error when getting ArrayControllers endpoint from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-			return nil, err
-		}
-
-		if output == "done" {
-			done = true
+		if len(output.Members) > 0 {
+			for _, member := range output.Members {
+				newOutput := getDriveEndpoint(member.URL)
+				if newOutput.Links.URL != "" {
+					logicalDriveOutput := getDriveEndpoint(newOutput.Links.URL)
+					if len(logicalDriveOutput.Members) > 0 {
+						for _, member := range logicalDriveOutput.Members {
+							logicalDriveURLs = append(logicalDriveURLs, member.URL)
+						}
+					}
+				} else if newOutput.Links.URL != "" {
+					physicalDriveOutput := getDriveEndpoint(newOutput.Links.URL)
+					if len(physicalDriveOutput.Members) > 0 {
+						for _, member := range physicalDriveOutput.Members {
+							physicalDriveURLs = append(physicalDriveURLs, member.URL)
+						}
+					}
+				}
+			}
 		} else {
-			parameter = output
-			//fmt.Printf("setting parameter to %s\n", output)
+			break
 		}
 	}
+
+	// TODO: Append each of those URLS in LogicalDriveURLs array to the tasks pool with the const LOGICALDRIVE,
+	// TODO: Append each of those URLS in the PhysicalDriveURLs array to the tasks pool with the const DISKDRIVE
+	// TODO: Further parse the chassis/1 to get the NVME metrics before adding it to the tasks pool (similar to above.)
 
 	// Tasks for pool to perform
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power", POWER, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"Chassis/1", NVME, target, retryClient)),
-		//pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", DISKDRIVE, target, retryClient)),
-		//pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", LOGICALDRIVE, target, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"Chassis/1", NVME, target, retryClient)), // TODO: Logic needs to change here similar to above
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", DISKDRIVE, target, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", LOGICALDRIVE, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, retryClient)))
-
-	// // DRIVES
-	// // Loop through Members in ArrayControllers using the URL from the ArrayControllers endpoint
-	// for _, controller := range ac.Members {
-	// 	tasks = append(tasks,
-	// 		pool.NewTask(common.Fetch(fqdn.String()+controller.URL, ARRAYCONTROLLER, target, retryClient)))
-	// }
 
 	// Prepare the pool of tasks
 	p := pool.NewPool(tasks, 1)
@@ -511,7 +512,7 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDr
 
 	err = json.Unmarshal(body, &drive)
 	if err != nil {
-		return drive, fmt.Errorf("Error Unmarshalling S3260M5 Chassis struct - " + err.Error())
+		return drive, fmt.Errorf("Error Unmarshalling DL380 drive struct - " + err.Error())
 	}
 
 	return drive, nil
