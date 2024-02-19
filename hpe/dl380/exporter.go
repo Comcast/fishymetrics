@@ -138,7 +138,6 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// Get initial JSON return of /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ set to output
 	output, err := getDriveEndpoint(url, fqdn.String(), uri, target, retryClient)
 	// Loop through Members to get ArrayController URLs
-
 	if err != nil {
 		//return fmt.Errorf("error retrieving /ArrayControllers endpoint - %s", err.Error())
 		return nil
@@ -417,8 +416,7 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(dlnvme.Protocol, dlnvme.ID, dlnvme.Name).Set(state)
-
+	(*dlnvmedrive)["nvmeDriveMetrics"].WithLabelValues(dlnvme.Protocol, dlnvme.Id, dlnvme.Name).Set(state)
 	return nil
 }
 
@@ -523,7 +521,7 @@ func getDriveEndpoint(url, host string, fqdn, uri string, client *retryablehttp.
 	var err error
 	retryCount := 0
 	// build the url
-	full_url := (fqdn + uri + url)
+	full_url := ("https://" + fqdn + uri + url)
 	req := common.BuildRequest(full_url, host)
 	resp, err = common.DoRequest(client, req)
 	if err != nil {
