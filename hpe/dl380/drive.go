@@ -20,8 +20,6 @@ package dl380
 // /redfish/v1/chassis/1/
 
 // NVMeMetrics is the top level json object for DL380 NVMe Metrics Metadata
-// TODO: Ensure Physical Location maps to the ServiceLabel string within PartLocation
-// TODO: Ensure Status maps to the Health string within StatusNVMe
 type NVMeDriveMetrics struct {
 	ID               string          `json:"Id"`
 	Model            string          `json:"Model"`
@@ -91,8 +89,6 @@ type DiskDriveMetrics struct {
 	Name          string          `json:"Name"`
 	Model         string          `json:"Model"`
 	Status        DiskDriveStatus `json:"Status"`
-	// Check for logical drive, if disk drive, should return nothing.
-	LogicalDriveName string `json:"LogicalDriveName,omitempty"`
 }
 
 // Disk Drive Status
@@ -101,13 +97,13 @@ type DiskDriveStatus struct {
 	State  string `json:"State"`
 }
 
-// ArrayController: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/  (1) like chas Collection
+// ArrayController: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/
 type ArrayController struct {
 	Members      Members `json:"Members"`
 	MembersCount int     `json:"@odata.count"`
 }
 
-// ArrayController Members (2)
+// ArrayController Members
 type Members struct {
 	URL string `json:"@odata.id"`
 }
@@ -116,12 +112,7 @@ type Controller struct {
 	Links Links `json:"Links"`
 }
 
-// ArrayController LinksInMembers (3) /redfish/v1/Systems/1/SmartStorage/ArrayControllers/{member}/
-type LinksInMembers struct {
-	Links Links `json:"Links"`
-}
-
-// ArrayController Links (4)
+// ArrayController Links
 type Links struct {
 	LogicalDrives driveURL `json:"LogicalDrives"`
 	DiskDrives    driveURL `json:"DiskDrives"`
@@ -131,11 +122,3 @@ type Links struct {
 type driveURL struct {
 	URL string `json:"@odata.id"`
 }
-
-// // Collection returns an array of the endpoints from the /ArrayControllers endpoint
-// type Collection struct {
-// 	Members []struct {
-// 		URL string `json:"@odata.id"`
-// 	} `json:"Members"`
-// 	MembersCount int `json:"Members@odata.count"`
-// }
