@@ -75,9 +75,11 @@ type LogicalDriveStatus struct {
 	State  string `json:"Enabled"`
 }
 
+// GenericDrive is used to iterate over differing drive endpoints
 type GenericDrive struct {
-	Members Members `json:"Members,omitempty"`
-	Links   Links   `json:"Links,omitempty"`
+	Members      Members `json:"Members,omitempty"`
+	Links        Links   `json:"Links,omitempty"`
+	MembersCount int     `json:"@odata.count,omitempty"`
 }
 
 // Disk Drives
@@ -114,8 +116,9 @@ type Controller struct {
 
 // ArrayController Links
 type Links struct {
-	LogicalDrives driveURL `json:"LogicalDrives"`
-	DiskDrives    driveURL `json:"DiskDrives"`
+	LogicalDrives  driveURL `json:"LogicalDrives,omitempty"`
+	PhysicalDrives driveURL `json:"PhysicalDrives,omitempty"` // aka DiskDrives
+	Drives         driveURL `json:"Drives,omitempty"`         // used for chassis endpoint for NVME only
 }
 
 // URL string from within Logical Drives or Disk Drives
