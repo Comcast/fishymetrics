@@ -136,7 +136,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 
 	// PARSING DRIVE ENDPOINTS
 	// Get initial JSON return of /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ set to output
-	output, err := getDriveEndpoint(url, fqdn.String(), uri, target, retryClient)
+	output, err := getDriveEndpoint(fqdn.String()+uri+url, target, retryClient)
 	// Loop through Members to get ArrayController URLs
 	if err != nil {
 		//return fmt.Errorf("error retrieving /ArrayControllers endpoint - %s", err.Error())
@@ -146,7 +146,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	if output.MembersCount > 0 {
 		for _, member := range output.Members {
 			// for each ArrayController URL, get the JSON object
-			newOutput, err := getDriveEndpoint(member.URL, fqdn.String(), uri, target, retryClient)
+			newOutput, err := getDriveEndpoint(fqdn.String()+member.URL, target, retryClient)
 			if err != nil {
 				// TODO: error handle
 				continue
@@ -154,7 +154,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 
 			// If LogicalDrives is present, parse logical drive endpoint until all urls are found
 			if len(newOutput.Links.LogicalDrives.URL) > 0 {
-				logicalDriveOutput, err := getDriveEndpoint(newOutput.Links.LogicalDrives.URL, fqdn.String(), uri, target, retryClient)
+				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
 				if err != nil {
 					// TODO: error handle
 					continue
@@ -171,7 +171,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 
 			// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
 			if len(newOutput.Links.PhysicalDrives.URL) > 0 {
-				physicalDriveOutput, err := getDriveEndpoint(newOutput.Links.PhysicalDrives.URL, fqdn.String(), uri, target, retryClient)
+				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
 				if err != nil {
 					// TODO: error handle
 					continue
@@ -186,7 +186,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	}
 
 	// parse to find NVME drives
-	chassis_output, err := getDriveEndpoint(chassis_url, fqdn.String(), uri, target, retryClient)
+	chassis_output, err := getDriveEndpoint(fqdn.String()+uri+chassis_url, target, retryClient)
 	if err != nil {
 		// TODO: error handle
 		return nil
@@ -202,15 +202,15 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
 	for _, url := range logicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+uri+url, LOGICALDRIVE, target, retryClient)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, LOGICALDRIVE, target, retryClient)))
 	}
 
 	for _, url := range physicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+uri+url, DISKDRIVE, target, retryClient)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, DISKDRIVE, target, retryClient)))
 	}
 
 	for _, url := range nvmeDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+uri+url, NVME, target, retryClient)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, NVME, target, retryClient)))
 	}
 
 	// Additional tasks for pool to perform
@@ -416,7 +416,7 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dlnvmedrive)["nvmeDriveMetrics"].WithLabelValues(dlnvme.Protocol, dlnvme.Id, dlnvme.Name).Set(state)
+	(*dlnvmedrive)["nvmeDriveMetrics"].WithLabelValues(dlnvme.Protocol, dlnvme.ID, dlnvme.Name).Set(state)
 	return nil
 }
 
@@ -515,14 +515,14 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	return nil
 }
 
-func getDriveEndpoint(url, host string, fqdn, uri string, client *retryablehttp.Client) (GenericDrive, error) {
+func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDrive, error) {
 	var drive GenericDrive
 	var resp *http.Response
 	var err error
 	retryCount := 0
 	// build the url
-	full_url := ("https://" + fqdn + uri + url)
-	req := common.BuildRequest(full_url, host)
+	//full_url := ("https://" + fqdn + uri + url)
+	req := common.BuildRequest(url, host)
 	resp, err = common.DoRequest(client, req)
 	if err != nil {
 		return drive, err
