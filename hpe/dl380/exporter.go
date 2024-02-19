@@ -136,33 +136,52 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		physicalDriveURLs []string
 		nvmeDriveURLs     []string
 	)
-	// parse to find logical drives and physical disk drives
 
-		output, err := getDriveEndpoint(url, target, retryClient)
-		if len(output.Members) > 0 {
-			for _, member := range output.Members {
-				newOutput, err := getDriveEndpoint(member.URL, target, retryClient)
+	// PARSING DRIVE ENDPOINTS
+	// Get initial JSON return of /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ set to output
+	output, err := getDriveEndpoint(url, target, retryClient)
+	// Loop through Members to get ArrayController URLs
+	if output.MembersCount > 0 {
+		for _, member := range output.Members {
+			// for each ArrayController URL, get the JSON object
+			newOutput, err := getDriveEndpoint(member.URL, target, retryClient)
+			if err != nil {
+				// TODO: error handle
+				continue
+			}
 
-				// If LogicalDrives is present, parse logical drive endpoint until all urls are found
-				if newOutput.Links.LogicalDrives != nil {
-					logicalDriveOutput, err := getDriveEndpoint(newOutput.Links.LogicalDrives.URL, target, retryClient)
-					if len(logicalDriveOutput.Members) > 0 {
-						for _, member := range logicalDriveOutput.Members {
-							logicalDriveURLs = append(logicalDriveURLs, member.URL)
-						}
-					}
+			// If LogicalDrives is present, parse logical drive endpoint until all urls are found
+			if len(newOutput.Links.LogicalDrives.URL) > 0 {
+				logicalDriveOutput, err := getDriveEndpoint(newOutput.Links.LogicalDrives.URL, target, retryClient)
+				if err != nil {
+					// TODO: error handle
+					continue
 				}
 
-				// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
-				if newOutput.Links.PhysicalDrives != nil {
-					physicalDriveOutput, err := getDriveEndpoint(newOutput.Links.PhysicalDrives.URL, target, retryClient)
-					if len(physicalDriveOutput.Members) > 0 {
-						for _, member := range physicalDriveOutput.Members {
-							physicalDriveURLs = append(physicalDriveURLs, member.URL)
-						}
+				if logicalDriveOutput.MembersCount > 0 {
+					// loop through each Member in the "LogicalDrive" field
+					for _, member := range logicalDriveOutput.Members {
+						// append each URL in the Members array to the logicalDriveURLs array.
+						logicalDriveURLs = append(logicalDriveURLs, member.URL)
 					}
 				}
 			}
+
+			// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
+			if len(newOutput.Links.PhysicalDrives.URL) > 0 {
+				physicalDriveOutput, err := getDriveEndpoint(newOutput.Links.PhysicalDrives.URL, target, retryClient)
+				if err != nil {
+					// TODO: error handle
+					continue
+				}
+				if physicalDriveOutput.MembersCount > 0 {
+					for _, member := range physicalDriveOutput.Members {
+						physicalDriveURLs = append(physicalDriveURLs, member.URL)
+					}
+				}
+			}
+		}
+	}
 
 	// parse to find NVME drives
 	chassis_output, err := getDriveEndpoint(chassis_url, target, retryClient)
