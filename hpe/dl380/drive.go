@@ -77,9 +77,21 @@ type LogicalDriveStatus struct {
 
 // GenericDrive is used to iterate over differing drive endpoints
 type GenericDrive struct {
-	Members      Members `json:"Members,omitempty"`
-	Links        Links   `json:"Links,omitempty"`
-	MembersCount int     `json:"@odata.count,omitempty"`
+	Members []struct {
+		URL string `json:"@odata.id"`
+	} `json:"Members,omitempty"`
+	Links struct {
+		Drives []struct {
+			URL string `json:"@odata.id"`
+		} `json:"Drives,omitempty"`
+		LogicalDrives struct {
+			URL string `json:"@odata.id"`
+		} `json:"LogicalDrives,omitempty"`
+		PhysicalDrives struct {
+			URL string `json:"@odata.id"`
+		} `json:"PhysicalDrives,omitempty"`
+	} `json:"Links,omitempty"`
+	MembersCount int `json:"@odata.count,omitempty"`
 }
 
 // Disk Drives
@@ -99,29 +111,36 @@ type DiskDriveStatus struct {
 	State  string `json:"State"`
 }
 
-// ArrayController: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/
-type ArrayController struct {
-	Members      Members `json:"Members"`
-	MembersCount int     `json:"@odata.count"`
-}
+// // ArrayController: /redfish/v1/Systems/1/SmartStorage/ArrayControllers/
+// type ArrayController struct {
+// 	Members      Members `json:"Members"`
+// 	MembersCount int     `json:"@odata.count"`
+// }
 
-// ArrayController Members
-type Members struct {
-	URL string `json:"@odata.id"`
-}
+// // ArrayController Members
+// type Members struct {
+// 	URL string `json:"@odata.id"`
+// }
 
-type Controller struct {
-	Links Links `json:"Links"`
-}
+// type Controller struct {
+// 	Links Links `json:"Links"`
+// }
 
-// ArrayController Links
-type Links struct {
-	LogicalDrives  driveURL `json:"LogicalDrives,omitempty"`
-	PhysicalDrives driveURL `json:"PhysicalDrives,omitempty"` // aka DiskDrives
-	Drives         driveURL `json:"Drives,omitempty"`         // used for chassis endpoint for NVME only
-}
+// // ArrayController Links
+// type Links struct {
+// 	LogicalDrives  driveURL `json:"LogicalDrives,omitempty"`
+// 	PhysicalDrives driveURL `json:"PhysicalDrives,omitempty"` // aka DiskDrives
+// 	Drives         driveURL `json:"Drives,omitempty"`         // used for chassis endpoint for NVME only
+// }
 
-// URL string from within Logical Drives or Disk Drives
-type driveURL struct {
-	URL string `json:"@odata.id"`
-}
+// // URL string from within Logical Drives or Disk Drives
+// type driveURL struct {
+// 	URL string `json:"@odata.id"`
+// }
+
+// // GenericDrive is used to iterate over differing drive endpoints
+// type GenericDrive struct {
+// 	Members      Members `json:"Members,omitempty"`
+// 	Links        Links   `json:"Links,omitempty"`
+// 	MembersCount int     `json:"@odata.count,omitempty"`
+// }
