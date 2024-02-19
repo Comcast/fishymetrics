@@ -131,24 +131,31 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	var (
 		initialURL        = (fqdn.String() + uri + "/Systems/1/SmartStorage/ArrayControllers") // TODO: check this correctly parses into a full URL
 		url               = initialURL
+		chassis_url       = (fqdn.String() + uri + "/Chassis/1")
 		logicalDriveURLs  []string
 		physicalDriveURLs []string
+		nvmeDriveURLs     []string
 	)
+	// parse to find logical drives and physical disk drives
 
-	for {
-		output := getDriveEndpoint(url)
+		output, err := getDriveEndpoint(url, target, retryClient)
 		if len(output.Members) > 0 {
 			for _, member := range output.Members {
-				newOutput := getDriveEndpoint(member.URL)
-				if newOutput.Links.URL != "" {
-					logicalDriveOutput := getDriveEndpoint(newOutput.Links.URL)
+				newOutput, err := getDriveEndpoint(member.URL, target, retryClient)
+
+				// If LogicalDrives is present, parse logical drive endpoint until all urls are found
+				if newOutput.Links.LogicalDrives != nil {
+					logicalDriveOutput, err := getDriveEndpoint(newOutput.Links.LogicalDrives.URL, target, retryClient)
 					if len(logicalDriveOutput.Members) > 0 {
 						for _, member := range logicalDriveOutput.Members {
 							logicalDriveURLs = append(logicalDriveURLs, member.URL)
 						}
 					}
-				} else if newOutput.Links.URL != "" {
-					physicalDriveOutput := getDriveEndpoint(newOutput.Links.URL)
+				}
+
+				// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
+				if newOutput.Links.PhysicalDrives != nil {
+					physicalDriveOutput, err := getDriveEndpoint(newOutput.Links.PhysicalDrives.URL, target, retryClient)
 					if len(physicalDriveOutput.Members) > 0 {
 						for _, member := range physicalDriveOutput.Members {
 							physicalDriveURLs = append(physicalDriveURLs, member.URL)
@@ -156,22 +163,34 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 					}
 				}
 			}
-		} else {
-			break
+
+	// parse to find NVME drives
+	chassis_output, err := getDriveEndpoint(chassis_url, host, client)
+	// parse through "Links" to find "Drives" array
+	if len(chassis_output.Links.Drives) > 0 {
+		// loop through drives array and append each odata.id url to nvmeDriveURLs list
+		for _, drive := range chassis_output.Links.Drives {
+			nvmeDriveURLs = append(nvmeDriveURLs, chassis_output.Links.Drives.URL)
 		}
 	}
 
-	// TODO: Append each of those URLS in LogicalDriveURLs array to the tasks pool with the const LOGICALDRIVE,
-	// TODO: Append each of those URLS in the PhysicalDriveURLs array to the tasks pool with the const DISKDRIVE
-	// TODO: Further parse the chassis/1 to get the NVME metrics before adding it to the tasks pool (similar to above.)
+	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
+	for _, url := range logicalDriveURLs {
+		tasks = append(tasks, pool.NewTask(common.Fetch(url, LOGICALDRIVE, target, retryClient)))
+	}
 
-	// Tasks for pool to perform
+	for _, url := range physicalDriveURLs {
+		tasks = append(tasks, pool.NewTask(common.Fetch(url, DISKDRIVE, target, retryClient)))
+	}
+
+	for _, url := range nvmeDriveURLs {
+		tasks = append(tasks, pool.NewTask(common.Fetch(url, NVME, target, retryClient)))
+	}
+
+	// Additional tasks for pool to perform
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power", POWER, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"Chassis/1", NVME, target, retryClient)), // TODO: Logic needs to change here similar to above
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", DISKDRIVE, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers", LOGICALDRIVE, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, retryClient)))
 
 	// Prepare the pool of tasks
@@ -313,6 +332,32 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	return nil
 }
 
+// exportNVMeDriveMetrics collects the DL380 NVME drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
+
+	var state float64
+	var dlnvme NVMeDriveMetrics
+	var dlnvmedrive = (*e.deviceMetrics)["nvmeDriveMetrics"]
+	err := json.Unmarshal(body, &dlnvme)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL380 NVMeDriveMetrics - " + err.Error())
+	}
+	// Check logical drive is enabled then check status and convert string to numeric values
+	if dlnvme.Status.State == "Enabled" {
+		if dlnvme.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
+	} else {
+		state = DISABLED
+	}
+
+	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(dlnvme.Protocol, dlnvme.ID, dlnvme.Name).Set(state)
+
+	return nil
+}
+
 // exportPowerMetrics collects the DL380's power metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 
@@ -382,32 +427,6 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 			(*dlThermal)["sensorStatus"].WithLabelValues(strings.TrimRight(sensor.Name, " ")).Set(state)
 		}
 	}
-
-	return nil
-}
-
-// exportNVMeDriveMetrics collects the DL380 NVME drive metrics in json format and sets the prometheus gauges
-func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
-
-	var state float64
-	var dlnvme NVMeDriveMetrics
-	var dlnvmedrive = (*e.deviceMetrics)["nvmeDriveMetrics"]
-	err := json.Unmarshal(body, &dlnvme)
-	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 NVMeDriveMetrics - " + err.Error())
-	}
-	// Check logical drive is enabled then check status and convert string to numeric values
-	if dlnvme.Status.State == "Enabled" {
-		if dlnvme.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
-		}
-	} else {
-		state = DISABLED
-	}
-
-	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(dlnvme.Protocol, dlnvme.ID, dlnvme.Name).Set(state)
 
 	return nil
 }
