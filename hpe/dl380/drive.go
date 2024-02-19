@@ -18,65 +18,37 @@ package dl380
 
 // NVME's
 // /redfish/v1/chassis/1/
-
 // NVMeMetrics is the top level json object for DL380 NVMe Metrics Metadata
 type NVMeDriveMetrics struct {
-	Id               string `json:"Id"`
-	Model            string `json:"Model"`
-	Name             string `json:"Name"`
-	MediaType        string `json:"MediaType"`
-	PhysicalLocation struct {
-		PartLocation struct {
-			ServiceLabel string `json:"ServiceLabel"`
-		} `json:"PartLocation"`
-	} `json:"PhysicalLocation"`
-	Protocol         string          `json:"Protocol"`
-	Status           NvmeDriveStatus `json:"Status"`
-	FailurePredicted bool            `json:"FailurePredicted"`
-	CapacityBytes    int             `json:"CapacityBytes"`
-}
-
-// PartLocation is a variable that determines the Box and the Bay location of the NVMe drive
-type PartLocation struct {
-	ServiceLabel string `json:"ServiceLabel"`
-}
-
-// Contents of Oem
-type Oem struct {
-	Hpe    HpeCont `json:"Hpe"`
-	NVMeID string  `json:"NVMeId"`
-}
-
-// Contents of Hpe
-type HpeCont struct {
-	CurrentTemperatureCelsius int             `json:"CurrentTemperatureCelsius"`
-	DriveStatus               NvmeDriveStatus `json:"nvmeDriveStatus"`
-}
-
-// Status/Health for the NVMe drive
-type NvmeDriveStatus struct {
-	Health string `json:"Health"`
-	State  string `json:"State"`
+	ID               string           `json:"Id"`
+	Model            string           `json:"Model"`
+	Name             string           `json:"Name"`
+	MediaType        string           `json:"MediaType"`
+	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
+	Protocol         string           `json:"Protocol"`
+	Status           DriveStatus      `json:"Status"`
+	FailurePredicted bool             `json:"FailurePredicted"`
+	CapacityBytes    int              `json:"CapacityBytes"`
 }
 
 // Logical Drives
 type LogicalDriveMetrics struct {
-	Id                 string             `json:"Id"`
-	CapacityMiB        int                `json:"CapacityMiB"`
-	Description        string             `json:"Description"`
-	InterfaceType      string             `json:"InterfaceType"`
-	LogicalDriveName   string             `json:"LogicalDriveName"`
-	LogicalDriveNumber int                `json:"LogicalDriveNumber"`
-	Name               string             `json:"Name"`
-	Raid               string             `json:"Raid"`
-	Status             LogicalDriveStatus `json:"Status"`
-	StripeSizebytes    int                `json:"StripeSizebytes"`
+	Id                 string      `json:"Id"`
+	CapacityMiB        int         `json:"CapacityMiB"`
+	Description        string      `json:"Description"`
+	InterfaceType      string      `json:"InterfaceType"`
+	LogicalDriveName   string      `json:"LogicalDriveName"`
+	LogicalDriveNumber int         `json:"LogicalDriveNumber"`
+	Name               string      `json:"Name"`
+	Raid               string      `json:"Raid"`
+	Status             DriveStatus `json:"Status"`
+	StripeSizebytes    int         `json:"StripeSizebytes"`
 }
 
-// Logical Drive Status
-type LogicalDriveStatus struct {
-	Health string `json:"Health"`
-	State  string `json:"Enabled"`
+// NVME, Logical, and Physical Disk Drive Status
+type DriveStatus struct {
+	Health string `json:"Health,omitempty"`
+	State  string `json:"Enabled,omitempty"`
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
@@ -100,17 +72,33 @@ type GenericDrive struct {
 
 // Disk Drives
 type DiskDriveMetrics struct {
-	Id            string          `json:"Id"`
-	CapacityMiB   int             `json:"CapacityMiB"`
-	Description   string          `json:"Description"`
-	InterfaceType string          `json:"InterfaceType"`
-	Name          string          `json:"Name"`
-	Model         string          `json:"Model"`
-	Status        DiskDriveStatus `json:"Status"`
+	Id            string      `json:"Id"`
+	CapacityMiB   int         `json:"CapacityMiB"`
+	Description   string      `json:"Description"`
+	InterfaceType string      `json:"InterfaceType"`
+	Name          string      `json:"Name"`
+	Model         string      `json:"Model"`
+	Status        DriveStatus `json:"Status"`
 }
 
-// Disk Drive Status
-type DiskDriveStatus struct {
-	Health string `json:"Health"`
-	State  string `json:"State"`
+// PhysicalLocation
+type PhysicalLocation struct {
+	PartLocation PartLocation `json:"PartLocation"`
+}
+
+// PartLocation is a variable that determines the Box and the Bay location of the NVMe drive
+type PartLocation struct {
+	ServiceLabel string `json:"ServiceLabel"`
+}
+
+// Contents of Oem
+type Oem struct {
+	Hpe HpeCont `json:"Hpe"`
+}
+
+// Contents of Hpe
+type HpeCont struct {
+	CurrentTemperatureCelsius int         `json:"CurrentTemperatureCelsius"`
+	DriveStatus               DriveStatus `json:"Status"`
+	NVMeID                    string      `json:"NVMeId"`
 }
