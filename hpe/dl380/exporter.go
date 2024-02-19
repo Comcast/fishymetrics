@@ -165,7 +165,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 			}
 
 	// parse to find NVME drives
-	chassis_output, err := getDriveEndpoint(chassis_url, host, client)
+	chassis_output, err := getDriveEndpoint(chassis_url, target, retryClient)
 	// parse through "Links" to find "Drives" array
 	if len(chassis_output.Links.Drives) > 0 {
 		// loop through drives array and append each odata.id url to nvmeDriveURLs list
