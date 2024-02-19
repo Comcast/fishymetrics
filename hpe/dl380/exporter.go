@@ -185,11 +185,16 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 
 	// parse to find NVME drives
 	chassis_output, err := getDriveEndpoint(chassis_url, target, retryClient)
+	if err != nil {
+		// TODO: error handle
+		return nil
+	}
+
 	// parse through "Links" to find "Drives" array
 	if len(chassis_output.Links.Drives) > 0 {
 		// loop through drives array and append each odata.id url to nvmeDriveURLs list
 		for _, drive := range chassis_output.Links.Drives {
-			nvmeDriveURLs = append(nvmeDriveURLs, chassis_output.Links.Drives.URL)
+			nvmeDriveURLs = append(nvmeDriveURLs, drive.URL)
 		}
 	}
 
@@ -470,49 +475,6 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	(*dlMemory)["memoryStatus"].WithLabelValues(strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
 
 	return nil
-}
-
-// getArrayMetricsEndpoint that gets the initial json response to loop through.
-func getArrayMetricsEndpoint(endpoint, host string, client *retryablehttp.Client) (ArrayController, error) {
-	var ac ArrayController
-	var resp *http.Response
-	var err error
-	retryCount := 0
-	req := common.BuildRequest(endpoint, host)
-
-	resp, err = common.DoRequest(client, req)
-	if err != nil {
-		return ac, err
-	}
-	defer resp.Body.Close()
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
-				time.Sleep(client.RetryWaitMin)
-				resp, err = common.DoRequest(client, req)
-				retryCount = retryCount + 1
-			}
-			if err != nil {
-				return ac, err
-			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-				return ac, fmt.Errorf("HTTP status %d", resp.StatusCode)
-			}
-		} else {
-			return ac, fmt.Errorf("HTTP status %d", resp.StatusCode)
-		}
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return ac, fmt.Errorf("Error reading response body - " + err.Error())
-	}
-
-	err = json.Unmarshal(body, &ac)
-	if err != nil {
-		return ac, fmt.Errorf("Error Unmarshalling DL380 ArrayController struct - " + err.Error())
-	}
-
-	return ac, nil
 }
 
 func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDrive, error) {
