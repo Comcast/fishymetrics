@@ -125,9 +125,9 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		}
 	}
 
-	// Recursively parsing through drive endpoints until final endpoints are found
+	// vars for drive parsing
 	var (
-		initialURL        = (fqdn.String() + uri + "/Systems/1/SmartStorage/ArrayControllers") // TODO: check this correctly parses into a full URL
+		initialURL        = (fqdn.String() + uri + "/Systems/1/SmartStorage/ArrayControllers")
 		url               = initialURL
 		chassis_url       = (fqdn.String() + uri + "/Chassis/1")
 		logicalDriveURLs  []string
