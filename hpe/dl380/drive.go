@@ -21,13 +21,17 @@ package dl380
 
 // NVMeMetrics is the top level json object for DL380 NVMe Metrics Metadata
 type NVMeDriveMetrics struct {
-	ID               string          `json:"Id"`
-	Model            string          `json:"Model"`
-	Name             string          `json:"Name"`
-	MediaType        string          `json:"MediaType"`
-	PhysicalLocation PartLocation    `json:"PhysicalLocation"`
+	Id               string `json:"Id"`
+	Model            string `json:"Model"`
+	Name             string `json:"Name"`
+	MediaType        string `json:"MediaType"`
+	PhysicalLocation struct {
+		PartLocation struct {
+			ServiceLabel string `json:"ServiceLabel"`
+		} `json:"PartLocation"`
+	} `json:"PhysicalLocation"`
 	Protocol         string          `json:"Protocol"`
-	Status           nvmeDriveStatus `json:"Status"`
+	Status           NvmeDriveStatus `json:"Status"`
 	FailurePredicted bool            `json:"FailurePredicted"`
 	CapacityBytes    int             `json:"CapacityBytes"`
 }
@@ -46,11 +50,11 @@ type Oem struct {
 // Contents of Hpe
 type HpeCont struct {
 	CurrentTemperatureCelsius int             `json:"CurrentTemperatureCelsius"`
-	DriveStatus               nvmeDriveStatus `json:"nvmeDriveStatus"`
+	DriveStatus               NvmeDriveStatus `json:"nvmeDriveStatus"`
 }
 
 // Status/Health for the NVMe drive
-type nvmeDriveStatus struct {
+type NvmeDriveStatus struct {
 	Health string `json:"Health"`
 	State  string `json:"State"`
 }
