@@ -52,8 +52,6 @@ const (
 	DISKDRIVE = "DiskDriveMetrics"
 	// LOGICALDRIVE represents the Logical drive metric endpoint
 	LOGICALDRIVE = "LogicalDriveMetrics"
-	// ARRAYCONTROLLER represents the Array Controller metric endpoint
-	ARRAYCONTROLLER = "ArrayControllerMetrics"
 	// MEMORY represents the memory metric endpoints
 	MEMORY = "MemoryMetrics"
 	// OK is a string representation of the float 1.0 for device status
@@ -141,6 +139,11 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// Get initial JSON return of /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ set to output
 	output, err := getDriveEndpoint(url, target, retryClient)
 	// Loop through Members to get ArrayController URLs
+	if err != nil {
+		// TODO: error handle
+		return
+	}
+
 	if output.MembersCount > 0 {
 		for _, member := range output.Members {
 			// for each ArrayController URL, get the JSON object
@@ -344,15 +347,52 @@ func (e *Exporter) scrape() {
 
 }
 
-// TODO: Fill out this export function
 // exportPhysicalDriveMetrics collects the DL380's physical drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
+
+	var state float64
+	var dlphysical DiskDriveMetrics
+	var dlphysicaldrive = (*e.deviceMetrics)["diskDriveMetrics"]
+	err := json.Unmarshal(body, &dlphysical)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL380 DiskDriveMetrics - " + err.Error())
+	}
+	// Check physical drive is enabled then check status and convert string to numeric values
+	if dlphysical.Status.State == "Enabled" {
+		if dlphysical.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
+	} else {
+		state = DISABLED
+	}
+
+	(*dlphysicaldrive)["DiskDriveMetrics"].WithLabelValues(dlphysical.Name, dlphysical.Id).Set(state)
 	return nil
 }
 
-// TODO: Fill out this export function
-// exportPhysicalDriveMetrics collects the DL380's physical drive metrics in json format and sets the prometheus gauges
+// exportLogicalDriveMetrics collects the DL380's physical drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
+	var state float64
+	var dllogical LogicalDriveMetrics
+	var dllogicaldrive = (*e.deviceMetrics)["logicalDriveMetrics"]
+	err := json.Unmarshal(body, &dllogical)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL380 LogicalDriveMetrics - " + err.Error())
+	}
+	// Check physical drive is enabled then check status and convert string to numeric values
+	if dllogical.Status.State == "Enabled" {
+		if dllogical.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
+	} else {
+		state = DISABLED
+	}
+
+	(*dllogicaldrive)["LogicalDriveMetrics"].WithLabelValues(dllogical.Name, dllogical.Id, dllogical.Raid).Set(state)
 	return nil
 }
 
@@ -366,7 +406,7 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling DL380 NVMeDriveMetrics - " + err.Error())
 	}
-	// Check logical drive is enabled then check status and convert string to numeric values
+	// Check nvme drive is enabled then check status and convert string to numeric values
 	if dlnvme.Status.State == "Enabled" {
 		if dlnvme.Status.Health == "OK" {
 			state = OK
