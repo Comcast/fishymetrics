@@ -141,7 +141,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// Loop through Members to get ArrayController URLs
 	if err != nil {
 		// TODO: error handle
-		return
+		return nil
 	}
 
 	if output.MembersCount > 0 {
