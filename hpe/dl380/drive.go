@@ -45,6 +45,17 @@ type LogicalDriveMetrics struct {
 	StripeSizebytes    int         `json:"StripeSizebytes"`
 }
 
+// Disk Drives
+type DiskDriveMetrics struct {
+	Id            string      `json:"Id"`
+	CapacityMiB   int         `json:"CapacityMiB"`
+	Description   string      `json:"Description"`
+	InterfaceType string      `json:"InterfaceType"`
+	Name          string      `json:"Name"`
+	Model         string      `json:"Model"`
+	Status        DriveStatus `json:"Status"`
+}
+
 // NVME, Logical, and Physical Disk Drive Status
 type DriveStatus struct {
 	Health string `json:"Health,omitempty"`
@@ -68,17 +79,6 @@ type GenericDrive struct {
 		} `json:"PhysicalDrives,omitempty"`
 	} `json:"Links,omitempty"`
 	MembersCount int `json:"@odata.count,omitempty"`
-}
-
-// Disk Drives
-type DiskDriveMetrics struct {
-	Id            string      `json:"Id"`
-	CapacityMiB   int         `json:"CapacityMiB"`
-	Description   string      `json:"Description"`
-	InterfaceType string      `json:"InterfaceType"`
-	Name          string      `json:"Name"`
-	Model         string      `json:"Model"`
-	Status        DriveStatus `json:"Status"`
 }
 
 // PhysicalLocation
