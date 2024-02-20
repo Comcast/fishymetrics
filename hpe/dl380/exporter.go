@@ -418,18 +418,22 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DL380 DiskDriveMetrics - " + err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
-	if dlphysical.Status.State == "Enabled" {
-		if dlphysical.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
-		}
+
+	if dlphysical.Status.Health == "OK" {
+		state = OK
 	} else {
-		state = DISABLED
+		state = BAD
 	}
+
+	// DEBUG PRINT
+	fmt.Print("dlphysical.Name: ", dlphysical.Name, "\n")
+	fmt.Print("dlphysical.Id", dlphysical.Id, "\n")
+	fmt.Print("dlphysical.Description", dlphysical.Description, "\n")
+	// DEBUG PRINT
+
 	// TODO: Fix export to prometheus to include driveStatus
 	//(*dlphysicaldrive)["DiskDriveMetrics"].WithLabelValues(dlphysical.Name, dlphysical.Id).Set(state)
-	(*dlphysicaldrive)["DiskDriveMetrics"].WithLabelValues(dlphysical.Status.Health).Set(state)
+	(*dlphysicaldrive)["DiskDriveMetrics"].WithLabelValues(dlphysical.Name, dlphysical.Description, dlphysical.Id).Set(state)
 	return nil
 }
 
