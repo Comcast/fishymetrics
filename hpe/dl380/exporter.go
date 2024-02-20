@@ -257,6 +257,12 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		// DEBUG PRINT
 	}
 
+	// DEBUG PRINT
+	fmt.Print("NVME DRIVE URLS LIST: ", nvmeDriveURLs, "\n")
+	fmt.Print("LOGICAL DRIVE URLS LIST: ", logicalDriveURLs, "\n")
+	fmt.Print("PHYSICAL DRIVE URLS LIST: ", physicalDriveURLs, "\n")
+	// DEBUG PRINT
+
 	// Additional tasks for pool to perform
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, retryClient)),
@@ -270,7 +276,8 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// DEBUG PRINT
 
 	// DEBUG PRINT
-	fmt.Print("TASK LIST: ", tasks)
+	fmt.Print("TASK LIST: ", tasks, "\n")
+	fmt.Print("LENGTH OF TASK LIST: ", len(tasks), "\n")
 	// DEBUG PRINT
 
 	// Prepare the pool of tasks
@@ -372,8 +379,8 @@ func (e *Exporter) scrape() {
 			err = e.exportThermalMetrics(task.Body)
 		case POWER:
 			err = e.exportPowerMetrics(task.Body)
-		// case NVME:
-		// 	err = e.exportNVMeDriveMetrics(task.Body)
+		case NVME:
+			err = e.exportNVMeDriveMetrics(task.Body)
 		case DISKDRIVE:
 			err = e.exportPhysicalDriveMetrics(task.Body)
 		case LOGICALDRIVE:
@@ -420,8 +427,9 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 	} else {
 		state = DISABLED
 	}
-
-	(*dlphysicaldrive)["DiskDriveMetrics"].WithLabelValues(dlphysical.Name, dlphysical.Id).Set(state)
+	// TODO: Fix export to prometheus to include driveStatus
+	//(*dlphysicaldrive)["DiskDriveMetrics"].WithLabelValues(dlphysical.Name, dlphysical.Id).Set(state)
+	(*dlphysicaldrive)["DiskDriveMetrics"].WithLabelValues(dlphysical.Status.Health).Set(state)
 	return nil
 }
 
@@ -435,17 +443,29 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DL380 LogicalDriveMetrics - " + err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
-	if dllogical.Status.State == "Enabled" {
-		if dllogical.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
-		}
+
+	// DEBUG PRINT
+	fmt.Print("dllogicaldrive", dllogicaldrive, "\n")
+	//fmt.Print("dllogicaldrive.Status.State", dllogical.Status.State, "\n")
+	fmt.Print("dllogical.Raid", dllogical.Raid, "\n")
+	fmt.Print("dllogical.Id", dllogical.Id, "\n")
+	fmt.Print("dllogical.Name", dllogical.Name, "\n")
+	fmt.Print("dllogical.Status", dllogical.Status, "\n")
+	fmt.Print("dllogical.Status.Health", dllogical.Status.Health, "\n")
+	//	fmt.Print("dllogical.Status.State", dllogical.Status.State, "\n")
+
+	// DEBUG PRINT
+
+	if dllogical.Status.Health == "OK" {
+		state = OK
 	} else {
-		state = DISABLED
+		state = BAD
 	}
 
-	(*dllogicaldrive)["LogicalDriveMetrics"].WithLabelValues(dllogical.Name, dllogical.Id, dllogical.Raid).Set(state)
+	// TODO: Fix export to prometheus to include driveStatus and Raid
+	//(*dllogicaldrive)["logicalSummary"].WithLabelValues(dllogical.Name, dllogical.Id, dllogical.Raid).Set(state)
+	//(*dllogicaldrive)["LogicalDriveMetrics"].WithLabelValues(dllogical.Name, dllogical.Id, dllogical.Raid).Set(state)
+	(*dllogicaldrive)["logicalSummary"].WithLabelValues(dllogical.Raid).Set(state)
 	return nil
 }
 
@@ -474,6 +494,7 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
+	// TODO: Fix export to prometheus to include driveStatus
 	(*dlnvmedrive)["nvmeDriveMetrics"].WithLabelValues(dlnvme.Protocol, dlnvme.ID, dlnvme.Name).Set(state)
 	return nil
 }
