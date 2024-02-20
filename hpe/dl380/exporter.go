@@ -137,13 +137,28 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// PARSING DRIVE ENDPOINTS
 	// Get initial JSON return of /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ set to output
 	output, err := getDriveEndpoint(fqdn.String()+uri+url, target, retryClient)
+
+	// DEBUG PRINT
+	fmt.Print("OUTPUT: ", output, "\n")
+	// DEBUG PRINT
+
 	// Loop through Members to get ArrayController URLs
 	if err != nil {
-		//return fmt.Errorf("error retrieving /ArrayControllers endpoint - %s", err.Error())
+		// DEBUG PRINT
+		fmt.Print("ERROR LOOPING THROUGH ARRAY CONTROLLERS URLS", "\n")
+		// DEBUG PRINT
 		return nil
 	}
-	// TODO: if output.MembersCount != nil
+
+	// DEBUG PRINT
+	fmt.Print("OUTPUT.MEMBERSCOUNT: ", output.MembersCount, "\n")
+	fmt.Print("OUTPUT.MEMBERS: ", output.Members, "\n")
+	// DEBUG PRINT
+
 	if output.MembersCount > 0 {
+		// DEBUG PRINT
+		fmt.Print("output.MembersCount > 0 : ", output.MembersCount, "\n")
+		// DEBUG PRINT
 		for _, member := range output.Members {
 			// for each ArrayController URL, get the JSON object
 			newOutput, err := getDriveEndpoint(fqdn.String()+member.URL, target, retryClient)
@@ -153,10 +168,13 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 			}
 
 			// If LogicalDrives is present, parse logical drive endpoint until all urls are found
-			if len(newOutput.Links.LogicalDrives.URL) > 0 {
+			if newOutput.Links.LogicalDrives.URL != "" {
 				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
 				if err != nil {
 					// TODO: error handle
+					// DEBUG PRINT
+					fmt.Print("newOutput.Links.LogicalDrives.URL: ", newOutput.Links.LogicalDrives.URL, "\n")
+					// DEBUG PRINT
 					continue
 				}
 
@@ -165,13 +183,22 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 					for _, member := range logicalDriveOutput.Members {
 						// append each URL in the Members array to the logicalDriveURLs array.
 						logicalDriveURLs = append(logicalDriveURLs, member.URL)
+						// DEBUG PRINT
+						fmt.Print("Member in logicalDriveOutput.Members: ", member, "\n")
+						fmt.Print("Members physicalDriveOutput.Members: ", logicalDriveOutput.Members, "\n")
+						fmt.Print("member.URL: ", member.URL, "\n")
+						// DEBUG PRINT
 					}
 				}
 			}
 
 			// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
-			if len(newOutput.Links.PhysicalDrives.URL) > 0 {
+			if newOutput.Links.PhysicalDrives.URL != "" {
 				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
+				// DEBUG PRINT
+				fmt.Print("newOutput.Links.PhysicalDrives.URL: ", newOutput.Links.PhysicalDrives.URL, "\n")
+				// DEBUG PRINT
+
 				if err != nil {
 					// TODO: error handle
 					continue
@@ -179,6 +206,11 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 				if physicalDriveOutput.MembersCount > 0 {
 					for _, member := range physicalDriveOutput.Members {
 						physicalDriveURLs = append(physicalDriveURLs, member.URL)
+						// DEBUG PRINT
+						fmt.Print("Member in physicalDriveOutput.Members: ", member, "\n")
+						fmt.Print("Members physicalDriveOutput.Members: ", physicalDriveOutput.Members, "\n")
+						fmt.Print("member.URL: ", member.URL, "\n")
+						// DEBUG PRINT
 					}
 				}
 			}
@@ -203,14 +235,26 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
 	for _, url := range logicalDriveURLs {
 		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, LOGICALDRIVE, target, retryClient)))
+		// DEBUG PRINT
+		fmt.Print("LOGICAL DRIVE URL: ", url, "\n")
+		//fmt.Print("FQDN STRING: ", fqdn.String(), "\n")
+		// DEBUG PRINT
 	}
 
 	for _, url := range physicalDriveURLs {
 		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, DISKDRIVE, target, retryClient)))
+		// DEBUG PRINT
+		fmt.Print("PHYSICAL DRIVE URL: ", url, "\n")
+		//fmt.Print("FQDN STRING: ", fqdn.String(), "\n")
+		// DEBUG PRINT
 	}
 
 	for _, url := range nvmeDriveURLs {
 		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, NVME, target, retryClient)))
+		// DEBUG PRINT
+		fmt.Print("NVME DRIVE URL: ", url, "\n")
+		//fmt.Print("FQDN STRING: ", fqdn.String(), "\n")
+		// DEBUG PRINT
 	}
 
 	// Additional tasks for pool to perform
@@ -218,6 +262,16 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power", POWER, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, retryClient)))
+
+	// DEBUG PRINT
+	for _, task := range tasks {
+		fmt.Print("TASK: ", task, "\n")
+	}
+	// DEBUG PRINT
+
+	// DEBUG PRINT
+	fmt.Print("TASK LIST: ", tasks)
+	// DEBUG PRINT
 
 	// Prepare the pool of tasks
 	p := pool.NewPool(tasks, 1)
@@ -318,8 +372,8 @@ func (e *Exporter) scrape() {
 			err = e.exportThermalMetrics(task.Body)
 		case POWER:
 			err = e.exportPowerMetrics(task.Body)
-		case NVME:
-			err = e.exportNVMeDriveMetrics(task.Body)
+		// case NVME:
+		// 	err = e.exportNVMeDriveMetrics(task.Body)
 		case DISKDRIVE:
 			err = e.exportPhysicalDriveMetrics(task.Body)
 		case LOGICALDRIVE:
@@ -397,9 +451,13 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 
 // exportNVMeDriveMetrics collects the DL380 NVME drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
+	if e == nil || e.deviceMetrics == nil {
+		return fmt.Errorf("Exporter or deviceMetrics is nil")
+	}
 
 	var state float64
 	var dlnvme NVMeDriveMetrics
+
 	var dlnvmedrive = (*e.deviceMetrics)["nvmeDriveMetrics"]
 	err := json.Unmarshal(body, &dlnvme)
 	if err != nil {
