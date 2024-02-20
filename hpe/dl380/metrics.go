@@ -61,8 +61,10 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		LogicalDriveMetrics = &metrics{
-			"driveStatus": newServerMetric("dl380_logical_drive_status", "Current Logical Drive Status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}), // LogicalDriveMetrics values
-			"raid":        newServerMetric("dl380_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"raid"}),                                                                  // Logical Drive Raid value
+			//"driveStatus": newServerMetric("dl380_logical_drive_status", "Current Logical Drive Status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}), // LogicalDriveMetrics values
+			"raid": newServerMetric("dl380_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"raid"}), // Logical Drive Raid value
+			// TESTING logicalSummary
+			"logicalSummary": newServerMetric("dl380_logical_drive_summary_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"driveStatus"}),
 		}
 
 		MemoryMetrics = &metrics{
