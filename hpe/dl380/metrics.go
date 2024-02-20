@@ -1,5 +1,3 @@
-// TODO: Make sure all metric names align with what's in the exporter.
-
 /*
  * Copyright 2024 Comcast Cable Communications Management, LLC
  *
@@ -19,6 +17,8 @@
 package dl380
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -52,19 +52,21 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
+		// NVMe Drive Metrics
 		NVMeDriveMetrics = &metrics{
-			"driveStatus": newServerMetric("dl380_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"driveStatus"}), // nvmeDriveStatus values
+			"nvmeDriveStatus": newServerMetric("dl380_nvme_drive_status_TEST", "Current NVME status 1 = OK, 0 = BAD", nil, []string{"protocol", "id", "serviceLabel"}),
 		}
 
+		// Phyiscal Storage Disk Drive Metrics
 		DiskDriveMetrics = &metrics{
-			"driveStatus": newServerMetric("dl380_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD", nil, []string{"driveStatus"}), // DiskDriveStatus values
+			"driveStatus": newServerMetric("dl380_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD", nil, []string{"name", "Id", "location"}), // DiskDriveStatus values
 		}
 
+		// Logical Disk Drive Metrics
 		LogicalDriveMetrics = &metrics{
-			//"driveStatus": newServerMetric("dl380_logical_drive_status", "Current Logical Drive Status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}), // LogicalDriveMetrics values
-			"raid": newServerMetric("dl380_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"raid"}), // Logical Drive Raid value
-			// TESTING logicalSummary
-			"logicalSummary": newServerMetric("dl380_logical_drive_summary_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"driveStatus"}),
+			"raidStatus": newServerMetric("dl380_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"name", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
+			// statusHealth doesn't work for some reason.
+			//"statusHealth": newServerMetric("dl380_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"name", "health"}), // Logical Drive Raid value
 		}
 
 		MemoryMetrics = &metrics{
@@ -80,6 +82,12 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"memoryMetrics":       MemoryMetrics,
 		}
 	)
-
+	// DEBUG PRINT
+	fmt.Print("DISK DRIVE METRICS ", DiskDriveMetrics, "\n")
+	fmt.Print("NVME DRIVE METRICS ", NVMeDriveMetrics, "\n")
+	fmt.Print("LOGICAL DRIVE METRICS ", LogicalDriveMetrics, "\n")
+	fmt.Print("THERMAL METRICS ", ThermalMetrics, "\n")
+	fmt.Print("METRICS ", Metrics, "\n")
+	// DEBUG PRINT
 	return Metrics
 }
