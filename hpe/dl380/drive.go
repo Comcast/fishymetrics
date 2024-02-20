@@ -78,7 +78,7 @@ type GenericDrive struct {
 			URL string `json:"@odata.id"`
 		} `json:"PhysicalDrives,omitempty"`
 	} `json:"Links,omitempty"`
-	MembersCount int `json:"@odata.count,omitempty"`
+	MembersCount int `json:"Members@odata.count,omitempty"`
 }
 
 // PhysicalLocation
