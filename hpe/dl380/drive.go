@@ -33,16 +33,17 @@ type NVMeDriveMetrics struct {
 
 // Logical Drives
 type LogicalDriveMetrics struct {
-	Id                 string      `json:"Id"`
-	CapacityMiB        int         `json:"CapacityMiB"`
-	Description        string      `json:"Description"`
-	InterfaceType      string      `json:"InterfaceType"`
-	LogicalDriveName   string      `json:"LogicalDriveName"`
-	LogicalDriveNumber int         `json:"LogicalDriveNumber"`
-	Name               string      `json:"Name"`
-	Raid               string      `json:"Raid"`
-	Status             DriveStatus `json:"Status"`
-	StripeSizebytes    int         `json:"StripeSizebytes"`
+	Id                     string      `json:"Id"`
+	CapacityMiB            int         `json:"CapacityMiB"`
+	Description            string      `json:"Description"`
+	InterfaceType          string      `json:"InterfaceType"`
+	LogicalDriveName       string      `json:"LogicalDriveName"`
+	LogicalDriveNumber     int         `json:"LogicalDriveNumber"`
+	Name                   string      `json:"Name"`
+	Raid                   string      `json:"Raid"`
+	Status                 DriveStatus `json:"Status"`
+	StripeSizebytes        int         `json:"StripeSizebytes"`
+	VolumeUniqueIdentifier string      `json:"VolumeUniqueIdentifier"`
 }
 
 // Disk Drives
@@ -54,6 +55,8 @@ type DiskDriveMetrics struct {
 	Name          string      `json:"Name"`
 	Model         string      `json:"Model"`
 	Status        DriveStatus `json:"Status"`
+	Location      string      `json:"Location"`
+	SerialNumber  string      `json:"SerialNumber"`
 }
 
 // NVME, Logical, and Physical Disk Drive Status
