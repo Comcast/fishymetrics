@@ -53,15 +53,16 @@ func NewDeviceMetrics() *map[string]*metrics {
 
 		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
 		NVMeDriveMetrics = &metrics{
-			"nvmeDriveStatus": newServerMetric("dl380_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"nvmeDriveStatus"}), // nvmeDriveStatus values
+			"driveStatus": newServerMetric("dl380_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"driveStatus"}), // nvmeDriveStatus values
 		}
 
 		DiskDriveMetrics = &metrics{
-			"diskDriveStatus": newServerMetric("dl380_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD", nil, []string{"diskDriveStatus"}), // DiskDriveStatus values
+			"driveStatus": newServerMetric("dl380_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD", nil, []string{"driveStatus"}), // DiskDriveStatus values
 		}
 
 		LogicalDriveMetrics = &metrics{
-			"logicalDriveStatus": newServerMetric("dl380_logical_drive_status", "Current Logical Drive Status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}), // LogicalDriveMetrics values
+			"driveStatus": newServerMetric("dl380_logical_drive_status", "Current Logical Drive Status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}), // LogicalDriveMetrics values
+			"raid":        newServerMetric("dl380_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"raid"}),                                                                  // Logical Drive Raid value
 		}
 
 		MemoryMetrics = &metrics{
