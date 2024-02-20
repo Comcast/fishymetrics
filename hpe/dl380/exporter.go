@@ -138,10 +138,6 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// Get initial JSON return of /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ set to output
 	output, err := getDriveEndpoint(fqdn.String()+uri+url, target, retryClient)
 
-	// DEBUG PRINT
-	// fmt.Print("OUTPUT: ", output, "\n")
-	// DEBUG PRINT
-
 	// Loop through Members to get ArrayController URLs
 	if err != nil {
 		// DEBUG PRINT
@@ -150,15 +146,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		return nil
 	}
 
-	// DEBUG PRINT
-	// fmt.Print("OUTPUT.MEMBERSCOUNT: ", output.MembersCount, "\n")
-	// fmt.Print("OUTPUT.MEMBERS: ", output.Members, "\n")
-	// DEBUG PRINT
-
 	if output.MembersCount > 0 {
-		// DEBUG PRINT
-		fmt.Print("output.MembersCount > 0 : ", output.MembersCount, "\n")
-		// DEBUG PRINT
 		for _, member := range output.Members {
 			// for each ArrayController URL, get the JSON object
 			newOutput, err := getDriveEndpoint(fqdn.String()+member.URL, target, retryClient)
@@ -172,9 +160,6 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
 				if err != nil {
 					// TODO: error handle
-					// DEBUG PRINT
-					//fmt.Print("newOutput.Links.LogicalDrives.URL: ", newOutput.Links.LogicalDrives.URL, "\n")
-					// DEBUG PRINT
 					continue
 				}
 
@@ -183,11 +168,6 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 					for _, member := range logicalDriveOutput.Members {
 						// append each URL in the Members array to the logicalDriveURLs array.
 						logicalDriveURLs = append(logicalDriveURLs, member.URL)
-						// DEBUG PRINT
-						// fmt.Print("Member in logicalDriveOutput.Members: ", member, "\n")
-						// fmt.Print("Members physicalDriveOutput.Members: ", logicalDriveOutput.Members, "\n")
-						// fmt.Print("member.URL: ", member.URL, "\n")
-						// DEBUG PRINT
 					}
 				}
 			}
@@ -195,9 +175,6 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 			// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
 			if newOutput.Links.PhysicalDrives.URL != "" {
 				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
-				// DEBUG PRINT
-				//fmt.Print("newOutput.Links.PhysicalDrives.URL: ", newOutput.Links.PhysicalDrives.URL, "\n")
-				// DEBUG PRINT
 
 				if err != nil {
 					// TODO: error handle
@@ -206,11 +183,6 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 				if physicalDriveOutput.MembersCount > 0 {
 					for _, member := range physicalDriveOutput.Members {
 						physicalDriveURLs = append(physicalDriveURLs, member.URL)
-						// DEBUG PRINT
-						//fmt.Print("Member in physicalDriveOutput.Members: ", member, "\n")
-						//fmt.Print("Members physicalDriveOutput.Members: ", physicalDriveOutput.Members, "\n")
-						//fmt.Print("member.URL: ", member.URL, "\n")
-						// DEBUG PRINT
 					}
 				}
 			}
@@ -235,50 +207,21 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
 	for _, url := range logicalDriveURLs {
 		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, LOGICALDRIVE, target, retryClient)))
-		// DEBUG PRINT
-		//fmt.Print("LOGICAL DRIVE URL: ", url, "\n")
-		//fmt.Print("FQDN STRING: ", fqdn.String(), "\n")
-		// DEBUG PRINT
 	}
 
 	for _, url := range physicalDriveURLs {
 		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, DISKDRIVE, target, retryClient)))
-		// DEBUG PRINT
-		//fmt.Print("PHYSICAL DRIVE URL: ", url, "\n")
-		//fmt.Print("FQDN STRING: ", fqdn.String(), "\n")
-		// DEBUG PRINT
 	}
 
 	for _, url := range nvmeDriveURLs {
 		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, NVME, target, retryClient)))
-		// DEBUG PRINT
-		//fmt.Print("NVME DRIVE URL: ", url, "\n")
-		//fmt.Print("FQDN STRING: ", fqdn.String(), "\n")
-		// DEBUG PRINT
 	}
-
-	// DEBUG PRINT
-	fmt.Print("NVME DRIVE URLS LIST: ", nvmeDriveURLs, "\n")
-	fmt.Print("LOGICAL DRIVE URLS LIST: ", logicalDriveURLs, "\n")
-	fmt.Print("PHYSICAL DRIVE URLS LIST: ", physicalDriveURLs, "\n")
-	// DEBUG PRINT
 
 	// Additional tasks for pool to perform
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power", POWER, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, retryClient)))
-
-	// DEBUG PRINT
-	for _, task := range tasks {
-		fmt.Print("TASK: ", task, "\n")
-	}
-	// DEBUG PRINT
-
-	// DEBUG PRINT
-	fmt.Print("TASK LIST: ", tasks, "\n")
-	fmt.Print("LENGTH OF TASK LIST: ", len(tasks), "\n")
-	// DEBUG PRINT
 
 	// Prepare the pool of tasks
 	p := pool.NewPool(tasks, 1)
@@ -425,22 +368,9 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		state = BAD
 	}
 
-	// DEBUG PRINT
-	fmt.Print("dlphysical.Status.Health: ", dlphysical.Status.Health, "\n")
-	fmt.Print("dlphysical.Name: ", dlphysical.Name, "\n")
-	fmt.Print("dlphysical.Id: ", dlphysical.Id, "\n")
-	fmt.Print("dlphysical.Description: ", dlphysical.Description, "\n")
-	fmt.Print("dlphysical.Location: ", dlphysical.Location, "\n")
-	fmt.Print("dlphysical.SerialNumber", dlphysical.SerialNumber, "\n")
-	// DEBUG PRINT
-
 	// Physical drives need to have a unique identifier like location so as to not overwrite data
 	// physical drives can have the same ID, but belong to a different array.
 	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, dlphysical.Id, dlphysical.Location).Set(state)
-
-	// DEBUG PRINT
-	fmt.Print("RETURNED PHYSICAL DRIVE METRICS SUCCESSFULLY\n")
-	// DEBUG PRINT
 	return nil
 }
 
@@ -454,37 +384,13 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DL380 LogicalDriveMetrics - " + err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
-
-	// DEBUG PRINT
-	fmt.Print("dllogicaldrive: ", dllogicaldrive, "\n")
-	//fmt.Print("dllogicaldrive.Status.State", dllogical.Status.State, "\n")
-	fmt.Print("dllogical.Raid: ", dllogical.Raid, "\n")
-	fmt.Print("dllogical.Id: ", dllogical.Id, "\n")
-	fmt.Print("dllogical.Name: ", dllogical.Name, "\n")
-	fmt.Print("dllogical.Status: ", dllogical.Status, "\n")
-	fmt.Print("dllogical.LogicalDriveName: ", dllogical.LogicalDriveName, "\n")
-	fmt.Print("dllogical.Status.Health: ", dllogical.Status.Health, "\n")
-	fmt.Print("dllogical.VolumeUniqueIdentifier: ", dllogical.VolumeUniqueIdentifier, "\n")
-	// DEBUG PRINT
-
 	if dllogical.Status.Health == "OK" {
 		state = OK
 	} else {
 		state = BAD
 	}
 
-	// TODO: Fix export to prometheus to include driveStatus and Raid
-	//(*dllogicaldrive)["logicalSummary"].WithLabelValues(dllogical.Name, dllogical.Id, dllogical.Raid).Set(state)
-	//(*dllogicaldrive)["LogicalDriveMetrics"].WithLabelValues(dllogical.Name, dllogical.Id, dllogical.Raid).Set(state)
-	//(*dllogicaldrive)["logicalSummary"].WithLabelValues(dllogical.Name, dllogical.Id, dllogical.Raid).Set(state)
 	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, dllogical.LogicalDriveName, dllogical.VolumeUniqueIdentifier, dllogical.Raid).Set(state)
-
-	// This doesn't work for some reason
-	//(*dllogicaldrive)["statusHealth"].WithLabelValues(dllogical.Name, dllogical.Status.Health).Set(state)
-
-	// DEBUG PRINT
-	fmt.Print("SUCCESSFULLY EXPORTED LOGICAL DRIVE METRICS", "\n")
-	// DEBUG PRINT
 	return nil
 }
 
@@ -498,15 +404,6 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DL380 NVMeDriveMetrics - " + err.Error())
 	}
 
-	// DEBUG PRINT
-	fmt.Print("dlnvme.Status: ", dlnvme.Status, "\n")
-	fmt.Print("dlnvme.Status.Health: ", dlnvme.Status.Health, "\n")
-	fmt.Print("dlnvme.Protocol: ", dlnvme.Protocol, "\n")
-	fmt.Print("dlnvme.Name: ", dlnvme.Name, "\n")
-	fmt.Print("dlnvme.ID: ", dlnvme.ID, "\n")
-	fmt.Print("dlnvme.PhysicalLocation.PartLocation.ServiceLabel: ", dlnvme.PhysicalLocation.PartLocation.ServiceLabel, "\n")
-	// DEBUG PRINT
-
 	// Check nvme drive is enabled then check status and convert string to numeric values
 	if dlnvme.Status.Health == "OK" {
 		state = OK
@@ -514,15 +411,7 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 		state = BAD
 	}
 
-	//	(*dlnvmedrive)["testNVME"].WithLabelValues(dlnvme.PhysicalLocation.PartLocation.ServiceLabel, dlnvme.Name).Set(state)
 	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel).Set(state)
-	//(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(dlnvme.Protocol, dlnvme.ID).Set(state)
-
-	// DEBUG PRINT
-	fmt.Print(dlnvmedrive)
-	fmt.Print(state)
-	fmt.Print("SUCCESSFULLY EXPORTED NVME DRIVE METRICS", "\n")
-	// DEBUG PRINT
 	return nil
 }
 
