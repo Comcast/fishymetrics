@@ -17,8 +17,6 @@
 package dl380
 
 import (
-	"fmt"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -65,8 +63,6 @@ func NewDeviceMetrics() *map[string]*metrics {
 		// Logical Disk Drive Metrics
 		LogicalDriveMetrics = &metrics{
 			"raidStatus": newServerMetric("dl380_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"name", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
-			// statusHealth doesn't work for some reason.
-			//"statusHealth": newServerMetric("dl380_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"name", "health"}), // Logical Drive Raid value
 		}
 
 		MemoryMetrics = &metrics{
@@ -82,12 +78,5 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"memoryMetrics":       MemoryMetrics,
 		}
 	)
-	// DEBUG PRINT
-	fmt.Print("DISK DRIVE METRICS ", DiskDriveMetrics, "\n")
-	fmt.Print("NVME DRIVE METRICS ", NVMeDriveMetrics, "\n")
-	fmt.Print("LOGICAL DRIVE METRICS ", LogicalDriveMetrics, "\n")
-	fmt.Print("THERMAL METRICS ", ThermalMetrics, "\n")
-	fmt.Print("METRICS ", Metrics, "\n")
-	// DEBUG PRINT
 	return Metrics
 }
