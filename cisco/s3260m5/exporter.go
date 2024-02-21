@@ -37,6 +37,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/hashicorp/go-version"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -139,17 +140,17 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 		mgr = mgrEndpoints.Links.ServerManager[0].URL
 	}
 
+	// BMC Firmware major.minor
+	bmcFwTrim, err := version.NewVersion(mgrEndpoints.FirmwareVersion[:strings.Index(mgrEndpoints.FirmwareVersion, "(")])
+	if err != nil {
+		log.Error("error when trimming BMC FW version from "+S3260M5, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
 	// chassis BIOS version
 	biosVer, err := getBIOSVersion(fqdn.String()+mgr, target, retryClient)
 	if err != nil {
 		log.Error("error when getting BIOS version from "+S3260M5, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil, err
-	}
-
-	// chassis serial number
-	chassisSN, err := getChassisSerialNumber(fqdn.String()+uri+"/Chassis/CMC", target, retryClient)
-	if err != nil {
-		log.Error("error when getting chassis serial number from "+S3260M5, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
 
@@ -167,6 +168,13 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 		return nil, err
 	}
 
+	// chassis serial number
+	chassisSN, err := getChassisSerialNumber(fqdn.String()+chass.Members[0].URL, target, retryClient)
+	if err != nil {
+		log.Error("error when getting chassis serial number from "+S3260M5, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
 	serial := path.Base(mgr)
 
 	tasks = append(tasks,
@@ -175,8 +183,17 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 	for _, ch := range chass.Members {
 		tasks = append(tasks,
 			pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Thermal", THERMAL, target, retryClient)),
-			pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, retryClient)),
 		)
+		constraints, _ := version.NewConstraint(">= 4.2")
+		if constraints.Check(bmcFwTrim) && !strings.Contains(ch.URL, "Server1") {
+			tasks = append(tasks,
+				pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, retryClient)),
+			)
+		} else if !constraints.Check(bmcFwTrim) {
+			tasks = append(tasks,
+				pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, retryClient)),
+			)
+		}
 	}
 
 	tasks = append(tasks,
@@ -442,7 +459,9 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	}
 
 	if mm.Status.State != "" {
-		if mm.Status.State == "Enabled" && mm.Status.Health == "OK" {
+		if mm.Status.State == "Absent" {
+			return nil
+		} else if mm.Status.State == "Enabled" && mm.Status.Health == "OK" {
 			state = OK
 		} else {
 			state = BAD

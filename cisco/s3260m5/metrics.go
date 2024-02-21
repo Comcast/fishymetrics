@@ -64,7 +64,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		DeviceMetrics = &metrics{
-			"deviceInfo": newServerMetric("device_info", "Current snapshot of device firmware information", nil, []string{"name", "chassisSerialNumber", "firmwareVersion", "biosVersion", "model"}),
+			"deviceInfo": newServerMetric("device_info", "Current snapshot of device firmware information", nil, []string{"description", "chassisSerialNumber", "firmwareVersion", "biosVersion", "model"}),
 		}
 
 		Metrics = &map[string]*metrics{
