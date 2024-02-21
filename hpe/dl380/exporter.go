@@ -128,7 +128,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	var (
 		initialURL        = "/Systems/1/SmartStorage/ArrayControllers"
 		url               = initialURL
-		chassis_url       = "/Chassis/1"
+		chassisUrl        = "/Chassis/1"
 		logicalDriveURLs  []string
 		physicalDriveURLs []string
 		nvmeDriveURLs     []string
@@ -188,16 +188,16 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	}
 
 	// parse to find NVME drives
-	chassis_output, err := getDriveEndpoint(fqdn.String()+uri+chassis_url, target, retryClient)
+	chassisOutput, err := getDriveEndpoint(fqdn.String()+uri+chassisUrl, target, retryClient)
 	if err != nil {
-		log.Error("api call "+fqdn.String()+uri+chassis_url+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		log.Error("api call "+fqdn.String()+uri+chassisUrl+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil
 	}
 
 	// parse through "Links" to find "Drives" array
-	if len(chassis_output.Links.Drives) > 0 {
+	if len(chassisOutput.Links.Drives) > 0 {
 		// loop through drives array and append each odata.id url to nvmeDriveURLs list
-		for _, drive := range chassis_output.Links.Drives {
+		for _, drive := range chassisOutput.Links.Drives {
 			nvmeDriveURLs = append(nvmeDriveURLs, drive.URL)
 		}
 	}
