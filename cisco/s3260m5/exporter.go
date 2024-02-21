@@ -37,6 +37,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/hashicorp/go-version"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -139,6 +140,13 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 		mgr = mgrEndpoints.Links.ServerManager[0].URL
 	}
 
+	// BMC Firmware major.minor
+	bmcFwTrim, err := version.NewVersion(mgrEndpoints.FirmwareVersion[:strings.Index(mgrEndpoints.FirmwareVersion, "(")])
+	if err != nil {
+		log.Error("error when trimming BMC FW version from "+S3260M5, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
 	// chassis BIOS version
 	biosVer, err := getBIOSVersion(fqdn.String()+mgr, target, retryClient)
 	if err != nil {
@@ -176,11 +184,12 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 		tasks = append(tasks,
 			pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Thermal", THERMAL, target, retryClient)),
 		)
-		if strings.Contains(mgrEndpoints.FirmwareVersion, "4.2") && !strings.Contains(ch.URL, "Server1") {
+		constraints, _ := version.NewConstraint(">= 4.2")
+		if constraints.Check(bmcFwTrim) && !strings.Contains(ch.URL, "Server1") {
 			tasks = append(tasks,
 				pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, retryClient)),
 			)
-		} else if !strings.Contains(mgrEndpoints.FirmwareVersion, "4.2") {
+		} else if !constraints.Check(bmcFwTrim) {
 			tasks = append(tasks,
 				pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, retryClient)),
 			)
