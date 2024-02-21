@@ -140,7 +140,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 
 	// Loop through Members to get ArrayController URLs
 	if err != nil {
-		log.Error("api call "+fqdn.String()+uri+url+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
+		log.Error("api call "+fqdn.String()+uri+url+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil
 	}
 
@@ -149,7 +149,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 			// for each ArrayController URL, get the JSON object
 			newOutput, err := getDriveEndpoint(fqdn.String()+member.URL, target, retryClient)
 			if err != nil {
-				log.Error("api call "+fqdn.String()+member.URL+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
+				log.Error("api call "+fqdn.String()+member.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 				continue
 			}
 
@@ -157,7 +157,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 			if newOutput.Links.LogicalDrives.URL != "" {
 				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
 				if err != nil {
-					log.Error("api call "+fqdn.String()+newOutput.Links.LogicalDrives.URL+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
+					log.Error("api call "+fqdn.String()+newOutput.Links.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 					continue
 				}
 
@@ -175,7 +175,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
 
 				if err != nil {
-					log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
+					log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 					continue
 				}
 				if physicalDriveOutput.MembersCount > 0 {
@@ -190,7 +190,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// parse to find NVME drives
 	chassis_output, err := getDriveEndpoint(fqdn.String()+uri+chassis_url, target, retryClient)
 	if err != nil {
-		log.Error("api call "+fqdn.String()+uri+chassis_url+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
+		log.Error("api call "+fqdn.String()+uri+chassis_url+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil
 	}
 
