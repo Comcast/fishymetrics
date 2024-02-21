@@ -140,9 +140,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 
 	// Loop through Members to get ArrayController URLs
 	if err != nil {
-		// DEBUG PRINT
-		fmt.Print("ERROR LOOPING THROUGH ARRAY CONTROLLERS URLS", "\n")
-		// DEBUG PRINT
+		log.Error("api call "+fqdn.String()+uri+url+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
 		return nil
 	}
 
@@ -151,7 +149,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 			// for each ArrayController URL, get the JSON object
 			newOutput, err := getDriveEndpoint(fqdn.String()+member.URL, target, retryClient)
 			if err != nil {
-				// TODO: error handle
+				log.Error("api call "+fqdn.String()+member.URL+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
 				continue
 			}
 
@@ -159,7 +157,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 			if newOutput.Links.LogicalDrives.URL != "" {
 				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
 				if err != nil {
-					// TODO: error handle
+					log.Error("api call "+fqdn.String()+newOutput.Links.LogicalDrives.URL+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
 					continue
 				}
 
@@ -177,7 +175,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
 
 				if err != nil {
-					// TODO: error handle
+					log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
 					continue
 				}
 				if physicalDriveOutput.MembersCount > 0 {
@@ -192,7 +190,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	// parse to find NVME drives
 	chassis_output, err := getDriveEndpoint(fqdn.String()+uri+chassis_url, target, retryClient)
 	if err != nil {
-		// TODO: error handle
+		log.Error("api call "+fqdn.String()+uri+chassis_url+" failed.", zap.Any("trace_id", ctx.Value("traceID")))
 		return nil
 	}
 
@@ -369,7 +367,7 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 	}
 
 	// Physical drives need to have a unique identifier like location so as to not overwrite data
-	// physical drives can have the same ID, but belong to a different array.
+	// physical drives can have the same ID, but belong to a different ArrayController, therefore need more than just the ID as a unique identifier.
 	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, dlphysical.Id, dlphysical.Location).Set(state)
 	return nil
 }
@@ -510,6 +508,9 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	return nil
 }
 
+// The getDriveEndpoint function is used in a recursive fashion to get the body response
+// of any type of drive, NVMe, Physical DiskDrives, or Logical Drives, using the GenericDrive struct
+// This is used to find the final drive endpoints to append to the task pool for final scraping.
 func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDrive, error) {
 	var drive GenericDrive
 	var resp *http.Response
