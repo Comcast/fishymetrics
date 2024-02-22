@@ -3,6 +3,7 @@ name: 'prechecks'
 on:
   workflow_dispatch:
   pull_request_target:
+    branches: [main]
 
 jobs:
   test:
