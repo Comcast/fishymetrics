@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ const indexTmpl string = `<html>
       <label for="module">Module:</label>
       <select id="module" name="module">
         <option vaule="moonshot">moonshot</option>
+        <option vaule="dl380">dl380</option>
         <option vaule="dl360">dl360</option>
         <option vaule="dl20">dl20</option>
         <option vaule="c220">c220</option>

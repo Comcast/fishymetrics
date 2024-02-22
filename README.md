@@ -5,6 +5,7 @@ exports them via HTTP for Prometheus consumption.
 
 Current device models supported
 - HP Moonshot
+- HP DL380
 - HP DL360
 - HP DL20
 - Cisco UCS C220 M5
@@ -131,7 +132,7 @@ comcast/fishymetrics:latest
 ## Prometheus Configuration
 
 The fishymetrics exporter needs to be passed the address as a parameter, this can be
-done with relabelling. available module options `["moonshot", "dl360", "dl20", "c220", "s3260m4", "s3260m5"]`
+done with relabelling. available module options `["moonshot", "dl360", "dl20", "dl380", "c220", "s3260m4", "s3260m5"]`
 
 Example config:
 ```YAML
