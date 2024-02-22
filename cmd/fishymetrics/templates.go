@@ -57,6 +57,7 @@ const indexTmpl string = `<html>
       <select id="module" name="module">
         <option vaule="moonshot">moonshot</option>
         <option vaule="dl360">dl360</option>
+        <option vaule="dl360">dl560</option>
         <option vaule="dl20">dl20</option>
         <option vaule="c220">c220</option>
         <option vaule="s3260m4">s3260m4</option>
