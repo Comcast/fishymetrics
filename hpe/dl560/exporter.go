@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,7 +47,9 @@ const (
 	// POWER represents the power metric endpoint
 	POWER = "PowerMetrics"
 	// DRIVE represents the logical drive metric endpoints
-	DRIVE = "DriveMetrics"
+	DRIVE = "PhysicalDriveMetrics"
+	// LOGICALDRIVE represents the Logical drive metric endpoint
+	LOGICALDRIVE = "LogicalDriveMetrics"
 	// MEMORY represents the memory metric endpoints
 	MEMORY = "MemoryMetrics"
 	// OK is a string representation of the float 1.0 for device status
@@ -119,13 +122,58 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 		}
 	}
 
-	// check123 - trailing / in endpoints. iLO4 2.80 Jan 25 2022
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1/", DRIVE, target, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, retryClient)),
 	)
+
+	// start drive metrics here
+	arrayControllers, err := getDriveEndpoints(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/", target, retryClient)
+	if err != nil {
+		log.Error("error when getting array controllers endpoint from "+DL560, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil
+	}
+
+	if arrayControllers.MembersCount > 0 {
+		for _, controller := range arrayControllers.Members {
+			getController, err := getDriveEndpoints(fqdn.String()+controller.URL, target, retryClient)
+			if err != nil {
+				log.Error("error when getting array controller from "+DL560, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil
+			}
+
+			if getController.Links.LogicalDrives.URL != "" {
+				logicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.LogicalDrives.URL, target, retryClient)
+				if err != nil {
+					log.Error("error when getting logical drives endpoint from "+DL560, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					return nil
+				}
+
+				if logicalDrives.MembersCount > 0 {
+					for _, logicalDrive := range logicalDrives.Members {
+						tasks = append(tasks,
+							pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, retryClient)))
+					}
+				}
+			}
+
+			if getController.Links.PhysicalDrives.URL != "" {
+				physicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.PhysicalDrives.URL, target, retryClient)
+				if err != nil {
+					log.Error("error when getting physical drives endpoint from "+DL560, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					return nil
+				}
+
+				if physicalDrives.MembersCount > 0 {
+					for _, physicalDrive := range physicalDrives.Members {
+						tasks = append(tasks,
+							pool.NewTask(common.Fetch(fqdn.String()+physicalDrive.URL, DRIVE, target, retryClient)))
+					}
+				}
+			}
+		}
+	}
 
 	p := pool.NewPool(tasks, 1)
 
@@ -226,7 +274,9 @@ func (e *Exporter) scrape() {
 		case POWER:
 			err = e.exportPowerMetrics(task.Body)
 		case DRIVE:
-			err = e.exportDriveMetrics(task.Body)
+			err = e.exportPhysicalDriveMetrics(task.Body)
+		case LOGICALDRIVE:
+			err = e.exportLogicalDriveMetrics(task.Body)
 		case MEMORY:
 			err = e.exportMemoryMetrics(task.Body)
 		}
@@ -259,25 +309,6 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling DL560 PowerMetrics - " + err.Error())
 	}
-
-	// check123 - original code
-	// for _, pc := range pm.PowerControl {
-	// 	(*dlPower)["supplyTotalConsumed"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerConsumedWatts))
-	// 	(*dlPower)["supplyTotalCapacity"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerCapacityWatts))
-	// }
-
-	// original code
-	// for _, ps := range pm.PowerSupplies {
-	// 	if ps.Status.State == "Enabled" {
-	// 		(*dlPower)["supplyOutput"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
-	// 		if ps.Status.Health == "OK" {
-	// 			state = OK
-	// 		} else {
-	// 			state = BAD
-	// 		}
-	// 		(*dlPower)["supplyStatus"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(state)
-	// 	}
-	// }
 
 	for idx, pc := range pm.PowerControl {
 		(*dlPower)["supplyTotalConsumed"].WithLabelValues(strconv.Itoa(idx)).Set(float64(pc.PowerConsumedWatts))
@@ -314,15 +345,12 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	for _, fan := range tm.Fans {
 		// Check fan status and convert string to numeric values
 		if fan.Status.State == "Enabled" {
-			// check123 - Reading changed to CurrentReading
-			// check123 - Name changed to FanName
 			(*dlThermal)["fanSpeed"].WithLabelValues(fan.FanName).Set(float64(fan.CurrentReading))
 			if fan.Status.Health == "OK" {
 				state = OK
 			} else {
 				state = BAD
 			}
-			// check123 - Name changed to FanName
 			(*dlThermal)["fanStatus"].WithLabelValues(fan.FanName).Set(state)
 		}
 	}
@@ -344,15 +372,15 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	return nil
 }
 
-// exportDriveMetrics collects the DL560 drive metrics in json format and sets the prometheus gauges
-func (e *Exporter) exportDriveMetrics(body []byte) error {
+// exportLogicalDriveMetrics collects the DL560 logical drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 
 	var state float64
-	var dld DriveMetrics
-	var dlDrive = (*e.deviceMetrics)["driveMetrics"]
+	var dld LogicalDriveMetrics
+	var dlDrive = (*e.deviceMetrics)["logicalDriveMetrics"]
 	err := json.Unmarshal(body, &dld)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL560 DriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling DL560 LogicalDriveMetrics - " + err.Error())
 	}
 	// Check logical drive is enabled then check status and convert string to numeric values
 	if dld.Status.State == "Enabled" {
@@ -366,6 +394,32 @@ func (e *Exporter) exportDriveMetrics(body []byte) error {
 	}
 
 	(*dlDrive)["logicalDriveStatus"].WithLabelValues(dld.Name, strconv.Itoa(dld.LogicalDriveNumber), dld.Raid).Set(state)
+
+	return nil
+}
+
+// exportPhysicalDriveMetrics collects the DL560 physical drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
+
+	var state float64
+	var dpd PhysicalDriveMetrics
+	var dpDrive = (*e.deviceMetrics)["driveMetrics"]
+	err := json.Unmarshal(body, &dpd)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL560 PhysicalDriveMetrics - " + err.Error())
+	}
+	// Check physical drive is enabled then check status
+	if dpd.Status.State == "Enabled" {
+		if dpd.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
+	} else {
+		state = DISABLED
+	}
+
+	(*dpDrive)["physicalDriveStatus"].WithLabelValues(dpd.Name, dpd.ID, dpd.Location, dpd.SerialNumber).Set(state)
 
 	return nil
 }
@@ -390,4 +444,46 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	(*dlMemory)["memoryStatus"].WithLabelValues(strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
 
 	return nil
+}
+
+func getDriveEndpoints(url, host string, client *retryablehttp.Client) (GenericDrive, error) {
+	var drives GenericDrive
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return drives, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return drives, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return drives, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else {
+			return drives, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return drives, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &drives)
+	if err != nil {
+		return drives, fmt.Errorf("Error Unmarshalling S3260M5 Memory Collection struct - " + err.Error())
+	}
+
+	return drives, nil
 }

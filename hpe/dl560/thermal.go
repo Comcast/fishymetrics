@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,11 +28,8 @@ type ThermalMetrics struct {
 
 // Fan is the json object for a DL560 fan module
 type Fan struct {
-	// check123 - MemberId not present in output
-	MemberID string `json:"MemberId"`
-	// check123 - Name changed to FanName
-	FanName string `json:"FanName"`
-	// check123 - Reading changed to CurrentReading
+	MemberID       string        `json:"MemberId"`
+	FanName        string        `json:"FanName"`
 	CurrentReading int           `json:"CurrentReading"`
 	ReadingUnits   string        `json:"ReadingUnits"`
 	Status         StatusThermal `json:"Status"`
@@ -46,12 +43,10 @@ type StatusThermal struct {
 
 // Temperature is the json object for a DL560 temperature sensor module
 type Temperature struct {
-	// check123 - MemberId not present in output
-	MemberID        string `json:"MemberId"`
-	Name            string `json:"Name"`
-	PhysicalContext string `json:"PhysicalContext"`
-	ReadingCelsius  int    `json:"ReadingCelsius"`
-	// check123 - SensorNumber not present in output
+	MemberID               string        `json:"MemberId"`
+	Name                   string        `json:"Name"`
+	PhysicalContext        string        `json:"PhysicalContext"`
+	ReadingCelsius         int           `json:"ReadingCelsius"`
 	SensorNumber           int           `json:"SensorNumber"`
 	Status                 StatusThermal `json:"Status"`
 	UpperThresholdCritical int           `json:"UpperThresholdCritical"`

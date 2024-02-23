@@ -16,10 +16,25 @@
 
 package dl560
 
-// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/
 
-// DriveMetrics is the top level json object for DL360 Drive metadata
-type DriveMetrics struct {
+type GenericDrive struct {
+	Members []struct {
+		URL string `json:"@odata.id"`
+	} `json:"Members"`
+	MembersCount int `json:"Members@odata.count,omitempty"`
+	Links        struct {
+		LogicalDrives struct {
+			URL string `json:"href"`
+		} `json:"LogicalDrives,omitempty"`
+		PhysicalDrives struct {
+			URL string `json:"href"`
+		} `json:"PhysicalDrives,omitempty"`
+	}
+}
+
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/LogicalDrives/X/
+type LogicalDriveMetrics struct {
 	ID                 string `json:"Id"`
 	CapacityMiB        int    `json:"CapacityMiB"`
 	Description        string `json:"Description"`
@@ -30,4 +45,15 @@ type DriveMetrics struct {
 	Raid               string `json:"Raid"`
 	Status             Status `json:"Status"`
 	StripeSizeBytes    int    `json:"StripeSizeBytes"`
+}
+
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/DiskDrives/X/
+type PhysicalDriveMetrics struct {
+	ID           string `json:"Id"`
+	CapacityGB   int    `json:"CapacityGB"`
+	Location     string `json:"Location"`
+	Model        string `json:"Model"`
+	Name         string `json:"Name"`
+	SerialNumber string `json:"SerialNumber"`
+	Status       Status `json:"Status"`
 }

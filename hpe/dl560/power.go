@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,6 @@ type PowerSupply struct {
 }
 
 // OemPower is the top level json object for historical data for wattage
-// check123 changed Hpe to Hp in below configs
 type OemPower struct {
 	Hp Hp `json:"Hp"`
 }

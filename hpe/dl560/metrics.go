@@ -43,15 +43,18 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		PowerMetrics = &metrics{
-			// check123 changed memberId to bayNumber in below 2 lines
 			"supplyOutput":        newServerMetric("dl560_power_supply_output", "Power supply output in watts", nil, []string{"bayNumber", "sparePartNumber"}),
 			"supplyStatus":        newServerMetric("dl560_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"bayNumber", "sparePartNumber"}),
 			"supplyTotalConsumed": newServerMetric("dl560_power_supply_total_consumed", "Total output of all power supplies in watts", nil, []string{"memberId"}),
 			"supplyTotalCapacity": newServerMetric("dl560_power_supply_total_capacity", "Total output capacity of all the power supplies", nil, []string{"memberId"}),
 		}
 
-		DriveMetrics = &metrics{
+		LogicalDriveMetrics = &metrics{
 			"logicalDriveStatus": newServerMetric("dl560_logical_drive_status", "Current logical drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}),
+		}
+
+		PhysicalDriveMetrics = &metrics{
+			"physicalDriveStatus": newServerMetric("dl560_physical_drive_status", "Current physical drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "id", "location", "serialnumber"}),
 		}
 
 		MemoryMetrics = &metrics{
@@ -59,10 +62,11 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		Metrics = &map[string]*metrics{
-			"thermalMetrics": ThermalMetrics,
-			"powerMetrics":   PowerMetrics,
-			"driveMetrics":   DriveMetrics,
-			"memoryMetrics":  MemoryMetrics,
+			"thermalMetrics":      ThermalMetrics,
+			"powerMetrics":        PowerMetrics,
+			"logicalDriveMetrics": LogicalDriveMetrics,
+			"driveMetrics":        PhysicalDriveMetrics,
+			"memoryMetrics":       MemoryMetrics,
 		}
 	)
 
