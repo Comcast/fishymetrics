@@ -7,6 +7,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 ## Unreleased
 - Added HPE DL380 Gen10 support
 - Enhanced drive metrics collection for DL380 model servers to include NVME, Storage Disk Drives, and Logical Drives
+- Added HPE DL560 Gen9 support
 
 ## Fixed
 - Cisco UCS C220 - add additional edge cases when collecting memory metrics [#2](https://github.com/Comcast/fishymetrics/issues/2)
