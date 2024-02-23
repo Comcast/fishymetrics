@@ -41,6 +41,7 @@ import (
 	"github.com/comcast/fishymetrics/hpe/dl20"
 	"github.com/comcast/fishymetrics/hpe/dl360"
 	"github.com/comcast/fishymetrics/hpe/dl380"
+	"github.com/comcast/fishymetrics/hpe/dl560"
 	"github.com/comcast/fishymetrics/hpe/moonshot"
 	"github.com/comcast/fishymetrics/logger"
 	"github.com/comcast/fishymetrics/middleware/muxprom"
@@ -143,6 +144,8 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		exporter = dl380.NewExporter(r.Context(), target, uri)
 	case "dl360":
 		exporter = dl360.NewExporter(r.Context(), target, uri)
+	case "dl560":
+		exporter = dl560.NewExporter(r.Context(), target, uri)
 	case "dl20":
 		exporter = dl20.NewExporter(r.Context(), target, uri)
 	case "c220":
@@ -153,7 +156,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		exporter, err = s3260m5.NewExporter(r.Context(), target, uri)
 	default:
 		log.Error("'module' parameter does not match available options", zap.String("module", moduleName), zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
-		http.Error(w, "'module' parameter does not match available options: [moonshot, dl360, dl380, dl20, c220, s3260m4, s3260m5]", http.StatusBadRequest)
+		http.Error(w, "'module' parameter does not match available options: [moonshot, dl360, dl380, dl560, dl20, c220, s3260m4, s3260m5]", http.StatusBadRequest)
 		return
 	}
 
