@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -77,6 +77,7 @@ type Exporter struct {
 	mutex               sync.RWMutex
 	pool                *pool.Pool
 	host                string
+	credProfile         string
 	biosVersion         string
 	chassisSerialNumber string
 
@@ -85,7 +86,7 @@ type Exporter struct {
 }
 
 // NewExporter returns an initialized Exporter for Cisco UCS C220 device.
-func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
+func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, error) {
 	var fqdn *url.URL
 	var tasks []*pool.Task
 
@@ -125,7 +126,7 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 	fqdn, err := url.ParseRequestURI(target)
 	if err != nil {
 		fqdn = &url.URL{
-			Scheme: config.GetConfig().OOBScheme,
+			Scheme: config.GetConfig().BMCScheme,
 			Host:   target,
 		}
 	}
@@ -154,18 +155,18 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 	}
 
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Managers/CIMC", FIRMWARE, target, retryClient)))
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Managers/CIMC", FIRMWARE, target, profile, retryClient)))
 
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power", POWER, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoint+"/Processors/CPU1", PROCESSOR, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoint+"/Processors/CPU2", PROCESSOR, target, retryClient)))
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power", POWER, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoint+"/Processors/CPU1", PROCESSOR, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoint+"/Processors/CPU2", PROCESSOR, target, profile, retryClient)))
 
 	// DIMMs
 	for _, dimm := range dimms.Members {
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, retryClient)))
+			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, profile, retryClient)))
 	}
 
 	// Raid controller
@@ -180,12 +181,12 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 			pool.NewTask(common.FetchXML(fqdn.String()+"/nuova", DRIVE_XML, target, retryClient)))
 	} else {
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+sysEndpoint+"/Storage/MRAID", STORAGE_CONTROLLER, target, retryClient)))
+			pool.NewTask(common.Fetch(fqdn.String()+sysEndpoint+"/Storage/MRAID", STORAGE_CONTROLLER, target, profile, retryClient)))
 
 		// Disk(s) Status
 		for _, dsk := range raidCtrl.Drives {
 			tasks = append(tasks,
-				pool.NewTask(common.Fetch(fqdn.String()+dsk.Url, DRIVE, target, retryClient)))
+				pool.NewTask(common.Fetch(fqdn.String()+dsk.Url, DRIVE, target, profile, retryClient)))
 		}
 	}
 
@@ -198,6 +199,7 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 		ctx:                 ctx,
 		pool:                p,
 		host:                fqdn.Host,
+		credProfile:         profile,
 		biosVersion:         biosVer,
 		chassisSerialNumber: chassisSN,
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -270,9 +272,10 @@ func (e *Exporter) scrape() {
 			// If credentials are incorrect we will add host to be ignored until manual intervention
 			if strings.Contains(task.Err.Error(), "401") {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
-					Name:     e.host,
-					Endpoint: "https://" + e.host + "/redfish/v1/Chassis",
-					Module:   C220,
+					Name:              e.host,
+					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis",
+					Module:            C220,
+					CredentialProfile: e.credProfile,
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))
 				deviceState = 2
@@ -675,7 +678,7 @@ func getChassisEndpoint(url, host string, client *retryablehttp.Client) (string,
 		return "", fmt.Errorf("HTTP status %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
@@ -705,7 +708,7 @@ func getBIOSVersion(url, host string, client *retryablehttp.Client) (string, err
 		return "", fmt.Errorf("HTTP status %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
@@ -747,7 +750,7 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (Collectio
 		}
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return dimms, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
@@ -789,7 +792,7 @@ func checkRaidController(url, host string, client *retryablehttp.Client) (Storag
 		}
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return scm, true, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}

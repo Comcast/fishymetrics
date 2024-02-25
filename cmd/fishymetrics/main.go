@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"html/template"
 	"io"
@@ -27,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -44,45 +42,53 @@ import (
 	"github.com/comcast/fishymetrics/hpe/moonshot"
 	"github.com/comcast/fishymetrics/logger"
 	"github.com/comcast/fishymetrics/middleware/muxprom"
-	cm_vault "github.com/comcast/fishymetrics/vault"
+	fishy_vault "github.com/comcast/fishymetrics/vault"
 	"go.uber.org/zap"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 const (
-	app = "fishymetrics"
+	app           = "fishymetrics"
+	EnvVaultToken = "VAULT_TOKEN"
 )
 
 var (
-	username          *string
-	password          *string
-	oobTimeout        *time.Duration
-	oobScheme         *string
-	logMethod         *string
-	logFilePath       *string
-	logFileMaxSize    *int
-	logFileMaxBackups *int
-	logFileMaxAge     *int
-	vectorEndpoint    *string
-	exporterPort      *string
+	a                 = kingpin.New(app, "redfish api exporter with all the bells and whistles")
+	username          = a.Flag("user", "BMC static username").Default("").Envar("BMC_USERNAME").String()
+	password          = a.Flag("password", "BMC static password").Default("").Envar("BMC_PASSWORD").String()
+	bmcTimeout        = a.Flag("timeout", "BMC scrape timeout").Default("15s").Envar("BMC_TIMEOUT").Duration()
+	bmcScheme         = a.Flag("scheme", "BMC Scheme to use").Default("https").Envar("BMC_SCHEME").String()
+	logMethod         = a.Flag("log.method", "alternative method for logging in addition to stdout").PlaceHolder("[file|vector]").Default("").Envar("LOG_METHOD").String()
+	logFilePath       = a.Flag("log.file-path", "directory path where log files are written if log-method is file").Default("/var/log/fishymetrics").Envar("LOG_FILE_PATH").String()
+	logFileMaxSize    = a.Flag("log.file-max-size", "max file size in megabytes if log-method is file").Default("256").Envar("LOG_FILE_MAX_SIZE").Int()
+	logFileMaxBackups = a.Flag("log.file-max-backups", "max file backups before they are rotated if log-method is file").Default("1").Envar("LOG_FILE_MAX_BACKUPS").Int()
+	logFileMaxAge     = a.Flag("log.file-max-age", "max file age in days before they are rotated if log-method is file").Default("1").Envar("LOG_FILE_MAX_AGE").Int()
+	vectorEndpoint    = a.Flag("vector.endpoint", "vector endpoint to send structured json logs to").Default("http://0.0.0.0:4444").Envar("VECTOR_ENDPOINT").String()
+	exporterPort      = a.Flag("port", "exporter port").Default("9533").Envar("EXPORTER_PORT").String()
+	vaultAddr         = a.Flag("vault.addr", "Vault instance address to get chassis credentials from").Default("https://vault.com").Envar("VAULT_ADDRESS").String()
+	vaultRoleId       = a.Flag("vault.role-id", "Vault Role ID for AppRole").Default("").Envar("VAULT_ROLE_ID").String()
+	vaultSecretId     = a.Flag("vault.secret-id", "Vault Secret ID for AppRole").Default("").Envar("VAULT_SECRET_ID").String()
+	credProfiles      = common.CredentialProf(a.Flag("credential.profiles",
+		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
+  --credential.profiles="
+    profiles:
+      - name: profile1
+        mountPath: "kv2"
+        path: "path/to/secret"
+        userField: "user"
+        passwordField: "password"
+      ...
+  "
+--credential.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'`))
 
 	log *zap.Logger
 
-	// vault specific configs
-	vaultAddr             *string
-	vaultRoleId           *string
-	vaultSecretId         *string
-	vaultKv2Path          *string
-	vaultKv2MountPath     *string
-	vaultKv2UserField     *string
-	vaultKv2PasswordField *string
-
-	// credential hashmap so we can locally store creds for each chassis
-	vault   *cm_vault.Vault
+	vault   *fishy_vault.Vault
 	counter int
 )
 
@@ -108,6 +114,9 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// this optional query param is used to tell us which credential profile to use when retrieving that hosts username and password
+	credProf := query.Get("credential_profile")
+
 	log.Info("started scrape", zap.String("module", moduleName), zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
 
 	// check if vault is configured
@@ -118,7 +127,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		if c, ok := common.ChassisCreds.Get(target); ok {
 			credential = c
 		} else {
-			credential, err = common.ChassisCreds.GetCredentials(ctx, target)
+			credential, err = common.ChassisCreds.GetCredentials(ctx, credProf, target)
 			if err != nil {
 				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), zap.Any("trace_id", r.Context().Value("traceID")))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -138,19 +147,19 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	switch moduleName {
 	case "moonshot":
-		exporter = moonshot.NewExporter(r.Context(), target, uri)
+		exporter = moonshot.NewExporter(r.Context(), target, uri, credProf)
 	case "dl380":
-		exporter = dl380.NewExporter(r.Context(), target, uri)
+		exporter = dl380.NewExporter(r.Context(), target, uri, credProf)
 	case "dl360":
-		exporter = dl360.NewExporter(r.Context(), target, uri)
+		exporter = dl360.NewExporter(r.Context(), target, uri, credProf)
 	case "dl20":
-		exporter = dl20.NewExporter(r.Context(), target, uri)
+		exporter = dl20.NewExporter(r.Context(), target, uri, credProf)
 	case "c220":
-		exporter, err = c220.NewExporter(r.Context(), target, uri)
+		exporter, err = c220.NewExporter(r.Context(), target, uri, credProf)
 	case "s3260m4":
-		exporter, err = s3260m4.NewExporter(r.Context(), target, uri)
+		exporter, err = s3260m4.NewExporter(r.Context(), target, uri, credProf)
 	case "s3260m5":
-		exporter, err = s3260m5.NewExporter(r.Context(), target, uri)
+		exporter, err = s3260m5.NewExporter(r.Context(), target, uri, credProf)
 	default:
 		log.Error("'module' parameter does not match available options", zap.String("module", moduleName), zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
 		http.Error(w, "'module' parameter does not match available options: [moonshot, dl360, dl380, dl20, c220, s3260m4, s3260m5]", http.StatusBadRequest)
@@ -183,111 +192,11 @@ func main() {
 	// Unsolicited response received on idle HTTP channel starting with "\n"; err=<nil>
 	logg.SetOutput(io.Discard)
 
-	// We check for command line arguements first
-	username = flag.String("user", "", "OOB static username")
-	password = flag.String("password", "", "OOB static password")
-	oobTimeout = flag.Duration("timeout", 15*time.Second, "OOB scrape timeout")
-	oobScheme = flag.String("scheme", "https", "OOB Scheme to use")
-	logMethod = flag.String("log-method", "", "options: [file|vector], logging will also write to stdout")
-	logFilePath = flag.String("log-file-path", "/var/log/fishymetrics", "directory path where log files are written if log-method is file")
-	logFileMaxSize = flag.Int("log-file-max-size", 256, "max file size in megabytes if log-method is file")
-	logFileMaxBackups = flag.Int("log-file-max-backups", 1, "max file backups before they are rotated if log-method is file")
-	logFileMaxAge = flag.Int("log-file-max-age", 1, "max file age in days before they are rotated if log-method is file")
-	vectorEndpoint = flag.String("vector-endpoint", "http://0.0.0.0:4444", "vector endpoint to send structured json logs to")
-	exporterPort = flag.String("port", "9533", "exporter port")
-	vaultAddr = flag.String("vault-addr", "https://vault.com", "Vault instance address to get chassis credentials from")
-	vaultRoleId = flag.String("vault-role-id", "", "Vault Role ID for AppRole")
-	vaultSecretId = flag.String("vault-secret-id", "", "Vault Secret ID for AppRole")
-	vaultKv2Path = flag.String("vault-kv2-path", "path/to/secrets", "Vault path where kv2 secrets will be retreived")
-	vaultKv2MountPath = flag.String("vault-kv2-mount-path", "kv2", "Vault config path where kv2 secrets are mounted")
-	vaultKv2UserField = flag.String("vault-kv2-user-field", "user", "Vault kv2 secret field where we get the username")
-	vaultKv2PasswordField = flag.String("vault-kv2-password-field", "password", "Vault kv2 secret field where we get the password")
+	a.HelpFlag.Short('h')
 
-	flag.Parse()
-
-	// Check if env variables are set
-	if os.Getenv("USERNAME") != "" {
-		*username = os.Getenv("USERNAME")
-	}
-
-	if os.Getenv("PASSWORD") != "" {
-		*password = os.Getenv("PASSWORD")
-	}
-
-	if os.Getenv("OOB_TIMEOUT") != "" {
-		*oobTimeout, _ = time.ParseDuration(os.Getenv("OOB_TIMEOUT"))
-	}
-
-	if os.Getenv("OOB_SCHEME") != "" {
-		*oobScheme = os.Getenv("OOB_SCHEME")
-	}
-
-	if os.Getenv("LOG_METHOD") != "" {
-		*logMethod = os.Getenv("LOG_METHOD")
-	}
-
-	if os.Getenv("LOG_FILE_PATH") != "" {
-		*logFilePath = os.Getenv("LOG_FILE_PATH")
-	}
-
-	if os.Getenv("LOG_FILE_MAX_SIZE") != "" {
-		i, err := strconv.Atoi(os.Getenv("LOG_FILE_MAX_SIZE"))
-		if err != nil {
-			i = 256 // set to default
-		}
-		*logFileMaxSize = i
-	}
-
-	if os.Getenv("LOG_FILE_MAX_BACKUPS") != "" {
-		i, err := strconv.Atoi(os.Getenv("LOG_FILE_MAX_BACKUPS"))
-		if err != nil {
-			i = 1 // set to default
-		}
-		*logFileMaxBackups = i
-	}
-
-	if os.Getenv("LOG_FILE_MAX_AGE") != "" {
-		i, err := strconv.Atoi(os.Getenv("LOG_FILE_MAX_AGE"))
-		if err != nil {
-			i = 1 // set to default
-		}
-		*logFileMaxAge = i
-	}
-
-	if os.Getenv("VECTOR_ENDPOINT") != "" {
-		*vectorEndpoint = os.Getenv("VECTOR_ENDPOINT")
-	}
-
-	if os.Getenv("EXPORTER_PORT") != "" {
-		*exporterPort = os.Getenv("EXPORTER_PORT")
-	}
-
-	if os.Getenv("VAULT_ADDRESS") != "" {
-		*vaultAddr = os.Getenv("VAULT_ADDRESS")
-	}
-
-	if os.Getenv("VAULT_ROLE_ID") != "" {
-		*vaultRoleId = os.Getenv("VAULT_ROLE_ID")
-	}
-
-	if os.Getenv("VAULT_SECRET_ID") != "" {
-		*vaultSecretId = os.Getenv("VAULT_SECRET_ID")
-	}
-
-	if os.Getenv("VAULT_KV2_PATH") != "" {
-		*vaultKv2Path = os.Getenv("VAULT_KV2_PATH")
-	}
-
-	if os.Getenv("VAULT_KV2_MOUNT_PATH") != "" {
-		*vaultKv2MountPath = os.Getenv("VAULT_KV2_MOUNT_PATH")
-	}
-
-	if os.Getenv("VAULT_KV2_USER_FIELD") != "" {
-		*vaultKv2UserField = os.Getenv("VAULT_KV2_USER_FIELD")
-	}
-
-	if os.Getenv("VAULT_KV2_PASS_FIELD") != "" {
-		*vaultKv2PasswordField = os.Getenv("VAULT_KV2_PASS_FIELD")
+	_, err = a.Parse(os.Args[1:])
+	if err != nil {
+		panic(fmt.Errorf("Error parsing argument flags - %s", err.Error()))
 	}
 
 	// validate logFilePath exists and is a directory
@@ -320,16 +229,12 @@ func main() {
 	// configure vault client if vaultRoleId & vaultSecretId are set
 	if *vaultRoleId != "" && *vaultSecretId != "" {
 		var err error
-		vault, err = cm_vault.NewVaultAppRoleClient(
+		vault, err = fishy_vault.NewVaultAppRoleClient(
 			ctx,
-			cm_vault.VaultParameters{
-				Address:          *vaultAddr,
-				ApproleRoleID:    *vaultRoleId,
-				ApproleSecretID:  *vaultSecretId,
-				Kv2Path:          *vaultKv2Path,
-				Kv2MountPath:     *vaultKv2MountPath,
-				Kv2UserField:     *vaultKv2UserField,
-				Kv2PasswordField: *vaultKv2PasswordField,
+			fishy_vault.Parameters{
+				Address:         *vaultAddr,
+				ApproleRoleID:   *vaultRoleId,
+				ApproleSecretID: *vaultSecretId,
 			},
 		)
 		if err != nil {
@@ -345,7 +250,7 @@ func main() {
 	}
 
 	config.NewConfig(&config.Config{
-		OOBScheme: *oobScheme,
+		BMCScheme: *bmcScheme,
 		User:      *username,
 		Pass:      *password,
 	})

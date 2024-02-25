@@ -22,8 +22,8 @@ import (
 )
 
 type Config struct {
-	OOBScheme  string
-	OOBTimeout time.Duration
+	BMCScheme  string
+	BMCTimeout time.Duration
 	User       string
 	Pass       string
 }

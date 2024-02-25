@@ -70,7 +70,7 @@ type AaaLogoutPayload struct {
 	InCookie string   `xml:"inCookie,attr"`
 }
 
-func Fetch(uri, metricType, host string, client *retryablehttp.Client) func() ([]byte, string, error) {
+func Fetch(uri, metricType, host, profile string, client *retryablehttp.Client) func() ([]byte, string, error) {
 	var resp *http.Response
 	var credential *Credential
 	var err error
@@ -98,12 +98,16 @@ func Fetch(uri, metricType, host string, client *retryablehttp.Client) func() ([
 					return nil, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
 				}
 			} else if resp.StatusCode == http.StatusUnauthorized {
-				// Credentials may have rotated, go to vault and get the latest
-				credential, err = ChassisCreds.GetCredentials(context.Background(), host)
-				if err != nil {
-					return nil, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
+				if ChassisCreds.Vault != nil {
+					// Credentials may have rotated, go to vault and get the latest
+					credential, err = ChassisCreds.GetCredentials(context.Background(), profile, host)
+					if err != nil {
+						return nil, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
+					}
+					ChassisCreds.Set(host, credential)
+				} else {
+					return nil, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
 				}
-				ChassisCreds.Set(host, credential)
 
 				// build new request with updated credentials
 				req = BuildRequest(uri, host)

@@ -17,59 +17,58 @@ Current device models supported
 To run it:
 
 ```bash
-./fishymetrics [flags]
-```
+$ ./fishymetrics --help
+usage: fishymetrics [<flags>]
 
-Help on flags:
+redfish api exporter with all the bells and whistles
 
-```bash
-./fishymetrics --help
-```
+Flags:
+  -h, --help                    Show context-sensitive help (also try --help-long and --help-man).
+      --user=""                 BMC static username
+      --password=""             BMC static password
+      --timeout=15s             BMC scrape timeout
+      --scheme="https"          BMC Scheme to use
+      --log.method=[file|vector]
+                                alternative method for logging in addition to stdout
+      --log.file-path="/var/log/fishymetrics"
+                                directory path where log files are written if log-method is file
+      --log.file-max-size=256   max file size in megabytes if log-method is file
+      --log.file-max-backups=1  max file backups before they are rotated if log-method is file
+      --log.file-max-age=1      max file age in days before they are rotated if log-method is file
+      --vector.endpoint="http://0.0.0.0:4444"
+                                vector endpoint to send structured json logs to
+      --port="9533"             exporter port
+      --vault.addr="https://vault.com"
+                                Vault instance address to get chassis credentials from
+      --vault.role-id=""        Vault Role ID for AppRole
+      --vault.secret-id=""      Vault Secret ID for AppRole
+      --credential.profiles=CREDENTIAL.PROFILES
+                                profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
 
-```bash
-  -log-path string
-    	directory path where log files are written (default "/var/log/fishymetrics")
-  -password string
-    	OOB static password
-  -port string
-    	exporter port (default "9533")
-  -scheme string
-    	OOB Scheme to use (default "https")
-  -timeout duration
-    	OOB scrape timeout (default 15s)
-  -user string
-    	OOB static username
-  -vault-addr string
-    	Vault address to get chassis credentials from (default "https://vault.com")
-  -vault-kv2-mount-path string
-    	Vault config path where kv2 secrets are mounted (default "kv2")
-  -vault-kv2-password-field string
-    	Vault kv2 secret field where we get the password (default "password")
-  -vault-kv2-path string
-    	Vault path where kv2 secrets will be retreived (default "path/to/secrets")
-  -vault-kv2-user-field string
-    	Vault kv2 secret field where we get the username (default "user")
-  -vault-role-id string
-    	Vault Role ID for AppRole
-  -vault-secret-id string
-    	Vault Secret ID for AppRole
+                                  --credential.profiles="
+                                    profiles:
+                                      - name: profile1
+                                        mountPath: "kv2"
+                                        path: "path/to/secret"
+                                        userField: "user"
+                                        passwordField: "password"
+                                      ...
+                                  "
+
+                                --credential.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'
 ```
 
 Or set the following ENV Variables:
 ```bash
-USERNAME=<string>
-PASSWORD=<string>
-OOB_TIMEOUT=<duration> (Default: 15s)
-OOB_SCHEME=<string> (Default: https)
+BMC_USERNAME=<string>
+BMC_PASSWORD=<string>
+BMC_TIMEOUT=<duration> (Default: 15s)
+BMC_SCHEME=<string> (Default: https)
 EXPORTER_PORT=<int> (Default: 9533)
 LOG_PATH=<string> (Default: /var/log/fishymetrics)
 VAULT_ADDRESS=<string>
 VAULT_ROLE_ID=<string>
 VAULT_SECRET_ID=<string>
-VAULT_KV2_PATH=<string>
-VAULT_KV2_MOUNT_PATH=<string>
-VAULT_KV2_USER_FIELD=<string>
-VAULT_KV2_PASS_FIELD=<string>
 ```
 ```bash
 ./fishymetrics
@@ -86,7 +85,7 @@ _if deployed on ones localhost_
 </aside>
 
 ```bash
-http://localhost:9533/info
+curl http://localhost:9533/info
 ```
 
 ### metrics URL
@@ -98,21 +97,33 @@ _if deployed on ones localhost_
 </aside>
 
 ```bash
-http://localhost:9533/metrics
+curl http://localhost:9533/metrics
+```
+
+### redfish API `/scrape`
+
+To test a scrape of a host's redfish API, you can curl `fishymetrics`
+
+```bash
+curl 'http://localhost:9533/scrape?module=<module-name>&target=1.2.3.4'
+```
+
+If you have a credential profile configured you can add the extra URL query parameter
+
+```bash
+curl 'http://localhost:9533/scrape?module=<module-name>&target=1.2.3.4&credential_profile=<profile-name>'
 ```
 
 ### Docker
 
-To run the fishymetrics exporter as a Docker container, run:
+To run the fishymetrics exporter as a Docker container using static crdentials, run:
 
 #### Using ENV variables
 ```bash
 docker run --name fishymetrics -d -p <EXPORTER_PORT>:<EXPORTER_PORT> \
--e HP_USERNAME='<user>' \
--e HP_PASSWORD='<password>' \
--e CISCO_USERNAME='<user>' \
--e CISCO_PASSWORD='<password>' \
--e OOB_TIMEOUT=15s \
+-e BMC_USERNAME='<user>' \
+-e BMC_PASSWORD='<password>' \
+-e BMC_TIMEOUT=15s \
 -e EXPORTER_PORT=1234 \
 comcast/fishymetrics:latest
 ```
@@ -120,10 +131,8 @@ comcast/fishymetrics:latest
 #### Using command line args
 ```bash
 docker run --name fishymetrics -d -p <EXPORTER_PORT>:<EXPORTER_PORT> \
--hp-user '<user>' \
--hp-password '<password>' \
--cisco-user '<user>' \
--cisco-password '<password>' \
+-user '<user>' \
+-password '<password>' \
 -timeout 15s \
 -port 1234 \
 comcast/fishymetrics:latest

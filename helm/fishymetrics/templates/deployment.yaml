@@ -48,13 +48,18 @@ spec:
           ports:
             - containerPort: {{ .Values.exporter.port }}
               name: exporter
+          {{- if .Values.credentials.profiles }}
+          args:
+            - --credential.profiles=
+{{ toYaml .Values.credentials.profiles | indent 14 }}
+          {{- end }}
           env:
-            - name: USERNAME
+            - name: BMC_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: {{ template "fishymetrics.name" . }}-creds
                   key: username
-            - name: PASSWORD
+            - name: BMC_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ template "fishymetrics.name" . }}-creds
@@ -68,14 +73,6 @@ spec:
                 secretKeyRef:
                   name: {{ template "fishymetrics.name" . }}-creds
                   key: vault-secret-id
-            - name: VAULT_KV2_MOUNT_PATH
-              value: {{ .Values.vault.kv2MountPath }}
-            - name: VAULT_KV2_PATH
-              value: {{ .Values.vault.kv2Path }}
-            - name: VAULT_KV2_USER_FIELD
-              value: {{ .Values.vault.kv2UserField }}
-            - name: VAULT_KV2_PASS_FIELD
-              value: {{ .Values.vault.kv2PasswordField }}
             - name: EXPORTER_PORT
               value: {{ .Values.exporter.port | quote }}
             {{- if .Values.vector.enabled }}
@@ -84,10 +81,10 @@ spec:
             - name: VECTOR_ENDPOINT
               value: {{ .Values.vector.endpoint }}
             {{- end }}
-            - name: OOB_SCHEME
-              value: {{ .Values.oob.scheme }}
-            - name: OOB_TIMEOUT
-              value: {{ .Values.oob.timeout }}
+            - name: BMC_SCHEME
+              value: {{ .Values.bmc.scheme }}
+            - name: BMC_TIMEOUT
+              value: {{ .Values.bmc.timeout }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
       {{- if .Values.vector.enabled }}
