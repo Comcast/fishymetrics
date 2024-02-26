@@ -48,10 +48,9 @@ spec:
           ports:
             - containerPort: {{ .Values.exporter.port }}
               name: exporter
-          {{- if .Values.credentials.profiles }}
+          {{- if .Values.credentials }}
           args:
-            - --credential.profiles=
-{{ toYaml .Values.credentials.profiles | indent 14 }}
+            - --credential.profiles='{{ toJson .Values.credentials }}'
           {{- end }}
           env:
             - name: BMC_USERNAME

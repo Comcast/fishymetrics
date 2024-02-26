@@ -6,9 +6,9 @@ image:
 replicas: 1
 
 exporter:
-  port: 9533
+  port: "9533"
 
-oob:
+bmc:
   username: ""
   password: ""
   timeout: 15s
@@ -18,10 +18,20 @@ vault:
   address: "https://vault.com"
   roleId: ""
   secretId: ""
-  kv2MountPath: "kv2"
-  kv2Path: "path/to/secret"
-  kv2UserField: "user"
-  kv2PasswordField: "password"
+
+credentials: {}
+  # profiles:
+  #   - name: profile1
+  #     mountPath: "kv2"
+  #     path: "path/to/secret"
+  #     userField: "user"
+  #     passwordField: "password"
+  #   - name: profile2
+  #     mountPath: "kv1"
+  #     path: "path/to/secret"
+  #     secretName: "secret1"
+  #     userName: "admin"
+  #     passwordField: "value"
 
 vector:
   enabled: false
