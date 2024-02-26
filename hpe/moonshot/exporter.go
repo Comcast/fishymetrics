@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -65,17 +65,18 @@ var (
 // Exporter collects chassis manager stats from the given URI and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	ctx   context.Context
-	mutex sync.RWMutex
-	pool  *pool.MoonshotPool
-	host  string
+	ctx         context.Context
+	mutex       sync.RWMutex
+	pool        *pool.MoonshotPool
+	host        string
+	credProfile string
 
 	up            prometheus.Gauge
 	deviceMetrics *map[string]*metrics
 }
 
 // NewExporter returns an initialized Exporter for HPE Moonshot device.
-func NewExporter(ctx context.Context, target, uri string) *Exporter {
+func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 	var fqdn *url.URL
 	var tasks []*pool.MoonshotTask
 
@@ -115,20 +116,20 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	fqdn, err := url.ParseRequestURI(target)
 	if err != nil {
 		fqdn = &url.URL{
-			Scheme: config.GetConfig().OOBScheme,
+			Scheme: config.GetConfig().BMCScheme,
 			Host:   target,
 		}
 	}
 
 	tasks = append(tasks,
-		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/ThermalMetrics", MOONSHOT, THERMAL, target, retryClient)),
-		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/PowerMetrics", MOONSHOT, POWER, target, retryClient)),
-		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sa", SWITCHA, SWITCH, target, retryClient)),
-		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sb", SWITCHB, SWITCH, target, retryClient)),
-		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sa/ThermalMetrics", SWITCHA, THERMAL, target, retryClient)),
-		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sb/ThermalMetrics", SWITCHB, THERMAL, target, retryClient)),
-		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sa/PowerMetrics", SWITCHA, POWER, target, retryClient)),
-		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sb/PowerMetrics", SWITCHB, POWER, target, retryClient)))
+		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/ThermalMetrics", MOONSHOT, THERMAL, target, profile, retryClient)),
+		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/PowerMetrics", MOONSHOT, POWER, target, profile, retryClient)),
+		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sa", SWITCHA, SWITCH, target, profile, retryClient)),
+		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sb", SWITCHB, SWITCH, target, profile, retryClient)),
+		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sa/ThermalMetrics", SWITCHA, THERMAL, target, profile, retryClient)),
+		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sb/ThermalMetrics", SWITCHB, THERMAL, target, profile, retryClient)),
+		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sa/PowerMetrics", SWITCHA, POWER, target, profile, retryClient)),
+		pool.NewMoonshotTask(fetch(fqdn.String()+uri+"/switches/sb/PowerMetrics", SWITCHB, POWER, target, profile, retryClient)))
 
 	p := pool.NewMoonshotPool(tasks, 1)
 
@@ -136,9 +137,10 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	metrx := NewDeviceMetrics()
 
 	return &Exporter{
-		ctx:  ctx,
-		pool: p,
-		host: fqdn.Host,
+		ctx:         ctx,
+		pool:        p,
+		host:        fqdn.Host,
+		credProfile: profile,
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "up",
 			Help: "Was the last scrape of chassis monitor successful.",
@@ -193,7 +195,7 @@ func (e *Exporter) collectMetrics(metrics chan<- prometheus.Metric) {
 	}
 }
 
-func fetch(uri, device, metricType, host string, client *retryablehttp.Client) func() ([]byte, string, string, error) {
+func fetch(uri, device, metricType, host, profile string, client *retryablehttp.Client) func() ([]byte, string, string, error) {
 	var resp *http.Response
 	var credential *common.Credential
 	var err error
@@ -219,12 +221,16 @@ func fetch(uri, device, metricType, host string, client *retryablehttp.Client) f
 					return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
 				}
 			} else if resp.StatusCode == http.StatusUnauthorized {
-				// Credentials may have rotated, go to vault and get the latest
-				credential, err = common.ChassisCreds.GetCredentials(context.Background(), host)
-				if err != nil {
-					return nil, device, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
+				if common.ChassisCreds.Vault != nil {
+					// Credentials may have rotated, go to vault and get the latest
+					credential, err = common.ChassisCreds.GetCredentials(context.Background(), profile, host)
+					if err != nil {
+						return nil, device, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
+					}
+					common.ChassisCreds.Set(host, credential)
+				} else {
+					return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
 				}
-				common.ChassisCreds.Set(host, credential)
 
 				// build new request with updated credentials
 				req = common.BuildRequest(uri, host)
@@ -239,7 +245,7 @@ func fetch(uri, device, metricType, host string, client *retryablehttp.Client) f
 			}
 		}
 
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, device, metricType, fmt.Errorf("Error reading Response Body - " + err.Error())
 		}
@@ -263,9 +269,10 @@ func (e *Exporter) scrape() {
 			// If credentials are incorrect we will add host to be ignored until manual intervention
 			if strings.Contains(task.Err.Error(), "401") {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
-					Name:     e.host,
-					Endpoint: "https://" + e.host + "/rest/v1/chassis/1",
-					Module:   MOONSHOT,
+					Name:              e.host,
+					Endpoint:          "https://" + e.host + "/rest/v1/chassis/1",
+					Module:            MOONSHOT,
+					CredentialProfile: e.credProfile,
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))
 				deviceState = 2

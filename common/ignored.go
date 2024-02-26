@@ -20,7 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"time"
@@ -37,9 +37,10 @@ type host struct {
 }
 
 type IgnoredDevice struct {
-	Name     string
-	Endpoint string
-	Module   string
+	Name              string
+	Endpoint          string
+	Module            string
+	CredentialProfile string
 }
 
 func TestConn(w http.ResponseWriter, r *http.Request) {
@@ -78,8 +79,9 @@ func TestConn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path = IgnoredDevices[h.H].Endpoint
+	credProfile := IgnoredDevices[h.H].CredentialProfile
 	// get credentials from vault
-	credential, err := ChassisCreds.GetCredentials(context.Background(), h.H)
+	credential, err := ChassisCreds.GetCredentials(context.Background(), credProfile, h.H)
 	if err != nil {
 		log.Error("issue retrieving credentials from vault using target "+h.H, zap.Error(err), zap.String("path", r.URL.Path))
 		response["error"] = err.Error()
@@ -165,7 +167,7 @@ func getBody(r *http.Request) ([]byte, error) {
 	var body []byte
 	log = zap.L()
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Error("could not parse request body", zap.Error(err), zap.String("path", r.URL.Path))
 		return body, err

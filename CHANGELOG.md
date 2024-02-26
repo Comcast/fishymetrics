@@ -5,9 +5,12 @@ project adheres to [Semantic Versioning](http://semver.org/) and this change
 log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
-- Added HPE DL380 Gen10 support
-- Enhanced drive metrics collection for DL380 model servers to include NVME, Storage Disk Drives, and Logical Drives
-- Added HPE DL560 Gen9 support
+
+## Added
+- Add ability to reference different vault paths for credential retrieval [#25](https://github.com/Comcast/fishymetrics/issues/25) 
+- Added HPE DL380 Gen10 support [#17](https://github.com/Comcast/fishymetrics/issues/17)
+- Enhanced drive metrics collection for DL380 model servers to include NVME, Storage Disk Drives, and Logical Drives [#17](https://github.com/Comcast/fishymetrics/issues/17)
+- add ability to send logs directly to elasticsearch endpoints [#10](https://github.com/Comcast/fishymetrics/issues/10)
 
 ## Fixed
 - Cisco UCS C220 - add additional edge cases when collecting memory metrics [#2](https://github.com/Comcast/fishymetrics/issues/2)

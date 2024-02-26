@@ -20,7 +20,7 @@ const postPayload string = "`{\"host\": \"${host}\"}`"
 
 const indexTmpl string = `<html>
   <head>
-    <title>Chassis Monitor Exporter</title>
+    <title>Fishymetrics Exporter</title>
     <style>
       .links, .build-info {
         display: flex;
@@ -41,7 +41,7 @@ const indexTmpl string = `<html>
     </style>
   </head>
   <body>
-    <h1>Chassis Monitor Exporter</h1>
+    <h1>Fishymetrics Exporter</h1>
     <div class="build-info">
       <p><b>build date:</b> {{ .Date }}</p>
       <p><b>revision:</b> {{ .GitRevision }}</p>
@@ -72,7 +72,7 @@ const indexTmpl string = `<html>
 
 const ignoredTmpl string = `<html>
 <head>
-  <title>Chassis Monitor Exporter</title>
+  <title>Fishymetrics Exporter</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="60">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/css/bootstrap.min.css">

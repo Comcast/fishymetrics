@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -74,6 +74,7 @@ type Exporter struct {
 	mutex               sync.RWMutex
 	pool                *pool.Pool
 	host                string
+	credProfile         string
 	biosVersion         string
 	chassisSerialNumber string
 
@@ -82,7 +83,7 @@ type Exporter struct {
 }
 
 // NewExporter returns an initialized Exporter for Cisco UCS S3260M4 device.
-func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
+func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, error) {
 	var fqdn *url.URL
 	var tasks []*pool.Task
 	var mgr string
@@ -123,7 +124,7 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 	fqdn, err := url.ParseRequestURI(target)
 	if err != nil {
 		fqdn = &url.URL{
-			Scheme: config.GetConfig().OOBScheme,
+			Scheme: config.GetConfig().BMCScheme,
 			Host:   target,
 		}
 	}
@@ -170,24 +171,24 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 	serial := path.Base(mgr)
 
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Managers/CIMC", FIRMWARE, target, retryClient)))
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Managers/CIMC", FIRMWARE, target, profile, retryClient)))
 
 	for _, ch := range chass.Members {
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Thermal", THERMAL, target, retryClient)),
-			pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, retryClient)),
+			pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Thermal", THERMAL, target, profile, retryClient)),
+			pool.NewTask(common.Fetch(fqdn.String()+ch.URL+"/Power", POWER, target, profile, retryClient)),
 		)
 	}
 
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+mgr+"/Processors/CPU1", PROCESSOR, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+mgr+"/Processors/CPU2", PROCESSOR, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/"+serial+"/Storage/SBMezz1", DRIVE, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/"+serial+"/Storage/IOEMezz1", DRIVE, target, retryClient)))
+		pool.NewTask(common.Fetch(fqdn.String()+mgr+"/Processors/CPU1", PROCESSOR, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+mgr+"/Processors/CPU2", PROCESSOR, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/"+serial+"/Storage/SBMezz1", DRIVE, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/"+serial+"/Storage/IOEMezz1", DRIVE, target, profile, retryClient)))
 
 	for _, dimm := range dimms.Members {
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, retryClient)))
+			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, profile, retryClient)))
 	}
 
 	p := pool.NewPool(tasks, 1)
@@ -199,6 +200,7 @@ func NewExporter(ctx context.Context, target, uri string) (*Exporter, error) {
 		ctx:                 ctx,
 		pool:                p,
 		host:                fqdn.Host,
+		credProfile:         profile,
 		biosVersion:         biosVer,
 		chassisSerialNumber: chassisSN,
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -271,9 +273,10 @@ func (e *Exporter) scrape() {
 			// If credentials are incorrect we will add host to be ignored until manual intervention
 			if strings.Contains(task.Err.Error(), "401") {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
-					Name:     e.host,
-					Endpoint: "https://" + e.host + "/redfish/v1/Chassis",
-					Module:   S3260M4,
+					Name:              e.host,
+					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis",
+					Module:            S3260M4,
+					CredentialProfile: e.credProfile,
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))
 				deviceState = 2
@@ -591,7 +594,7 @@ func getManagerEndpoint(url, host string, client *retryablehttp.Client) (Chassis
 		return chas, fmt.Errorf("HTTP status %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return chas, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
@@ -617,7 +620,7 @@ func getChassisSerialNumber(url, host string, client *retryablehttp.Client) (str
 		return chassSN.SerialNumber, fmt.Errorf("HTTP status %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return chassSN.SerialNumber, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
@@ -643,7 +646,7 @@ func getChassisEndpoint(url, host string, client *retryablehttp.Client) (Collect
 		return chas, fmt.Errorf("HTTP status %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return chas, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
@@ -669,7 +672,7 @@ func getBIOSVersion(url, host string, client *retryablehttp.Client) (string, err
 		return "", fmt.Errorf("HTTP status %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
@@ -711,7 +714,7 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (Collectio
 		}
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return dimms, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}

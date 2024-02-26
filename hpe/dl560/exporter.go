@@ -67,17 +67,18 @@ var (
 // Exporter collects chassis manager stats from the given URI and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	ctx   context.Context
-	mutex sync.RWMutex
-	pool  *pool.Pool
-	host  string
+	ctx         context.Context
+	mutex       sync.RWMutex
+	pool        *pool.Pool
+	host        string
+	credProfile string
 
 	up            prometheus.Gauge
 	deviceMetrics *map[string]*metrics
 }
 
 // NewExporter returns an initialized Exporter for HPE DL560 device.
-func NewExporter(ctx context.Context, target, uri string) *Exporter {
+func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 	var fqdn *url.URL
 	var tasks []*pool.Task
 
@@ -117,15 +118,15 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	fqdn, err := url.ParseRequestURI(target)
 	if err != nil {
 		fqdn = &url.URL{
-			Scheme: config.GetConfig().OOBScheme,
+			Scheme: config.GetConfig().BMCScheme,
 			Host:   target,
 		}
 	}
 
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, profile, retryClient)),
 	)
 
 	// start drive metrics here
@@ -153,7 +154,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 				if logicalDrives.MembersCount > 0 {
 					for _, logicalDrive := range logicalDrives.Members {
 						tasks = append(tasks,
-							pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, retryClient)))
+							pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, profile, retryClient)))
 					}
 				}
 			}
@@ -168,7 +169,7 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 				if physicalDrives.MembersCount > 0 {
 					for _, physicalDrive := range physicalDrives.Members {
 						tasks = append(tasks,
-							pool.NewTask(common.Fetch(fqdn.String()+physicalDrive.URL, DRIVE, target, retryClient)))
+							pool.NewTask(common.Fetch(fqdn.String()+physicalDrive.URL, DRIVE, target, profile, retryClient)))
 					}
 				}
 			}
@@ -181,9 +182,10 @@ func NewExporter(ctx context.Context, target, uri string) *Exporter {
 	metrx := NewDeviceMetrics()
 
 	return &Exporter{
-		ctx:  ctx,
-		pool: p,
-		host: fqdn.Host,
+		ctx:         ctx,
+		pool:        p,
+		host:        fqdn.Host,
+		credProfile: profile,
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "up",
 			Help: "Was the last scrape of chassis monitor successful.",
@@ -254,9 +256,10 @@ func (e *Exporter) scrape() {
 			// If credentials are incorrect we will add host to be ignored until manual intervention
 			if strings.Contains(task.Err.Error(), "401") {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
-					Name:     e.host,
-					Endpoint: "https://" + e.host + "/redfish/v1/Chassis",
-					Module:   DL560,
+					Name:              e.host,
+					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis",
+					Module:            DL560,
+					CredentialProfile: e.credProfile,
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))
 				deviceState = 2

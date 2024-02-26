@@ -21,27 +21,65 @@ import (
 	"fmt"
 	"sync"
 
-	cm_vault "github.com/comcast/fishymetrics/vault"
+	fishy_vault "github.com/comcast/fishymetrics/vault"
 	"go.uber.org/zap"
+	"gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var (
 	ChassisCreds = ChassisCredentials{
-		Creds: make(map[string]*Credential),
+		Creds:    make(map[string]*Credential),
+		Profiles: make(map[string]*fishy_vault.SecretProperties),
 	}
 
 	log *zap.Logger
 )
 
 type ChassisCredentials struct {
-	mu    sync.Mutex
-	Creds map[string]*Credential
-	Vault *cm_vault.Vault
+	mu             sync.Mutex
+	Creds          map[string]*Credential
+	Profiles       map[string]*fishy_vault.SecretProperties
+	DefaultProfile string
+	Vault          *fishy_vault.Vault
 }
 
 type Credential struct {
 	User string
 	Pass string
+}
+
+type ProfileFlag struct {
+	Name          string `yaml:"name"`
+	MountPath     string `yaml:"mountPath"`
+	Path          string `yaml:"path"`
+	UserField     string `yaml:"userField,omitempty"`
+	PasswordField string `yaml:"passwordField"`
+	SecretName    string `yaml:"secretName,omitempty"`
+	UserName      string `yaml:"userName,omitempty"`
+}
+
+type CredentialProfilesFlag struct {
+	Profiles []ProfileFlag `yaml:"profiles"`
+}
+
+func (cp *CredentialProfilesFlag) Set(value string) error {
+	err := yaml.Unmarshal([]byte(value), cp)
+	if err != nil {
+		panic(fmt.Errorf("Error parsing argument flag \"--credential.profiles\" - %s", err.Error()))
+	}
+	ChassisCreds.populateProfiles(cp)
+	return nil
+}
+
+func (c *CredentialProfilesFlag) String() string {
+	return fmt.Sprintf("%+v\n", *c)
+}
+
+func CredentialProf(s *kingpin.FlagClause) (target *CredentialProfilesFlag) {
+	target = &CredentialProfilesFlag{}
+	s.SetValue((*CredentialProfilesFlag)(target))
+	return
 }
 
 func (c *ChassisCredentials) Get(key string) (*Credential, bool) {
@@ -57,30 +95,67 @@ func (c *ChassisCredentials) Set(key string, value *Credential) {
 	c.Creds[key] = value
 }
 
-func (c *ChassisCredentials) GetCredentials(ctx context.Context, target string) (*Credential, error) {
+func (c *ChassisCredentials) populateProfiles(profiles *CredentialProfilesFlag) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// default profile is the first one in the list
+	c.DefaultProfile = profiles.Profiles[0].Name
+
+	for _, v := range profiles.Profiles {
+		c.Profiles[v.Name] = &fishy_vault.SecretProperties{
+			MountPath:     v.MountPath,
+			Path:          v.Path,
+			UserField:     v.UserField,
+			PasswordField: v.PasswordField,
+			SecretName:    v.SecretName,
+			UserName:      v.UserName,
+		}
+	}
+}
+
+func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target string) (*Credential, error) {
 	var credential *Credential
 	var ok bool
 	var user, pass string
+	var credProf *fishy_vault.SecretProperties
 
 	log = zap.L()
 
 	if c.Vault == nil {
-		log.Error("issue retrieving credentials from vault using target "+target, zap.Error(fmt.Errorf("vault client not configured")))
-		return credential, fmt.Errorf("issue retrieving credentials from vault using target: %s", target)
+		return nil, fmt.Errorf("vault client not configured")
 	}
 
-	secret, err := c.Vault.GetKV2(ctx, target)
+	// check that atleast 1 profile is present
+	if len(c.Profiles) < 1 {
+		return nil, fmt.Errorf("no credential profiles configured")
+	}
+
+	// if profile is set but not in hashmap we will error
+	if profile != "" {
+		credProf, ok = c.Profiles[profile]
+		if !ok {
+			return nil, fmt.Errorf("profile \"%s\" not found", profile)
+		}
+	} else {
+		// if profile is empty string we use the default profile
+		credProf = c.Profiles[c.DefaultProfile]
+	}
+
+	secret, err := c.Vault.GetKVSecret(ctx, credProf, target)
 	if err != nil {
-		log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err))
-		return credential, fmt.Errorf("issue retrieving credentials from vault using target: %s", target)
+		return nil, err
 	}
 
-	if user, ok = secret.Data[c.Vault.Parameters.Kv2UserField].(string); !ok {
-		return credential, fmt.Errorf("the secret retrieved from vault using target %s is missing the %q field", target, c.Vault.Parameters.Kv2UserField)
+	if c.Profiles[profile].UserName != "" {
+		user = c.Profiles[profile].UserName
+	} else {
+		if user, ok = secret.Data[c.Profiles[profile].UserField].(string); !ok {
+			return nil, fmt.Errorf("missing the \"%q\" user field", c.Profiles[profile].UserField)
+		}
 	}
 
-	if pass, ok = secret.Data[c.Vault.Parameters.Kv2PasswordField].(string); !ok {
-		return credential, fmt.Errorf("the secret retrieved from vault using target %s is missing the %q field", target, c.Vault.Parameters.Kv2PasswordField)
+	if pass, ok = secret.Data[c.Profiles[profile].PasswordField].(string); !ok {
+		return nil, fmt.Errorf("missing the \"%q\" password field", c.Profiles[profile].PasswordField)
 	}
 	credential = &Credential{
 		User: user,

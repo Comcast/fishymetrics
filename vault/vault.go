@@ -31,30 +31,34 @@ var (
 	log *zap.Logger
 )
 
-type VaultParameters struct {
-	// connection parameters
+type Parameters struct {
+	// connection and credential parameters
 	Address         string
 	ApproleRoleID   string
 	ApproleSecretID string
+}
 
-	// the locations / field names of our kv2 secrets
-	Kv2Path          string
-	Kv2MountPath     string
-	Kv2UserField     string
-	Kv2PasswordField string
+// the locations / field names of kv2 secrets
+type SecretProperties struct {
+	MountPath     string
+	Path          string
+	UserField     string
+	PasswordField string
+	SecretName    string
+	UserName      string
 }
 
 type Vault struct {
 	mu         sync.Mutex
 	client     *vault.Client
-	Parameters VaultParameters
+	Parameters Parameters
 	isLoggedIn bool
 }
 
 // NewVaultAppRoleClient logs in to Vault using the AppRole authentication
 // method, returning an authenticated client and the auth token itself, which
 // can be periodically renewed.
-func NewVaultAppRoleClient(ctx context.Context, parameters VaultParameters) (*Vault, error) {
+func NewVaultAppRoleClient(ctx context.Context, parameters Parameters) (*Vault, error) {
 	config := vault.DefaultConfig()
 	config.Address = parameters.Address
 
@@ -98,11 +102,22 @@ func (v *Vault) login(ctx context.Context) (*vault.Secret, error) {
 	return authInfo, nil
 }
 
-// GetKV2 fetches the latest version of secret api key from kv-v2
-func (v *Vault) GetKV2(ctx context.Context, sec string) (*vault.KVSecret, error) {
+// GetKVSecret fetches the latest version of secret api key from kv-v1 or kv-v2
+func (v *Vault) GetKVSecret(ctx context.Context, props *SecretProperties, secret string) (*vault.KVSecret, error) {
 	var kvSecret *vault.KVSecret
+	var err error
 
-	kvSecret, err := v.client.KVv2(v.Parameters.Kv2MountPath).Get(ctx, fmt.Sprintf("%s/%s", v.Parameters.Kv2Path, sec))
+	// perform more checks based on profile
+	if props.MountPath == "kv1" {
+		if props.SecretName != "" {
+			kvSecret, err = v.client.KVv1("kv1").Get(ctx, fmt.Sprintf("%s/%s", props.Path, props.SecretName))
+		} else {
+			kvSecret, err = v.client.KVv1("kv1").Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
+		}
+	} else {
+		kvSecret, err = v.client.KVv2(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
+	}
+
 	if err != nil {
 		return kvSecret, fmt.Errorf("unable to read secret: %w", err)
 	}
