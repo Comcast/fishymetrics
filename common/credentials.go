@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -50,23 +51,27 @@ type Credential struct {
 }
 
 type ProfileFlag struct {
-	Name          string `yaml:"name"`
-	MountPath     string `yaml:"mountPath"`
-	Path          string `yaml:"path"`
-	UserField     string `yaml:"userField,omitempty"`
-	PasswordField string `yaml:"passwordField"`
-	SecretName    string `yaml:"secretName,omitempty"`
-	UserName      string `yaml:"userName,omitempty"`
+	Name          string `json:"name" yaml:"name"`
+	MountPath     string `json:"mountPath" yaml:"mountPath"`
+	Path          string `json:"path" yaml:"path"`
+	UserField     string `json:"userField,omitempty" yaml:"userField,omitempty"`
+	PasswordField string `json:"passwordField" yaml:"passwordField"`
+	SecretName    string `json:"secretName,omitempty" yaml:"secretName,omitempty"`
+	UserName      string `json:"userName,omitempty" yaml:"userName,omitempty"`
 }
 
 type CredentialProfilesFlag struct {
-	Profiles []ProfileFlag `yaml:"profiles"`
+	Profiles []ProfileFlag `json:"profiles" yaml:"profiles"`
 }
 
 func (cp *CredentialProfilesFlag) Set(value string) error {
 	err := yaml.Unmarshal([]byte(value), cp)
 	if err != nil {
-		panic(fmt.Errorf("Error parsing argument flag \"--credential.profiles\" - %s", err.Error()))
+		// if json was passed in we will attempt to unmarshal differently
+		err := json.Unmarshal([]byte(value), cp)
+		if err != nil {
+			panic(fmt.Errorf("Error parsing argument flag \"--credential.profiles\" - %s", err.Error()))
+		}
 	}
 	ChassisCreds.populateProfiles(cp)
 	return nil
