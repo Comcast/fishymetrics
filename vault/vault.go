@@ -108,11 +108,11 @@ func (v *Vault) GetKVSecret(ctx context.Context, props *SecretProperties, secret
 	var err error
 
 	// perform more checks based on profile
-	if props.MountPath == "kv1" {
+	if props.MountPath != "kv2" {
 		if props.SecretName != "" {
-			kvSecret, err = v.client.KVv1("kv1").Get(ctx, fmt.Sprintf("%s/%s", props.Path, props.SecretName))
+			kvSecret, err = v.client.KVv1(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, props.SecretName))
 		} else {
-			kvSecret, err = v.client.KVv1("kv1").Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
+			kvSecret, err = v.client.KVv1(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
 		}
 	} else {
 		kvSecret, err = v.client.KVv2(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
