@@ -50,7 +50,7 @@ spec:
               name: exporter
           {{- if .Values.credentials }}
           args:
-            - --credential.profiles='{{ toJson .Values.credentials }}'
+            - --credential.profiles={{ toJson .Values.credentials }}
           {{- end }}
           env:
             - name: BMC_USERNAME
