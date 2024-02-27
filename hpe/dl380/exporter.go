@@ -127,9 +127,9 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 
 	// vars for drive parsing
 	var (
-		initialURL        = "/Systems/1/SmartStorage/ArrayControllers"
+		initialURL        = "/Systems/1/SmartStorage/ArrayControllers/"
 		url               = initialURL
-		chassisUrl        = "/Chassis/1"
+		chassisUrl        = "/Chassis/1/"
 		logicalDriveURLs  []string
 		physicalDriveURLs []string
 		nvmeDriveURLs     []string
@@ -218,9 +218,9 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 
 	// Additional tasks for pool to perform
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power", POWER, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, profile, retryClient)))
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, profile, retryClient)))
 
 	// Prepare the pool of tasks
 	p := pool.NewPool(tasks, 1)
