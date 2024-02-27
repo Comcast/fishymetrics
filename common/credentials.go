@@ -151,16 +151,16 @@ func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target
 		return nil, err
 	}
 
-	if c.Profiles[profile].UserName != "" {
-		user = c.Profiles[profile].UserName
+	if credProf.UserName != "" {
+		user = credProf.UserName
 	} else {
-		if user, ok = secret.Data[c.Profiles[profile].UserField].(string); !ok {
-			return nil, fmt.Errorf("missing the \"%q\" user field", c.Profiles[profile].UserField)
+		if user, ok = secret.Data[credProf.UserField].(string); !ok {
+			return nil, fmt.Errorf("missing the \"%q\" user field", credProf.UserField)
 		}
 	}
 
-	if pass, ok = secret.Data[c.Profiles[profile].PasswordField].(string); !ok {
-		return nil, fmt.Errorf("missing the \"%q\" password field", c.Profiles[profile].PasswordField)
+	if pass, ok = secret.Data[credProf.PasswordField].(string); !ok {
+		return nil, fmt.Errorf("missing the \"%q\" password field", credProf.PasswordField)
 	}
 	credential = &Credential{
 		User: user,

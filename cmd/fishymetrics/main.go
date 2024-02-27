@@ -118,7 +118,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	// this optional query param is used to tell us which credential profile to use when retrieving that hosts username and password
 	credProf := query.Get("credential_profile")
 
-	log.Info("started scrape", zap.String("module", moduleName), zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
+	log.Info("started scrape", zap.String("module", moduleName), zap.String("target", target), zap.String("credential_profile", credProf), zap.Any("trace_id", r.Context().Value("traceID")))
 
 	// check if vault is configured
 	if vault != nil {

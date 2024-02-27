@@ -199,7 +199,7 @@ func (v *Vault) manageTokenLifecycle(ctx context.Context, token *vault.Secret, d
 		} else {
 			tok = token.Auth.ClientToken
 		}
-		log.Info("revoking token before app shutdown - " + tok)
+		log.Info("revoking token before app shutdown")
 		err := v.client.Auth().Token().RevokeSelfWithContext(ctx, tok)
 		if err != nil {
 			log.Error("unable to revoke token", zap.Error(err))
