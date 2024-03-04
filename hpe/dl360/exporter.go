@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -45,8 +46,12 @@ const (
 	THERMAL = "ThermalMetrics"
 	// POWER represents the power metric endpoint
 	POWER = "PowerMetrics"
-	// DRIVE represents the logical drive metric endpoints
-	DRIVE = "DriveMetrics"
+	// NVME represents the NVMe drive metric endpoint
+	NVME = "NVMeDriveMetrics"
+	// DISKDRIVE represents the Disk Drive metric endpoints
+	DISKDRIVE = "DiskDriveMetrics"
+	// LOGICALDRIVE represents the Logical drive metric endpoint
+	LOGICALDRIVE = "LogicalDriveMetrics"
 	// MEMORY represents the memory metric endpoints
 	MEMORY = "MemoryMetrics"
 	// OK is a string representation of the float 1.0 for device status
@@ -120,10 +125,101 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 		}
 	}
 
+	// vars for drive parsing
+	var (
+		initialURL        = "/Systems/1/SmartStorage/ArrayControllers/"
+		url               = initialURL
+		chassisUrl        = "/Chassis/1/"
+		logicalDriveURLs  []string
+		physicalDriveURLs []string
+		nvmeDriveURLs     []string
+	)
+
+	// PARSING DRIVE ENDPOINTS
+	// Get initial JSON return of /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ set to output
+	output, err := getDriveEndpoint(fqdn.String()+uri+url, target, retryClient)
+
+	// Loop through Members to get ArrayController URLs
+	if err != nil {
+		log.Error("api call "+fqdn.String()+uri+url+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil
+	}
+
+	if output.MembersCount > 0 {
+		for _, member := range output.Members {
+			// for each ArrayController URL, get the JSON object
+			newOutput, err := getDriveEndpoint(fqdn.String()+member.URL, target, retryClient)
+			if err != nil {
+				log.Error("api call "+fqdn.String()+member.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				continue
+			}
+
+			// If LogicalDrives is present, parse logical drive endpoint until all urls are found
+			if newOutput.Links.LogicalDrives.URL != "" {
+				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
+				if err != nil {
+					log.Error("api call "+fqdn.String()+newOutput.Links.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					continue
+				}
+
+				if logicalDriveOutput.MembersCount > 0 {
+					// loop through each Member in the "LogicalDrive" field
+					for _, member := range logicalDriveOutput.Members {
+						// append each URL in the Members array to the logicalDriveURLs array.
+						logicalDriveURLs = append(logicalDriveURLs, member.URL)
+					}
+				}
+			}
+
+			// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
+			if newOutput.Links.PhysicalDrives.URL != "" {
+				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
+
+				if err != nil {
+					log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					continue
+				}
+				if physicalDriveOutput.MembersCount > 0 {
+					for _, member := range physicalDriveOutput.Members {
+						physicalDriveURLs = append(physicalDriveURLs, member.URL)
+					}
+				}
+			}
+		}
+	}
+
+	// parse to find NVME drives
+	chassisOutput, err := getDriveEndpoint(fqdn.String()+uri+chassisUrl, target, retryClient)
+	if err != nil {
+		log.Error("api call "+fqdn.String()+uri+chassisUrl+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil
+	}
+
+	// parse through "Links" to find "Drives" array
+	if len(chassisOutput.Links.Drives) > 0 {
+		// loop through drives array and append each odata.id url to nvmeDriveURLs list
+		for _, drive := range chassisOutput.Links.Drives {
+			nvmeDriveURLs = append(nvmeDriveURLs, drive.URL)
+		}
+	}
+
+	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
+	for _, url := range logicalDriveURLs {
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, LOGICALDRIVE, target, profile, retryClient)))
+	}
+
+	for _, url := range physicalDriveURLs {
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, DISKDRIVE, target, profile, retryClient)))
+	}
+
+	for _, url := range nvmeDriveURLs {
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, NVME, target, profile, retryClient)))
+	}
+
+	// Additional tasks for pool to perform
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1/", DRIVE, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, profile, retryClient)))
 
 	p := pool.NewPool(tasks, 1)
@@ -226,8 +322,12 @@ func (e *Exporter) scrape() {
 			err = e.exportThermalMetrics(task.Body)
 		case POWER:
 			err = e.exportPowerMetrics(task.Body)
-		case DRIVE:
-			err = e.exportDriveMetrics(task.Body)
+		case NVME:
+			err = e.exportNVMeDriveMetrics(task.Body)
+		case DISKDRIVE:
+			err = e.exportPhysicalDriveMetrics(task.Body)
+		case LOGICALDRIVE:
+			err = e.exportLogicalDriveMetrics(task.Body)
 		case MEMORY:
 			err = e.exportMemoryMetrics(task.Body)
 		}
@@ -248,6 +348,71 @@ func (e *Exporter) scrape() {
 
 	e.up.Set(float64(state))
 
+}
+
+// exportPhysicalDriveMetrics collects the DL360's physical drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
+
+	var state float64
+	var dlphysical DiskDriveMetrics
+	var dlphysicaldrive = (*e.deviceMetrics)["diskDriveMetrics"]
+	err := json.Unmarshal(body, &dlphysical)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL360 DiskDriveMetrics - " + err.Error())
+	}
+	// Check physical drive is enabled then check status and convert string to numeric values
+
+	if dlphysical.Status.Health == "OK" {
+		state = OK
+	} else {
+		state = BAD
+	}
+
+	// Physical drives need to have a unique identifier like location so as to not overwrite data
+	// physical drives can have the same ID, but belong to a different ArrayController, therefore need more than just the ID as a unique identifier.
+	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, dlphysical.Id, dlphysical.Location).Set(state)
+	return nil
+}
+
+// exportLogicalDriveMetrics collects the DL360's physical drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
+	var state float64
+	var dllogical LogicalDriveMetrics
+	var dllogicaldrive = (*e.deviceMetrics)["logicalDriveMetrics"]
+	err := json.Unmarshal(body, &dllogical)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL360 LogicalDriveMetrics - " + err.Error())
+	}
+	// Check physical drive is enabled then check status and convert string to numeric values
+	if dllogical.Status.Health == "OK" {
+		state = OK
+	} else {
+		state = BAD
+	}
+
+	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, dllogical.LogicalDriveName, dllogical.VolumeUniqueIdentifier, dllogical.Raid).Set(state)
+	return nil
+}
+
+// exportNVMeDriveMetrics collects the DL360 NVME drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
+	var state float64
+	var dlnvme NVMeDriveMetrics
+	var dlnvmedrive = (*e.deviceMetrics)["nvmeMetrics"]
+	err := json.Unmarshal(body, &dlnvme)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL360 NVMeDriveMetrics - " + err.Error())
+	}
+
+	// Check nvme drive is enabled then check status and convert string to numeric values
+	if dlnvme.Status.Health == "OK" {
+		state = OK
+	} else {
+		state = BAD
+	}
+
+	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel).Set(state)
+	return nil
 }
 
 // exportPowerMetrics collects the DL360's power metrics in json format and sets the prometheus gauges
@@ -323,32 +488,6 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	return nil
 }
 
-// exportDriveMetrics collects the DL360 drive metrics in json format and sets the prometheus gauges
-func (e *Exporter) exportDriveMetrics(body []byte) error {
-
-	var state float64
-	var dld DriveMetrics
-	var dlDrive = (*e.deviceMetrics)["driveMetrics"]
-	err := json.Unmarshal(body, &dld)
-	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL360 DriveMetrics - " + err.Error())
-	}
-	// Check logical drive is enabled then check status and convert string to numeric values
-	if dld.Status.State == "Enabled" {
-		if dld.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
-		}
-	} else {
-		state = DISABLED
-	}
-
-	(*dlDrive)["logicalDriveStatus"].WithLabelValues(dld.Name, strconv.Itoa(dld.LogicalDriveNumber), dld.Raid).Set(state)
-
-	return nil
-}
-
 // exportMemoryMetrics collects the DL360 drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportMemoryMetrics(body []byte) error {
 
@@ -369,4 +508,48 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	(*dlMemory)["memoryStatus"].WithLabelValues(strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
 
 	return nil
+}
+
+// The getDriveEndpoint function is used in a recursive fashion to get the body response
+// of any type of drive, NVMe, Physical DiskDrives, or Logical Drives, using the GenericDrive struct
+// This is used to find the final drive endpoints to append to the task pool for final scraping.
+func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDrive, error) {
+	var drive GenericDrive
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return drive, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return drive, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return drive, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else {
+			return drive, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return drive, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &drive)
+	if err != nil {
+		return drive, fmt.Errorf("Error Unmarshalling DL360 drive struct - " + err.Error())
+	}
+
+	return drive, nil
 }
