@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -541,7 +541,7 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDr
 		}
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return drive, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
