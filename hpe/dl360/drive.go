@@ -16,18 +16,95 @@
 
 package dl360
 
-// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1
+// NVME's
+// /redfish/v1/chassis/1/
+type NVMeDriveMetrics struct {
+	ID               string           `json:"Id"`
+	Model            string           `json:"Model"`
+	Name             string           `json:"Name"`
+	MediaType        string           `json:"MediaType"`
+	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
+	Protocol         string           `json:"Protocol"`
+	Status           DriveStatus      `json:"Status"`
+	FailurePredicted bool             `json:"FailurePredicted"`
+	CapacityBytes    int              `json:"CapacityBytes"`
+}
 
-// DriveMetrics is the top level json object for DL360 Drive metadata
-type DriveMetrics struct {
-	ID                 string `json:"Id"`
-	CapacityMiB        int    `json:"CapacityMiB"`
-	Description        string `json:"Description"`
-	InterfaceType      string `json:"InterfaceType"`
-	LogicalDriveName   string `json:"LogicalDriveName"`
-	LogicalDriveNumber int    `json:"LogicalDriveNumber"`
-	Name               string `json:"Name"`
-	Raid               string `json:"Raid"`
-	Status             Status `json:"Status"`
-	StripeSizeBytes    int    `json:"StripeSizeBytes"`
+// Logical Drives
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/
+type LogicalDriveMetrics struct {
+	Id                     string      `json:"Id"`
+	CapacityMiB            int         `json:"CapacityMiB"`
+	Description            string      `json:"Description"`
+	InterfaceType          string      `json:"InterfaceType"`
+	LogicalDriveName       string      `json:"LogicalDriveName"`
+	LogicalDriveNumber     int         `json:"LogicalDriveNumber"`
+	Name                   string      `json:"Name"`
+	Raid                   string      `json:"Raid"`
+	Status                 DriveStatus `json:"Status"`
+	StripeSizebytes        int         `json:"StripeSizebytes"`
+	VolumeUniqueIdentifier string      `json:"VolumeUniqueIdentifier"`
+}
+
+// Disk Drives
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/
+type DiskDriveMetrics struct {
+	Id            string      `json:"Id"`
+	CapacityMiB   int         `json:"CapacityMiB"`
+	Description   string      `json:"Description"`
+	InterfaceType string      `json:"InterfaceType"`
+	Name          string      `json:"Name"`
+	Model         string      `json:"Model"`
+	Status        DriveStatus `json:"Status"`
+	Location      string      `json:"Location"`
+	SerialNumber  string      `json:"SerialNumber"`
+}
+
+// NVME, Logical, and Physical Disk Drive Status
+type DriveStatus struct {
+	Health string `json:"Health,omitempty"`
+	State  string `json:"Enabled,omitempty"`
+}
+
+// GenericDrive is used to iterate over differing drive endpoints
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ for Logical and Physical Drives
+// /redfish/v1/Chassis/1/Drives/ for NVMe Drive(s)
+type GenericDrive struct {
+	Members []struct {
+		URL string `json:"@odata.id"`
+	} `json:"Members,omitempty"`
+	Links struct {
+		Drives []struct {
+			URL string `json:"@odata.id"`
+		} `json:"Drives,omitempty"`
+		LogicalDrives struct {
+			URL string `json:"@odata.id"`
+		} `json:"LogicalDrives,omitempty"`
+		PhysicalDrives struct {
+			URL string `json:"@odata.id"`
+		} `json:"PhysicalDrives,omitempty"`
+	} `json:"Links,omitempty"`
+	MembersCount int `json:"Members@odata.count,omitempty"`
+}
+
+// PhysicalLocation
+type PhysicalLocation struct {
+	PartLocation PartLocation `json:"PartLocation"`
+}
+
+// PartLocation is a variable that determines the Box and the Bay location of the NVMe drive
+type PartLocation struct {
+	ServiceLabel string `json:"ServiceLabel"`
+}
+
+// Contents of Oem
+type Oem struct {
+	Hpe HpeCont `json:"Hpe"`
+}
+
+// Contents of Hpe
+type HpeCont struct {
+	CurrentTemperatureCelsius int         `json:"CurrentTemperatureCelsius"`
+	DriveStatus               DriveStatus `json:"Status"`
+	NVMeID                    string      `json:"NVMeId"`
 }
