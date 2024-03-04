@@ -5,6 +5,7 @@ project adheres to [Semantic Versioning](http://semver.org/) and this change
 log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
+- Enhanced drive metrics collection for HPE DL360 model servers to include NVME, Storage Disk Drives, and Logical Drives. [#31](https://github.com/Comcast/fishymetrics/issues/31)
 
 ## Added
 - Add ability to reference different vault paths for credential retrieval [#25](https://github.com/Comcast/fishymetrics/issues/25) 
