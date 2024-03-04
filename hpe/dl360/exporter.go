@@ -350,7 +350,7 @@ func (e *Exporter) scrape() {
 
 }
 
-// exportPhysicalDriveMetrics collects the DL380's physical drive metrics in json format and sets the prometheus gauges
+// exportPhysicalDriveMetrics collects the DL360's physical drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 
 	var state float64
@@ -358,7 +358,7 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 	var dlphysicaldrive = (*e.deviceMetrics)["diskDriveMetrics"]
 	err := json.Unmarshal(body, &dlphysical)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 DiskDriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling DL360 DiskDriveMetrics - " + err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
 
@@ -374,14 +374,14 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 	return nil
 }
 
-// exportLogicalDriveMetrics collects the DL380's physical drive metrics in json format and sets the prometheus gauges
+// exportLogicalDriveMetrics collects the DL360's physical drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	var state float64
 	var dllogical LogicalDriveMetrics
 	var dllogicaldrive = (*e.deviceMetrics)["logicalDriveMetrics"]
 	err := json.Unmarshal(body, &dllogical)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 LogicalDriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling DL360 LogicalDriveMetrics - " + err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
 	if dllogical.Status.Health == "OK" {
@@ -394,14 +394,14 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	return nil
 }
 
-// exportNVMeDriveMetrics collects the DL380 NVME drive metrics in json format and sets the prometheus gauges
+// exportNVMeDriveMetrics collects the DL360 NVME drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	var state float64
 	var dlnvme NVMeDriveMetrics
 	var dlnvmedrive = (*e.deviceMetrics)["nvmeMetrics"]
 	err := json.Unmarshal(body, &dlnvme)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 NVMeDriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling DL360 NVMeDriveMetrics - " + err.Error())
 	}
 
 	// Check nvme drive is enabled then check status and convert string to numeric values
@@ -548,7 +548,7 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDr
 
 	err = json.Unmarshal(body, &drive)
 	if err != nil {
-		return drive, fmt.Errorf("Error Unmarshalling DL380 drive struct - " + err.Error())
+		return drive, fmt.Errorf("Error Unmarshalling DL360 drive struct - " + err.Error())
 	}
 
 	return drive, nil
