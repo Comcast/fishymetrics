@@ -52,17 +52,17 @@ func NewDeviceMetrics() *map[string]*metrics {
 		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
 		// NVMe Drive Metrics
 		NVMeDriveMetrics = &metrics{
-			"nvmeDriveStatus": newServerMetric("dl380_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD", nil, []string{"protocol", "id", "serviceLabel"}),
+			"nvmeDriveStatus": newServerMetric("dl360_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD", nil, []string{"protocol", "id", "serviceLabel"}),
 		}
 
 		// Phyiscal Storage Disk Drive Metrics
 		DiskDriveMetrics = &metrics{
-			"driveStatus": newServerMetric("dl380_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD", nil, []string{"name", "Id", "location"}), // DiskDriveStatus values
+			"driveStatus": newServerMetric("dl360_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD", nil, []string{"name", "Id", "location"}), // DiskDriveStatus values
 		}
 
 		// Logical Disk Drive Metrics
 		LogicalDriveMetrics = &metrics{
-			"raidStatus": newServerMetric("dl380_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"name", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
+			"raidStatus": newServerMetric("dl360_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"name", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
 		}
 
 		MemoryMetrics = &metrics{
