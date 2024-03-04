@@ -5,7 +5,6 @@ project adheres to [Semantic Versioning](http://semver.org/) and this change
 log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
-- Enhanced drive metrics collection for HPE DL360 model servers to include NVME, Storage Disk Drives, and Logical Drives. [#31](https://github.com/Comcast/fishymetrics/issues/31)
 
 ## Added
 - Add ability to reference different vault paths for credential retrieval [#25](https://github.com/Comcast/fishymetrics/issues/25) 
@@ -17,6 +16,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Cisco UCS C220 - add additional edge cases when collecting memory metrics [#2](https://github.com/Comcast/fishymetrics/issues/2)
 
 ## Updated
+- Enhanced drive metrics collection for HPE DL360 model servers to include NVME, Storage Disk Drives, and Logical Drives. [#31](https://github.com/Comcast/fishymetrics/issues/31)
 - removed references to internal URLs/FQDNs to opensource the project
 
 ## [0.7.1]
