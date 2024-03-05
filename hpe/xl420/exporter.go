@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package dl360
+package xl420
 
 import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -39,14 +40,16 @@ import (
 )
 
 const (
-	// DL360 is a HPE Hardware Device we scrape
-	DL360 = "DL360"
+	// XL420 is a HPE Hardware Device we scrape
+	XL420 = "XL420"
 	// THERMAL represents the thermal metric endpoint
 	THERMAL = "ThermalMetrics"
 	// POWER represents the power metric endpoint
 	POWER = "PowerMetrics"
-	// DRIVE represents the logical drive metric endpoints
-	DRIVE = "DriveMetrics"
+	// DRIVE represents the physical drive metric endpoints
+	DRIVE = "PhysicalDriveMetrics"
+	// LOGICALDRIVE represents the Logical drive metric endpoint
+	LOGICALDRIVE = "LogicalDriveMetrics"
 	// MEMORY represents the memory metric endpoints
 	MEMORY = "MemoryMetrics"
 	// OK is a string representation of the float 1.0 for device status
@@ -74,7 +77,7 @@ type Exporter struct {
 	deviceMetrics *map[string]*metrics
 }
 
-// NewExporter returns an initialized Exporter for HPE DL360 device.
+// NewExporter returns an initialized Exporter for HPE XL420 device.
 func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 	var fqdn *url.URL
 	var tasks []*pool.Task
@@ -123,8 +126,39 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1/", DRIVE, target, profile, retryClient)),
+		// pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1/", DRIVE, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, profile, retryClient)))
+
+	arrayControllers, err := getDriveEndpoints(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/", target, retryClient)
+	if err != nil {
+		log.Error("error when getting array controllers endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil
+	}
+
+	if arrayControllers.MembersCount > 0 {
+		for _, controller := range arrayControllers.Members {
+			getController, err := getDriveEndpoints(fqdn.String()+controller.URL, target, retryClient)
+			if err != nil {
+				log.Error("error when getting array controller from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil
+			}
+
+			if getController.Links.LogicalDrives.URL != "" {
+				logicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.LogicalDrives.URL, target, retryClient)
+				if err != nil {
+					log.Error("error when getting logical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					return nil
+				}
+
+				if logicalDrives.MembersCount > 0 {
+					for _, logicalDrive := range logicalDrives.Members {
+						tasks = append(tasks,
+							pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, profile, retryClient)))
+					}
+				}
+			}
+		}
+	}
 
 	p := pool.NewPool(tasks, 1)
 
@@ -208,7 +242,7 @@ func (e *Exporter) scrape() {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis",
-					Module:            DL360,
+					Module:            XL420,
 					CredentialProfile: e.credProfile,
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))
@@ -217,7 +251,7 @@ func (e *Exporter) scrape() {
 				deviceState = 0
 			}
 			e.up.Set(float64(deviceState))
-			log.Error("error from "+DL360, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error from "+XL420, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
 			return
 		}
 
@@ -233,7 +267,7 @@ func (e *Exporter) scrape() {
 		}
 
 		if err != nil {
-			log.Error("error exporting metrics - from "+DL360, zap.Error(err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error exporting metrics - from "+XL420, zap.Error(err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
 			continue
 		}
 		scrapeChan <- 1
@@ -250,7 +284,7 @@ func (e *Exporter) scrape() {
 
 }
 
-// exportPowerMetrics collects the DL360's power metrics in json format and sets the prometheus gauges
+// exportPowerMetrics collects the XL420's power metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 	var state float64
@@ -258,30 +292,45 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	var dlPower = (*e.deviceMetrics)["powerMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL360 PowerMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling XL420 PowerMetrics - " + err.Error())
 	}
 
-	for _, pc := range pm.PowerControl {
-		(*dlPower)["supplyTotalConsumed"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerConsumedWatts))
-		(*dlPower)["supplyTotalCapacity"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerCapacityWatts))
+	for idx, pc := range pm.PowerControl {
+		if pc.MemberID != "" {
+			(*dlPower)["supplyTotalConsumed"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerConsumedWatts))
+			(*dlPower)["supplyTotalCapacity"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerCapacityWatts))
+		} else {
+			(*dlPower)["supplyTotalConsumed"].WithLabelValues(strconv.Itoa(idx)).Set(float64(pc.PowerConsumedWatts))
+			(*dlPower)["supplyTotalCapacity"].WithLabelValues(strconv.Itoa(idx)).Set(float64(pc.PowerCapacityWatts))
+		}
 	}
 
 	for _, ps := range pm.PowerSupplies {
 		if ps.Status.State == "Enabled" {
-			(*dlPower)["supplyOutput"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
+			if ps.MemberID != "" {
+				(*dlPower)["supplyOutput"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
+			} else {
+				(*dlPower)["supplyOutput"].WithLabelValues(strconv.Itoa(ps.Oem.Hp.BayNumber), ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
+			}
+			// (*dlPower)["supplyOutput"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
 			if ps.Status.Health == "OK" {
 				state = OK
 			} else {
 				state = BAD
 			}
-			(*dlPower)["supplyStatus"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(state)
+			if ps.MemberID != "" {
+				(*dlPower)["supplyStatus"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(state)
+			} else {
+				(*dlPower)["supplyStatus"].WithLabelValues(strconv.Itoa(ps.Oem.Hp.BayNumber), ps.SparePartNumber).Set(state)
+			}
+			// (*dlPower)["supplyStatus"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(state)
 		}
 	}
 
 	return nil
 }
 
-// exportThermalMetrics collects the DL360's thermal and fan metrics in json format and sets the prometheus gauges
+// exportThermalMetrics collects the XL420's thermal and fan metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportThermalMetrics(body []byte) error {
 
 	var state float64
@@ -289,14 +338,14 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	var dlThermal = (*e.deviceMetrics)["thermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL360 ThermalMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling XL420 ThermalMetrics - " + err.Error())
 	}
 
 	// Iterate through fans
 	for _, fan := range tm.Fans {
 		// Check fan status and convert string to numeric values
 		if fan.Status.State == "Enabled" {
-			if (fan.FanName != "") {
+			if fan.FanName != "" {
 				(*dlThermal)["fanSpeed"].WithLabelValues(fan.FanName).Set(float64(fan.CurrentReading))
 			} else {
 				(*dlThermal)["fanSpeed"].WithLabelValues(fan.Name).Set(float64(fan.Reading))
@@ -306,7 +355,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 			} else {
 				state = BAD
 			}
-			if (fan.FanName != "") {
+			if fan.FanName != "" {
 				(*dlThermal)["fanStatus"].WithLabelValues(fan.FanName).Set(state)
 			} else {
 				(*dlThermal)["fanStatus"].WithLabelValues(fan.Name).Set(state)
@@ -331,7 +380,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	return nil
 }
 
-// exportDriveMetrics collects the DL360 drive metrics in json format and sets the prometheus gauges
+// exportDriveMetrics collects the XL420 drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportDriveMetrics(body []byte) error {
 
 	var state float64
@@ -339,7 +388,7 @@ func (e *Exporter) exportDriveMetrics(body []byte) error {
 	var dlDrive = (*e.deviceMetrics)["driveMetrics"]
 	err := json.Unmarshal(body, &dld)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL360 DriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling XL420 DriveMetrics - " + err.Error())
 	}
 	// Check logical drive is enabled then check status and convert string to numeric values
 	if dld.Status.State == "Enabled" {
@@ -357,7 +406,7 @@ func (e *Exporter) exportDriveMetrics(body []byte) error {
 	return nil
 }
 
-// exportMemoryMetrics collects the DL360 drive metrics in json format and sets the prometheus gauges
+// exportMemoryMetrics collects the XL420 drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportMemoryMetrics(body []byte) error {
 
 	var state float64
@@ -365,7 +414,7 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	var dlMemory = (*e.deviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &dlm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL360 MemoryMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling XL420 MemoryMetrics - " + err.Error())
 	}
 	// Check memory status and convert string to numeric values
 	if dlm.MemorySummary.Status.HealthRollup == "OK" {
@@ -377,4 +426,46 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	(*dlMemory)["memoryStatus"].WithLabelValues(strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
 
 	return nil
+}
+
+func getDriveEndpoints(url, host string, client *retryablehttp.Client) (GenericDrive, error) {
+	var drives GenericDrive
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return drives, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return drives, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return drives, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else {
+			return drives, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return drives, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &drives)
+	if err != nil {
+		return drives, fmt.Errorf("Error Unmarshalling DL560 Drive Collection struct - " + err.Error())
+	}
+
+	return drives, nil
 }

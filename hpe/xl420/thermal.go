@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package dl360
+package xl420
 
 // /redfish/v1/Chassis/1/Thermal/
 
-// ThermalMetrics is the top level json object for DL360 Thermal metadata
+// ThermalMetrics is the top level json object for XL420 Thermal metadata
 type ThermalMetrics struct {
 	ID           string        `json:"Id"`
 	Fans         []Fan         `json:"Fans"`
@@ -26,7 +26,7 @@ type ThermalMetrics struct {
 	Temperatures []Temperature `json:"Temperatures"`
 }
 
-// Fan is the json object for a DL360 fan module
+// Fan is the json object for a XL420 fan module
 type Fan struct {
 	MemberID       string        `json:"MemberId"`
 	Name           string        `json:"Name"`
@@ -43,7 +43,7 @@ type StatusThermal struct {
 	State  string `json:"State"`
 }
 
-// Temperature is the json object for a DL360 temperature sensor module
+// Temperature is the json object for a XL420 temperature sensor module
 type Temperature struct {
 	MemberID               string        `json:"MemberId"`
 	Name                   string        `json:"Name"`
