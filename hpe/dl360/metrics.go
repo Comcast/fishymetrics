@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,8 +49,20 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"supplyTotalCapacity": newServerMetric("dl360_power_supply_total_capacity", "Total output capacity of all the power supplies", nil, []string{"memberId"}),
 		}
 
-		DriveMetrics = &metrics{
-			"logicalDriveStatus": newServerMetric("dl360_logical_drive_status", "Current logical drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}),
+		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
+		// NVMe Drive Metrics
+		NVMeDriveMetrics = &metrics{
+			"nvmeDriveStatus": newServerMetric("dl360_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD", nil, []string{"protocol", "id", "serviceLabel"}),
+		}
+
+		// Phyiscal Storage Disk Drive Metrics
+		DiskDriveMetrics = &metrics{
+			"driveStatus": newServerMetric("dl360_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD", nil, []string{"name", "Id", "location"}), // DiskDriveStatus values
+		}
+
+		// Logical Disk Drive Metrics
+		LogicalDriveMetrics = &metrics{
+			"raidStatus": newServerMetric("dl360_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"name", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
 		}
 
 		MemoryMetrics = &metrics{
@@ -58,10 +70,12 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		Metrics = &map[string]*metrics{
-			"thermalMetrics": ThermalMetrics,
-			"powerMetrics":   PowerMetrics,
-			"driveMetrics":   DriveMetrics,
-			"memoryMetrics":  MemoryMetrics,
+			"thermalMetrics":      ThermalMetrics,
+			"powerMetrics":        PowerMetrics,
+			"nvmeMetrics":         NVMeDriveMetrics,
+			"diskDriveMetrics":    DiskDriveMetrics,
+			"logicalDriveMetrics": LogicalDriveMetrics,
+			"memoryMetrics":       MemoryMetrics,
 		}
 	)
 
