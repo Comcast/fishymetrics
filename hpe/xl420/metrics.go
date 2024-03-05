@@ -49,8 +49,12 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"supplyTotalCapacity": newServerMetric("xl420_power_supply_total_capacity", "Total output capacity of all the power supplies", nil, []string{"memberId"}),
 		}
 
-		DriveMetrics = &metrics{
+		LogicalDriveMetrics = &metrics{
 			"logicalDriveStatus": newServerMetric("xl420_logical_drive_status", "Current logical drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}),
+		}
+
+		PhysicalDriveMetrics = &metrics{
+			"physicalDriveStatus": newServerMetric("xl420_physical_drive_status", "Current physical drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "id", "location", "serialnumber"}),
 		}
 
 		MemoryMetrics = &metrics{
@@ -58,10 +62,11 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		Metrics = &map[string]*metrics{
-			"thermalMetrics": ThermalMetrics,
-			"powerMetrics":   PowerMetrics,
-			"driveMetrics":   DriveMetrics,
-			"memoryMetrics":  MemoryMetrics,
+			"thermalMetrics":      ThermalMetrics,
+			"powerMetrics":        PowerMetrics,
+			"logicalDriveMetrics": LogicalDriveMetrics,
+			"driveMetrics":        PhysicalDriveMetrics,
+			"memoryMetrics":       MemoryMetrics,
 		}
 	)
 

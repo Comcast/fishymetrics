@@ -126,7 +126,6 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, profile, retryClient)),
-		// pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1/", DRIVE, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, profile, retryClient)))
 
 	arrayControllers, err := getDriveEndpoints(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/", target, retryClient)
@@ -154,6 +153,47 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 					for _, logicalDrive := range logicalDrives.Members {
 						tasks = append(tasks,
 							pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, profile, retryClient)))
+					}
+				}
+			} else {
+				logicalDrives, err := getDriveEndpoints(fqdn.String()+getController.links.LogicalDrives.URL, target, retryClient)
+				if err != nil {
+					log.Error("error when getting logical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					return nil
+				}
+
+				if logicalDrives.MembersCount > 0 {
+					for _, logicalDrive := range logicalDrives.Members {
+						tasks = append(tasks,
+							pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, profile, retryClient)))
+					}
+				}
+			}
+
+			if getController.Links.PhysicalDrives.URL != "" {
+				physicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.PhysicalDrives.URL, target, retryClient)
+				if err != nil {
+					log.Error("error when getting physical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					return nil
+				}
+
+				if physicalDrives.MembersCount > 0 {
+					for _, physicalDrive := range physicalDrives.Members {
+						tasks = append(tasks,
+							pool.NewTask(common.Fetch(fqdn.String()+physicalDrive.URL, DRIVE, target, profile, retryClient)))
+					}
+				}
+			} else {
+				physicalDrives, err := getDriveEndpoints(fqdn.String()+getController.links.PhysicalDrives.URL, target, retryClient)
+				if err != nil {
+					log.Error("error when getting physical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					return nil
+				}
+
+				if physicalDrives.MembersCount > 0 {
+					for _, physicalDrive := range physicalDrives.Members {
+						tasks = append(tasks,
+							pool.NewTask(common.Fetch(fqdn.String()+physicalDrive.URL, DRIVE, target, profile, retryClient)))
 					}
 				}
 			}
@@ -260,8 +300,10 @@ func (e *Exporter) scrape() {
 			err = e.exportThermalMetrics(task.Body)
 		case POWER:
 			err = e.exportPowerMetrics(task.Body)
+		case LOGICALDRIVE:
+			err = e.exportLogicalDriveMetrics(task.Body)
 		case DRIVE:
-			err = e.exportDriveMetrics(task.Body)
+			err = e.exportPhysicalDriveMetrics(task.Body)
 		case MEMORY:
 			err = e.exportMemoryMetrics(task.Body)
 		}
@@ -380,15 +422,15 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	return nil
 }
 
-// exportDriveMetrics collects the XL420 drive metrics in json format and sets the prometheus gauges
-func (e *Exporter) exportDriveMetrics(body []byte) error {
+// exportLogicalDriveMetrics collects the DL560 logical drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 
 	var state float64
-	var dld DriveMetrics
-	var dlDrive = (*e.deviceMetrics)["driveMetrics"]
+	var dld LogicalDriveMetrics
+	var dlDrive = (*e.deviceMetrics)["logicalDriveMetrics"]
 	err := json.Unmarshal(body, &dld)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling XL420 DriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling DL560 LogicalDriveMetrics - " + err.Error())
 	}
 	// Check logical drive is enabled then check status and convert string to numeric values
 	if dld.Status.State == "Enabled" {
@@ -402,6 +444,32 @@ func (e *Exporter) exportDriveMetrics(body []byte) error {
 	}
 
 	(*dlDrive)["logicalDriveStatus"].WithLabelValues(dld.Name, strconv.Itoa(dld.LogicalDriveNumber), dld.Raid).Set(state)
+
+	return nil
+}
+
+// exportPhysicalDriveMetrics collects the XL420 drive metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
+
+	var state float64
+	var dpd PhysicalDriveMetrics
+	var dpDrive = (*e.deviceMetrics)["driveMetrics"]
+	err := json.Unmarshal(body, &dpd)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling XL420 DriveMetrics - " + err.Error())
+	}
+	// Check physical drive is enabled then check status and convert string to numeric values
+	if dpd.Status.State == "Enabled" {
+		if dpd.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
+	} else {
+		state = DISABLED
+	}
+
+	(*dpDrive)["physicalDriveStatus"].WithLabelValues(dpd.Name, dpd.ID, dpd.Location, dpd.SerialNumber).Set(state)
 
 	return nil
 }
