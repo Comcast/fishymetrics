@@ -84,6 +84,17 @@ type GenericDrive struct {
 			URL string `json:"@odata.id"`
 		} `json:"PhysicalDrives,omitempty"`
 	} `json:"Links,omitempty"`
+	Link struct {
+		Drives []struct {
+			URL string `json:"href"`
+		} `json:"Drives,omitempty"`
+		LogicalDrives struct {
+			URL string `json:"href"`
+		} `json:"LogicalDrives,omitempty"`
+		PhysicalDrives struct {
+			URL string `json:"href"`
+		} `json:"PhysicalDrives,omitempty"`
+	} `json:"links,omitempty"`
 	MembersCount int `json:"Members@odata.count,omitempty"`
 }
 

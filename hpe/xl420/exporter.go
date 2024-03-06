@@ -354,7 +354,6 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			} else {
 				(*dlPower)["supplyOutput"].WithLabelValues(strconv.Itoa(ps.Oem.Hp.BayNumber), ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
 			}
-			// (*dlPower)["supplyOutput"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
 			if ps.Status.Health == "OK" {
 				state = OK
 			} else {
@@ -365,7 +364,6 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			} else {
 				(*dlPower)["supplyStatus"].WithLabelValues(strconv.Itoa(ps.Oem.Hp.BayNumber), ps.SparePartNumber).Set(state)
 			}
-			// (*dlPower)["supplyStatus"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(state)
 		}
 	}
 

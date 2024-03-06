@@ -169,6 +169,21 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 						logicalDriveURLs = append(logicalDriveURLs, member.URL)
 					}
 				}
+			} else {
+				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Link.LogicalDrives.URL, target, retryClient)
+				if err != nil {
+					log.Error("api call "+fqdn.String()+newOutput.Link.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					continue
+				}
+
+				if logicalDriveOutput.MembersCount > 0 {
+					// loop through each Member in the "LogicalDrive" field
+					for _, member := range logicalDriveOutput.Members {
+						// append each URL in the Members array to the logicalDriveURLs array.
+						logicalDriveURLs = append(logicalDriveURLs, member.URL)
+					}
+				}
+
 			}
 
 			// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
@@ -177,6 +192,18 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 
 				if err != nil {
 					log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					continue
+				}
+				if physicalDriveOutput.MembersCount > 0 {
+					for _, member := range physicalDriveOutput.Members {
+						physicalDriveURLs = append(physicalDriveURLs, member.URL)
+					}
+				}
+			} else {
+				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Link.PhysicalDrives.URL, target, retryClient)
+
+				if err != nil {
+					log.Error("api call "+fqdn.String()+newOutput.Link.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 					continue
 				}
 				if physicalDriveOutput.MembersCount > 0 {
@@ -426,20 +453,33 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DL360 PowerMetrics - " + err.Error())
 	}
 
-	for _, pc := range pm.PowerControl {
-		(*dlPower)["supplyTotalConsumed"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerConsumedWatts))
-		(*dlPower)["supplyTotalCapacity"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerCapacityWatts))
+	for idx, pc := range pm.PowerControl {
+		if pc.MemberID != "" {
+			(*dlPower)["supplyTotalConsumed"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerConsumedWatts))
+			(*dlPower)["supplyTotalCapacity"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerCapacityWatts))
+		} else {
+			(*dlPower)["supplyTotalConsumed"].WithLabelValues(strconv.Itoa(idx)).Set(float64(pc.PowerConsumedWatts))
+			(*dlPower)["supplyTotalCapacity"].WithLabelValues(strconv.Itoa(idx)).Set(float64(pc.PowerCapacityWatts))
+		}
 	}
 
 	for _, ps := range pm.PowerSupplies {
 		if ps.Status.State == "Enabled" {
-			(*dlPower)["supplyOutput"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
+			if ps.MemberID != "" {
+				(*dlPower)["supplyOutput"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
+			} else {
+				(*dlPower)["supplyOutput"].WithLabelValues(strconv.Itoa(ps.Oem.Hp.BayNumber), ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
+			}
 			if ps.Status.Health == "OK" {
 				state = OK
 			} else {
 				state = BAD
 			}
-			(*dlPower)["supplyStatus"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(state)
+			if ps.MemberID != "" {
+				(*dlPower)["supplyStatus"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(state)
+			} else {
+				(*dlPower)["supplyStatus"].WithLabelValues(strconv.Itoa(ps.Oem.Hp.BayNumber), ps.SparePartNumber).Set(state)
+			}
 		}
 	}
 
@@ -461,7 +501,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	for _, fan := range tm.Fans {
 		// Check fan status and convert string to numeric values
 		if fan.Status.State == "Enabled" {
-			if (fan.FanName != "") {
+			if fan.FanName != "" {
 				(*dlThermal)["fanSpeed"].WithLabelValues(fan.FanName).Set(float64(fan.CurrentReading))
 			} else {
 				(*dlThermal)["fanSpeed"].WithLabelValues(fan.Name).Set(float64(fan.Reading))
@@ -471,7 +511,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 			} else {
 				state = BAD
 			}
-			if (fan.FanName != "") {
+			if fan.FanName != "" {
 				(*dlThermal)["fanStatus"].WithLabelValues(fan.FanName).Set(state)
 			} else {
 				(*dlThermal)["fanStatus"].WithLabelValues(fan.Name).Set(state)
