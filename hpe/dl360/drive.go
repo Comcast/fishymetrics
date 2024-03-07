@@ -77,10 +77,10 @@ type GenericDrive struct {
 		Drives []struct {
 			URL string `json:"@odata.id"`
 		} `json:"Drives,omitempty"`
-		LogicalDrives struct {
+		LogicalDrives *struct {
 			URL string `json:"@odata.id"`
 		} `json:"LogicalDrives,omitempty"`
-		PhysicalDrives struct {
+		PhysicalDrives *struct {
 			URL string `json:"@odata.id"`
 		} `json:"PhysicalDrives,omitempty"`
 	} `json:"Links,omitempty"`
@@ -88,10 +88,10 @@ type GenericDrive struct {
 		Drives []struct {
 			URL string `json:"href"`
 		} `json:"Drives,omitempty"`
-		LogicalDrives struct {
+		LogicalDrives *struct {
 			URL string `json:"href"`
 		} `json:"LogicalDrives,omitempty"`
-		PhysicalDrives struct {
+		PhysicalDrives *struct {
 			URL string `json:"href"`
 		} `json:"PhysicalDrives,omitempty"`
 	} `json:"links,omitempty"`

@@ -156,7 +156,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 
 			if newOutput.Links != nil {
 				// If LogicalDrives is present, parse logical drive endpoint until all urls are found
-				if newOutput.Links.LogicalDrives.URL != "" {
+				if newOutput.Links.LogicalDrives != nil && newOutput.Links.LogicalDrives.URL != "" {
 					logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
 					if err != nil {
 						log.Error("api call "+fqdn.String()+newOutput.Links.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
@@ -173,7 +173,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 				}
 
 				// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
-				if newOutput.Links.PhysicalDrives.URL != "" {
+				if newOutput.Links.PhysicalDrives != nil && newOutput.Links.PhysicalDrives.URL != "" {
 					physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
 					if err != nil {
 						log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
@@ -190,7 +190,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 
 			if newOutput.Link != nil {
 				// If LogicalDrives is present, parse logical drive endpoint until all urls are found
-				if newOutput.Link.LogicalDrives.URL != "" {
+				if newOutput.Link.LogicalDrives != nil && newOutput.Link.LogicalDrives.URL != "" {
 					logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Link.LogicalDrives.URL, target, retryClient)
 					if err != nil {
 						log.Error("api call "+fqdn.String()+newOutput.Link.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
@@ -207,7 +207,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 				}
 
 				// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
-				if newOutput.Link.PhysicalDrives.URL != "" {
+				if newOutput.Link.PhysicalDrives != nil && newOutput.Link.PhysicalDrives.URL != "" {
 					physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Link.PhysicalDrives.URL, target, retryClient)
 					if err != nil {
 						log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))

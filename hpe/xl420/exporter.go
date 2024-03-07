@@ -143,7 +143,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 			}
 
 			if getController.Links != nil {
-				if getController.Links.LogicalDrives.URL != "" {
+				if getController.Links.LogicalDrives != nil && getController.Links.LogicalDrives.URL != "" {
 					logicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.LogicalDrives.URL, target, retryClient)
 					if err != nil {
 						log.Error("error when getting logical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
@@ -158,7 +158,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 					}
 				}
 
-				if getController.Links.PhysicalDrives.URL != "" {
+				if getController.Links.PhysicalDrives != nil && getController.Links.PhysicalDrives.URL != "" {
 					physicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.PhysicalDrives.URL, target, retryClient)
 					if err != nil {
 						log.Error("error when getting physical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
@@ -174,7 +174,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 				}
 
 			} else if getController.Link != nil {
-				if getController.Link.LogicalDrives.URL != "" {
+				if getController.Link.LogicalDrives != nil && getController.Link.LogicalDrives.URL != "" {
 					logicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Link.LogicalDrives.URL, target, retryClient)
 					if err != nil {
 						log.Error("error when getting logical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
@@ -189,7 +189,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 					}
 				}
 
-				if getController.Link.PhysicalDrives.URL != "" {
+				if getController.Link.PhysicalDrives != nil && getController.Link.PhysicalDrives.URL != "" {
 					physicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Link.PhysicalDrives.URL, target, retryClient)
 					if err != nil {
 						log.Error("error when getting physical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
