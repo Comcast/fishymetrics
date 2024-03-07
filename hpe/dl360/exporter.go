@@ -154,61 +154,70 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 				continue
 			}
 
-			// If LogicalDrives is present, parse logical drive endpoint until all urls are found
-			if newOutput.Links.LogicalDrives.URL != "" {
-				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
-				if err != nil {
-					log.Error("api call "+fqdn.String()+newOutput.Links.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					continue
-				}
-
-				if logicalDriveOutput.MembersCount > 0 {
-					// loop through each Member in the "LogicalDrive" field
-					for _, member := range logicalDriveOutput.Members {
-						// append each URL in the Members array to the logicalDriveURLs array.
-						logicalDriveURLs = append(logicalDriveURLs, member.URL)
+			if newOutput.Links != nil {
+				// If LogicalDrives is present, parse logical drive endpoint until all urls are found
+				if newOutput.Links.LogicalDrives.URL != "" {
+					logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
+					if err != nil {
+						log.Error("api call "+fqdn.String()+newOutput.Links.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						continue
 					}
-				}
-			} else {
-				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Link.LogicalDrives.URL, target, retryClient)
-				if err != nil {
-					log.Error("api call "+fqdn.String()+newOutput.Link.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					continue
-				}
 
-				if logicalDriveOutput.MembersCount > 0 {
-					// loop through each Member in the "LogicalDrive" field
-					for _, member := range logicalDriveOutput.Members {
-						// append each URL in the Members array to the logicalDriveURLs array.
-						logicalDriveURLs = append(logicalDriveURLs, member.URL)
+					if logicalDriveOutput.MembersCount > 0 {
+						// loop through each Member in the "LogicalDrive" field
+						for _, member := range logicalDriveOutput.Members {
+							// append each URL in the Members array to the logicalDriveURLs array.
+							logicalDriveURLs = append(logicalDriveURLs, member.URL)
+						}
 					}
 				}
 
+				// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
+				if newOutput.Links.PhysicalDrives.URL != "" {
+					physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
+					if err != nil {
+						log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						continue
+					}
+
+					if physicalDriveOutput.MembersCount > 0 {
+						for _, member := range physicalDriveOutput.Members {
+							physicalDriveURLs = append(physicalDriveURLs, member.URL)
+						}
+					}
+				}
 			}
 
-			// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
-			if newOutput.Links.PhysicalDrives.URL != "" {
-				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
+			if newOutput.Link != nil {
+				// If LogicalDrives is present, parse logical drive endpoint until all urls are found
+				if newOutput.Link.LogicalDrives.URL != "" {
+					logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Link.LogicalDrives.URL, target, retryClient)
+					if err != nil {
+						log.Error("api call "+fqdn.String()+newOutput.Link.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						continue
+					}
 
-				if err != nil {
-					log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					continue
-				}
-				if physicalDriveOutput.MembersCount > 0 {
-					for _, member := range physicalDriveOutput.Members {
-						physicalDriveURLs = append(physicalDriveURLs, member.URL)
+					if logicalDriveOutput.MembersCount > 0 {
+						// loop through each Member in the "LogicalDrive" field
+						for _, member := range logicalDriveOutput.Members {
+							// append each URL in the Members array to the logicalDriveURLs array.
+							logicalDriveURLs = append(logicalDriveURLs, member.URL)
+						}
 					}
 				}
-			} else {
-				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Link.PhysicalDrives.URL, target, retryClient)
 
-				if err != nil {
-					log.Error("api call "+fqdn.String()+newOutput.Link.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					continue
-				}
-				if physicalDriveOutput.MembersCount > 0 {
-					for _, member := range physicalDriveOutput.Members {
-						physicalDriveURLs = append(physicalDriveURLs, member.URL)
+				// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
+				if newOutput.Link.PhysicalDrives.URL != "" {
+					physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Link.PhysicalDrives.URL, target, retryClient)
+					if err != nil {
+						log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						continue
+					}
+
+					if physicalDriveOutput.MembersCount > 0 {
+						for _, member := range physicalDriveOutput.Members {
+							physicalDriveURLs = append(physicalDriveURLs, member.URL)
+						}
 					}
 				}
 			}
@@ -223,10 +232,12 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 	}
 
 	// parse through "Links" to find "Drives" array
-	if len(chassisOutput.Links.Drives) > 0 {
-		// loop through drives array and append each odata.id url to nvmeDriveURLs list
-		for _, drive := range chassisOutput.Links.Drives {
-			nvmeDriveURLs = append(nvmeDriveURLs, drive.URL)
+	if chassisOutput.Links != nil {
+		if len(chassisOutput.Links.Drives) > 0 {
+			// loop through drives array and append each odata.id url to nvmeDriveURLs list
+			for _, drive := range chassisOutput.Links.Drives {
+				nvmeDriveURLs = append(nvmeDriveURLs, drive.URL)
+			}
 		}
 	}
 

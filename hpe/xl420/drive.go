@@ -23,22 +23,22 @@ type GenericDrive struct {
 		URL string `json:"@odata.id"`
 	} `json:"Members"`
 	MembersCount int `json:"Members@odata.count,omitempty"`
-	Links        struct {
+	Links        *struct {
 		LogicalDrives struct {
 			URL string `json:"href"`
 		} `json:"LogicalDrives,omitempty"`
 		PhysicalDrives struct {
 			URL string `json:"href"`
 		} `json:"PhysicalDrives,omitempty"`
-	}
-	links struct {
+	} `json:"Links,omitempty"`
+	Link *struct {
 		LogicalDrives struct {
 			URL string `json:"href"`
 		} `json:"LogicalDrives,omitempty"`
 		PhysicalDrives struct {
 			URL string `json:"href"`
 		} `json:"PhysicalDrives,omitempty"`
-	}
+	} `json:"links,omitempty"`
 }
 
 // /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/LogicalDrives/X/

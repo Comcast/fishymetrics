@@ -142,58 +142,65 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 				return nil
 			}
 
-			if getController.Links.LogicalDrives.URL != "" {
-				logicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.LogicalDrives.URL, target, retryClient)
-				if err != nil {
-					log.Error("error when getting logical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					return nil
-				}
+			if getController.Links != nil {
+				if getController.Links.LogicalDrives.URL != "" {
+					logicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.LogicalDrives.URL, target, retryClient)
+					if err != nil {
+						log.Error("error when getting logical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						return nil
+					}
 
-				if logicalDrives.MembersCount > 0 {
-					for _, logicalDrive := range logicalDrives.Members {
-						tasks = append(tasks,
-							pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, profile, retryClient)))
+					if logicalDrives.MembersCount > 0 {
+						for _, logicalDrive := range logicalDrives.Members {
+							tasks = append(tasks,
+								pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, profile, retryClient)))
+						}
 					}
 				}
-			} else {
-				logicalDrives, err := getDriveEndpoints(fqdn.String()+getController.links.LogicalDrives.URL, target, retryClient)
-				if err != nil {
-					log.Error("error when getting logical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					return nil
-				}
 
-				if logicalDrives.MembersCount > 0 {
-					for _, logicalDrive := range logicalDrives.Members {
-						tasks = append(tasks,
-							pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, profile, retryClient)))
+				if getController.Links.PhysicalDrives.URL != "" {
+					physicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.PhysicalDrives.URL, target, retryClient)
+					if err != nil {
+						log.Error("error when getting physical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						return nil
+					}
+
+					if physicalDrives.MembersCount > 0 {
+						for _, physicalDrive := range physicalDrives.Members {
+							tasks = append(tasks,
+								pool.NewTask(common.Fetch(fqdn.String()+physicalDrive.URL, DRIVE, target, profile, retryClient)))
+						}
 					}
 				}
-			}
 
-			if getController.Links.PhysicalDrives.URL != "" {
-				physicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Links.PhysicalDrives.URL, target, retryClient)
-				if err != nil {
-					log.Error("error when getting physical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					return nil
-				}
+			} else if getController.Link != nil {
+				if getController.Link.LogicalDrives.URL != "" {
+					logicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Link.LogicalDrives.URL, target, retryClient)
+					if err != nil {
+						log.Error("error when getting logical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						return nil
+					}
 
-				if physicalDrives.MembersCount > 0 {
-					for _, physicalDrive := range physicalDrives.Members {
-						tasks = append(tasks,
-							pool.NewTask(common.Fetch(fqdn.String()+physicalDrive.URL, DRIVE, target, profile, retryClient)))
+					if logicalDrives.MembersCount > 0 {
+						for _, logicalDrive := range logicalDrives.Members {
+							tasks = append(tasks,
+								pool.NewTask(common.Fetch(fqdn.String()+logicalDrive.URL, LOGICALDRIVE, target, profile, retryClient)))
+						}
 					}
 				}
-			} else {
-				physicalDrives, err := getDriveEndpoints(fqdn.String()+getController.links.PhysicalDrives.URL, target, retryClient)
-				if err != nil {
-					log.Error("error when getting physical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					return nil
-				}
 
-				if physicalDrives.MembersCount > 0 {
-					for _, physicalDrive := range physicalDrives.Members {
-						tasks = append(tasks,
-							pool.NewTask(common.Fetch(fqdn.String()+physicalDrive.URL, DRIVE, target, profile, retryClient)))
+				if getController.Link.PhysicalDrives.URL != "" {
+					physicalDrives, err := getDriveEndpoints(fqdn.String()+getController.Link.PhysicalDrives.URL, target, retryClient)
+					if err != nil {
+						log.Error("error when getting physical drives endpoint from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						return nil
+					}
+
+					if physicalDrives.MembersCount > 0 {
+						for _, physicalDrive := range physicalDrives.Members {
+							tasks = append(tasks,
+								pool.NewTask(common.Fetch(fqdn.String()+physicalDrive.URL, DRIVE, target, profile, retryClient)))
+						}
 					}
 				}
 			}

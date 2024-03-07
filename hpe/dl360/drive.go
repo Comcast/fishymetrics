@@ -73,7 +73,7 @@ type GenericDrive struct {
 	Members []struct {
 		URL string `json:"@odata.id"`
 	} `json:"Members,omitempty"`
-	Links struct {
+	Links *struct {
 		Drives []struct {
 			URL string `json:"@odata.id"`
 		} `json:"Drives,omitempty"`
@@ -84,7 +84,7 @@ type GenericDrive struct {
 			URL string `json:"@odata.id"`
 		} `json:"PhysicalDrives,omitempty"`
 	} `json:"Links,omitempty"`
-	Link struct {
+	Link *struct {
 		Drives []struct {
 			URL string `json:"href"`
 		} `json:"Drives,omitempty"`

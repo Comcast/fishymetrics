@@ -62,8 +62,8 @@ type PowerSupply struct {
 
 // OemPower is the top level json object for historical data for wattage
 type OemPower struct {
-	Hpe Hpe `json:"Hpe"`
-	Hp  Hpe `json:"Hp"`
+	Hpe Hpe `json:"Hpe,omitempty"`
+	Hp  Hpe `json:"Hp,omitempty"`
 }
 
 // Hpe contains metadata on power supply product info
