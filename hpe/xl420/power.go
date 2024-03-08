@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package dl360
+package xl420
 
 // /redfish/v1/Chassis/1/Power/
 
@@ -62,8 +62,8 @@ type PowerSupply struct {
 
 // OemPower is the top level json object for historical data for wattage
 type OemPower struct {
-	Hpe Hpe `json:"Hpe,omitempty"`
-	Hp  Hpe `json:"Hp,omitempty"`
+	Hpe Hpe `json:"Hpe"`
+	Hp  Hpe `json:"Hp"`
 }
 
 // Hpe contains metadata on power supply product info

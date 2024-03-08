@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,7 +46,7 @@ const (
 	THERMAL = "ThermalMetrics"
 	// POWER represents the power metric endpoint
 	POWER = "PowerMetrics"
-	// DRIVE represents the logical drive metric endpoints
+	// DRIVE represents the physical drive metric endpoints
 	DRIVE = "PhysicalDriveMetrics"
 	// LOGICALDRIVE represents the Logical drive metric endpoint
 	LOGICALDRIVE = "LogicalDriveMetrics"
@@ -478,14 +478,14 @@ func getDriveEndpoints(url, host string, client *retryablehttp.Client) (GenericD
 		}
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return drives, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
 
 	err = json.Unmarshal(body, &drives)
 	if err != nil {
-		return drives, fmt.Errorf("Error Unmarshalling S3260M5 Memory Collection struct - " + err.Error())
+		return drives, fmt.Errorf("Error Unmarshalling DL560 Drive Collection struct - " + err.Error())
 	}
 
 	return drives, nil
