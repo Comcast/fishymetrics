@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -64,20 +65,23 @@ var (
 // Exporter collects chassis manager stats from the given URI and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	ctx         context.Context
-	mutex       sync.RWMutex
-	pool        *pool.Pool
-	host        string
-	credProfile string
-
-	up            prometheus.Gauge
+	ctx           context.Context
+	mutex         sync.RWMutex
+	pool          *pool.Pool
+	host          string
+	credProfile   string
 	deviceMetrics *map[string]*metrics
 }
 
 // NewExporter returns an initialized Exporter for HPE DL20 device.
-func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
+func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, error) {
 	var fqdn *url.URL
 	var tasks []*pool.Task
+	var exp = Exporter{
+		ctx:           ctx,
+		credProfile:   profile,
+		deviceMetrics: NewDeviceMetrics(),
+	}
 
 	log = zap.L()
 
@@ -119,6 +123,14 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 			Host:   target,
 		}
 	}
+	exp.host = fqdn.String()
+
+	// check if host is on the ignored list, if so we immediately return
+	if _, ok := common.IgnoredDevices[exp.host]; ok {
+		var upMetric = (*exp.deviceMetrics)["up"]
+		(*upMetric)["up"].WithLabelValues().Set(float64(2))
+		return &exp, nil
+	}
 
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal", THERMAL, target, profile, retryClient)),
@@ -126,22 +138,9 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1", DRIVE, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1", MEMORY, target, profile, retryClient)))
 
-	p := pool.NewPool(tasks, 1)
+	exp.pool = pool.NewPool(tasks, 1)
 
-	// Create new map[string]*metrics for each new Exporter
-	metrx := NewDeviceMetrics()
-
-	return &Exporter{
-		ctx:         ctx,
-		pool:        p,
-		host:        fqdn.Host,
-		credProfile: profile,
-		up: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "up",
-			Help: "Was the last scrape of chassis monitor successful.",
-		}),
-		deviceMetrics: metrx,
-	}
+	return &exp, nil
 }
 
 // Describe describes all the metrics ever exported by the fishymetrics exporter. It
@@ -152,7 +151,6 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 			n.Describe(ch)
 		}
 	}
-	ch <- e.up.Desc()
 }
 
 // Collect fetches the stats from configured fishymetrics location and delivers them
@@ -167,10 +165,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	if _, ok := common.IgnoredDevices[e.host]; !ok {
 		e.scrape()
 	} else {
-		e.up.Set(float64(2))
+		var upMetric = (*e.deviceMetrics)["up"]
+		(*upMetric)["up"].WithLabelValues().Set(float64(2))
 	}
 
-	ch <- e.up
 	e.collectMetrics(ch)
 }
 
@@ -204,7 +202,7 @@ func (e *Exporter) scrape() {
 		if task.Err != nil {
 			deviceState := uint8(0)
 			// If credentials are incorrect we will add host to be ignored until manual intervention
-			if strings.Contains(task.Err.Error(), "401") {
+			if errors.Is(task.Err, common.ErrInvalidCredential) {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis",
@@ -216,7 +214,8 @@ func (e *Exporter) scrape() {
 			} else {
 				deviceState = 0
 			}
-			e.up.Set(float64(deviceState))
+			var upMetric = (*e.deviceMetrics)["up"]
+			(*upMetric)["up"].WithLabelValues().Set(float64(deviceState))
 			log.Error("error from "+DL20, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
 			return
 		}
@@ -247,7 +246,8 @@ func (e *Exporter) scrape() {
 		state &= result
 	}
 
-	e.up.Set(float64(state))
+	var upMetric = (*e.deviceMetrics)["up"]
+	(*upMetric)["up"].WithLabelValues().Set(float64(state))
 
 }
 

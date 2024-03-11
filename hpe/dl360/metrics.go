@@ -35,6 +35,10 @@ func newServerMetric(metricName string, docString string, constLabels prometheus
 
 func NewDeviceMetrics() *map[string]*metrics {
 	var (
+		UpMetric = &metrics{
+			"up": newServerMetric("up", "was the last scrape of fishymetrics successful.", nil, []string{}),
+		}
+
 		ThermalMetrics = &metrics{
 			"fanSpeed":          newServerMetric("dl360_thermal_fan_speed", "Current fan speed in the unit of percentage, possible values are 0 - 100", nil, []string{"name"}),
 			"fanStatus":         newServerMetric("dl360_thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name"}),
@@ -52,17 +56,17 @@ func NewDeviceMetrics() *map[string]*metrics {
 		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
 		// NVMe Drive Metrics
 		NVMeDriveMetrics = &metrics{
-			"nvmeDriveStatus": newServerMetric("dl360_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD", nil, []string{"protocol", "id", "serviceLabel"}),
+			"nvmeDriveStatus": newServerMetric("dl360_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"protocol", "id", "serviceLabel"}),
 		}
 
 		// Phyiscal Storage Disk Drive Metrics
 		DiskDriveMetrics = &metrics{
-			"driveStatus": newServerMetric("dl360_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD", nil, []string{"name", "Id", "location"}), // DiskDriveStatus values
+			"driveStatus": newServerMetric("dl360_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "id", "location", "serialnumber"}), // DiskDriveStatus values
 		}
 
 		// Logical Disk Drive Metrics
 		LogicalDriveMetrics = &metrics{
-			"raidStatus": newServerMetric("dl360_logical_drive_raid", "Current Logical Drive Raid", nil, []string{"name", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
+			"raidStatus": newServerMetric("dl360_logical_drive_status", "Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
 		}
 
 		MemoryMetrics = &metrics{
@@ -70,6 +74,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		Metrics = &map[string]*metrics{
+			"up":                  UpMetric,
 			"thermalMetrics":      ThermalMetrics,
 			"powerMetrics":        PowerMetrics,
 			"nvmeMetrics":         NVMeDriveMetrics,

@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -69,20 +70,23 @@ var (
 // Exporter collects chassis manager stats from the given URI and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	ctx         context.Context
-	mutex       sync.RWMutex
-	pool        *pool.Pool
-	host        string
-	credProfile string
-
-	up            prometheus.Gauge
+	ctx           context.Context
+	mutex         sync.RWMutex
+	pool          *pool.Pool
+	host          string
+	credProfile   string
 	deviceMetrics *map[string]*metrics
 }
 
 // NewExporter returns an initialized Exporter for HPE DL380 device.
-func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
+func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, error) {
 	var fqdn *url.URL
 	var tasks []*pool.Task
+	var exp = Exporter{
+		ctx:           ctx,
+		credProfile:   profile,
+		deviceMetrics: NewDeviceMetrics(),
+	}
 
 	log = zap.L()
 
@@ -124,6 +128,14 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 			Host:   target,
 		}
 	}
+	exp.host = fqdn.String()
+
+	// check if host is on the ignored list, if so we immediately return
+	if _, ok := common.IgnoredDevices[exp.host]; ok {
+		var upMetric = (*exp.deviceMetrics)["up"]
+		(*upMetric)["up"].WithLabelValues().Set(float64(2))
+		return &exp, nil
+	}
 
 	// vars for drive parsing
 	var (
@@ -137,53 +149,60 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 
 	// PARSING DRIVE ENDPOINTS
 	// Get initial JSON return of /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ set to output
-	output, err := getDriveEndpoint(fqdn.String()+uri+url, target, retryClient)
-
-	// Loop through Members to get ArrayController URLs
+	driveResp, err := getDriveEndpoint(fqdn.String()+uri+url, target, retryClient)
 	if err != nil {
 		log.Error("api call "+fqdn.String()+uri+url+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil
+		if errors.Is(err, common.ErrInvalidCredential) {
+			common.IgnoredDevices[exp.host] = common.IgnoredDevice{
+				Name:              exp.host,
+				Endpoint:          "https://" + exp.host + "/redfish/v1/Chassis",
+				Module:            DL380,
+				CredentialProfile: exp.credProfile,
+			}
+			log.Info("added host "+exp.host+" to ignored list", zap.Any("trace_id", exp.ctx.Value("traceID")))
+			var upMetric = (*exp.deviceMetrics)["up"]
+			(*upMetric)["up"].WithLabelValues().Set(float64(2))
+
+			return &exp, nil
+		}
+		return nil, err
 	}
 
-	if output.MembersCount > 0 {
-		for _, member := range output.Members {
-			// for each ArrayController URL, get the JSON object
-			newOutput, err := getDriveEndpoint(fqdn.String()+member.URL, target, retryClient)
+	for _, member := range driveResp.Members {
+		// for each ArrayController URL, get the JSON object
+		// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/
+		arrayCtrlResp, err := getDriveEndpoint(fqdn.String()+member.URL, target, retryClient)
+		if err != nil {
+			log.Error("api call "+fqdn.String()+member.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
+		}
+
+		// If LogicalDrives is present, parse logical drive endpoint until all urls are found
+		if arrayCtrlResp.LinksUpper.LogicalDrives.URL != "" {
+			logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksUpper.LogicalDrives.URL, target, retryClient)
 			if err != nil {
-				log.Error("api call "+fqdn.String()+member.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-				continue
+				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksUpper.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
 			}
 
-			// If LogicalDrives is present, parse logical drive endpoint until all urls are found
-			if newOutput.Links.LogicalDrives.URL != "" {
-				logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.LogicalDrives.URL, target, retryClient)
-				if err != nil {
-					log.Error("api call "+fqdn.String()+newOutput.Links.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					continue
-				}
+			// loop through each Member in the "LogicalDrive" field
+			for _, member := range logicalDriveOutput.Members {
+				// append each URL in the Members array to the logicalDriveURLs array.
+				logicalDriveURLs = append(logicalDriveURLs, member.URL)
+			}
+		}
 
-				if logicalDriveOutput.MembersCount > 0 {
-					// loop through each Member in the "LogicalDrive" field
-					for _, member := range logicalDriveOutput.Members {
-						// append each URL in the Members array to the logicalDriveURLs array.
-						logicalDriveURLs = append(logicalDriveURLs, member.URL)
-					}
-				}
+		// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
+		if arrayCtrlResp.LinksUpper.PhysicalDrives.URL != "" {
+			physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksUpper.PhysicalDrives.URL, target, retryClient)
+
+			if err != nil {
+				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksUpper.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
 			}
 
-			// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
-			if newOutput.Links.PhysicalDrives.URL != "" {
-				physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+newOutput.Links.PhysicalDrives.URL, target, retryClient)
-
-				if err != nil {
-					log.Error("api call "+fqdn.String()+newOutput.Links.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					continue
-				}
-				if physicalDriveOutput.MembersCount > 0 {
-					for _, member := range physicalDriveOutput.Members {
-						physicalDriveURLs = append(physicalDriveURLs, member.URL)
-					}
-				}
+			for _, member := range physicalDriveOutput.Members {
+				physicalDriveURLs = append(physicalDriveURLs, member.URL)
 			}
 		}
 	}
@@ -192,15 +211,13 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 	chassisOutput, err := getDriveEndpoint(fqdn.String()+uri+chassisUrl, target, retryClient)
 	if err != nil {
 		log.Error("api call "+fqdn.String()+uri+chassisUrl+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil
+		return nil, err
 	}
 
 	// parse through "Links" to find "Drives" array
-	if len(chassisOutput.Links.Drives) > 0 {
-		// loop through drives array and append each odata.id url to nvmeDriveURLs list
-		for _, drive := range chassisOutput.Links.Drives {
-			nvmeDriveURLs = append(nvmeDriveURLs, drive.URL)
-		}
+	// loop through drives array and append each odata.id url to nvmeDriveURLs list
+	for _, drive := range chassisOutput.LinksUpper.Drives {
+		nvmeDriveURLs = append(nvmeDriveURLs, drive.URL)
 	}
 
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
@@ -222,23 +239,9 @@ func NewExporter(ctx context.Context, target, uri, profile string) *Exporter {
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, profile, retryClient)))
 
-	// Prepare the pool of tasks
-	p := pool.NewPool(tasks, 1)
+	exp.pool = pool.NewPool(tasks, 1)
 
-	// Create new map[string]*metrics for each new Exporter
-	metrx := NewDeviceMetrics()
-
-	return &Exporter{
-		ctx:         ctx,
-		pool:        p,
-		host:        fqdn.Host,
-		credProfile: profile,
-		up: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "up",
-			Help: "Was the last scrape of chassis monitor successful.",
-		}),
-		deviceMetrics: metrx,
-	}
+	return &exp, nil
 }
 
 // Describe describes all the metrics ever exported by the fishymetrics exporter. It
@@ -249,7 +252,6 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 			n.Describe(ch)
 		}
 	}
-	ch <- e.up.Desc()
 }
 
 // Collect fetches the stats from configured fishymetrics location and delivers them
@@ -264,10 +266,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	if _, ok := common.IgnoredDevices[e.host]; !ok {
 		e.scrape()
 	} else {
-		e.up.Set(float64(2))
+		var upMetric = (*e.deviceMetrics)["up"]
+		(*upMetric)["up"].WithLabelValues().Set(float64(2))
 	}
 
-	ch <- e.up
 	e.collectMetrics(ch)
 }
 
@@ -301,7 +303,7 @@ func (e *Exporter) scrape() {
 		if task.Err != nil {
 			deviceState := uint8(0)
 			// If credentials are incorrect we will add host to be ignored until manual intervention
-			if strings.Contains(task.Err.Error(), "401") {
+			if errors.Is(task.Err, common.ErrInvalidCredential) {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis",
@@ -313,7 +315,8 @@ func (e *Exporter) scrape() {
 			} else {
 				deviceState = 0
 			}
-			e.up.Set(float64(deviceState))
+			var upMetric = (*e.deviceMetrics)["up"]
+			(*upMetric)["up"].WithLabelValues().Set(float64(deviceState))
 			log.Error("error from "+DL380, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
 			return
 		}
@@ -347,7 +350,8 @@ func (e *Exporter) scrape() {
 		state &= result
 	}
 
-	e.up.Set(float64(state))
+	var upMetric = (*e.deviceMetrics)["up"]
+	(*upMetric)["up"].WithLabelValues().Set(float64(state))
 
 }
 
@@ -362,16 +366,19 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DL380 DiskDriveMetrics - " + err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
-
-	if dlphysical.Status.Health == "OK" {
-		state = OK
+	if dlphysical.Status.State == "Enabled" {
+		if dlphysical.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
 	} else {
-		state = BAD
+		state = DISABLED
 	}
 
 	// Physical drives need to have a unique identifier like location so as to not overwrite data
 	// physical drives can have the same ID, but belong to a different ArrayController, therefore need more than just the ID as a unique identifier.
-	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, dlphysical.Id, dlphysical.Location).Set(state)
+	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, dlphysical.Id, dlphysical.Location, dlphysical.SerialNumber).Set(state)
 	return nil
 }
 
@@ -385,10 +392,14 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DL380 LogicalDriveMetrics - " + err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
-	if dllogical.Status.Health == "OK" {
-		state = OK
+	if dllogical.Status.State == "Enabled" {
+		if dllogical.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
 	} else {
-		state = BAD
+		state = DISABLED
 	}
 
 	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, dllogical.LogicalDriveName, dllogical.VolumeUniqueIdentifier, dllogical.Raid).Set(state)
@@ -406,10 +417,14 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	}
 
 	// Check nvme drive is enabled then check status and convert string to numeric values
-	if dlnvme.Status.Health == "OK" {
-		state = OK
+	if dlnvme.Status.State == "Enabled" {
+		if dlnvme.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
 	} else {
-		state = BAD
+		state = DISABLED
 	}
 
 	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel).Set(state)
@@ -537,6 +552,8 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDr
 			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 				return drive, fmt.Errorf("HTTP status %d", resp.StatusCode)
 			}
+		} else if resp.StatusCode == http.StatusUnauthorized {
+			return drive, common.ErrInvalidCredential
 		} else {
 			return drive, fmt.Errorf("HTTP status %d", resp.StatusCode)
 		}

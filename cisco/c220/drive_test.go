@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,11 +116,7 @@ func Test_C220_Drive_Metrics(t *testing.T) {
 		host:                "fishymetrics.com",
 		biosVersion:         "C220M5.4.0.4i.0.zzzzzzzzz",
 		chassisSerialNumber: "SN78901",
-		up: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "up",
-			Help: "Was the last scrape of chassis monitor successful.",
-		}),
-		deviceMetrics: metrx,
+		deviceMetrics:       metrx,
 	}
 
 	prometheus.MustRegister(exporter)

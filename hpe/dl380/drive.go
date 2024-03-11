@@ -32,6 +32,7 @@ type NVMeDriveMetrics struct {
 }
 
 // Logical Drives
+// // /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/LogicalDrives/X/
 type LogicalDriveMetrics struct {
 	Id                     string      `json:"Id"`
 	CapacityMiB            int         `json:"CapacityMiB"`
@@ -47,6 +48,7 @@ type LogicalDriveMetrics struct {
 }
 
 // Disk Drives
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/DiskDrives/X/
 type DiskDriveMetrics struct {
 	Id            string      `json:"Id"`
 	CapacityMiB   int         `json:"CapacityMiB"`
@@ -66,22 +68,33 @@ type DriveStatus struct {
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ for Logical and Physical Drives
+// /redfish/v1/Chassis/1/Drives/ for NVMe Drive(s)
 type GenericDrive struct {
-	Members []struct {
-		URL string `json:"@odata.id"`
-	} `json:"Members,omitempty"`
-	Links struct {
-		Drives []struct {
-			URL string `json:"@odata.id"`
-		} `json:"Drives,omitempty"`
-		LogicalDrives struct {
-			URL string `json:"@odata.id"`
-		} `json:"LogicalDrives,omitempty"`
-		PhysicalDrives struct {
-			URL string `json:"@odata.id"`
-		} `json:"PhysicalDrives,omitempty"`
-	} `json:"Links,omitempty"`
-	MembersCount int `json:"Members@odata.count,omitempty"`
+	Members      []Members  `json:"Members,omitempty"`
+	LinksUpper   LinksUpper `json:"Links,omitempty"`
+	LinksLower   LinksLower `json:"links,omitempty"`
+	MembersCount int        `json:"Members@odata.count,omitempty"`
+}
+
+type Members struct {
+	URL string `json:"@odata.id"`
+}
+
+type LinksUpper struct {
+	Drives         []URL `json:"Drives,omitempty"`
+	LogicalDrives  URL   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives URL   `json:"PhysicalDrives,omitempty"`
+}
+
+type LinksLower struct {
+	Drives         []URL `json:"Drives,omitempty"`
+	LogicalDrives  URL   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives URL   `json:"PhysicalDrives,omitempty"`
+}
+
+type URL struct {
+	URL string `json:"@odata.id"`
 }
 
 // PhysicalLocation

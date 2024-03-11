@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,10 @@ func newServerMetric(metricName string, docString string, constLabels prometheus
 
 func NewDeviceMetrics() *map[string]*metrics {
 	var (
+		UpMetric = &metrics{
+			"up": newServerMetric("up", "was the last scrape of fishymetrics successful.", nil, []string{}),
+		}
+
 		ThermalMetrics = &metrics{
 			"fanSpeed":          newServerMetric("thermal_fan_speed", "Current fan speed in the unit of percentage, possible values are 0 - 100", nil, []string{"name"}),
 			"fanStatus":         newServerMetric("thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name"}),
@@ -63,6 +67,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		Metrics = &map[string]*metrics{
+			"up":               UpMetric,
 			"thermalMetrics":   ThermalMetrics,
 			"powerMetrics":     PowerMetrics,
 			"swMetrics":        SwitchMetrics,

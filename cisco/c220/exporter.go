@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -80,15 +81,18 @@ type Exporter struct {
 	credProfile         string
 	biosVersion         string
 	chassisSerialNumber string
-
-	up            prometheus.Gauge
-	deviceMetrics *map[string]*metrics
+	deviceMetrics       *map[string]*metrics
 }
 
 // NewExporter returns an initialized Exporter for Cisco UCS C220 device.
 func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, error) {
 	var fqdn *url.URL
 	var tasks []*pool.Task
+	var exp = Exporter{
+		ctx:           ctx,
+		credProfile:   profile,
+		deviceMetrics: NewDeviceMetrics(),
+	}
 
 	log = zap.L()
 
@@ -130,15 +134,36 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 			Host:   target,
 		}
 	}
+	exp.host = fqdn.String()
+
+	// check if host is on the ignored list, if so we immediately return
+	if _, ok := common.IgnoredDevices[exp.host]; ok {
+		var upMetric = (*exp.deviceMetrics)["up"]
+		(*upMetric)["up"].WithLabelValues().Set(float64(2))
+		return &exp, nil
+	}
 
 	// chassis system endpoint to use for memory, processor, bios version scrapes
 	sysEndpoint, err := getChassisEndpoint(fqdn.String()+uri+"/Managers/CIMC", target, retryClient)
 	if err != nil {
 		log.Error("error when getting chassis endpoint from "+C220, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		if errors.Is(err, common.ErrInvalidCredential) {
+			common.IgnoredDevices[exp.host] = common.IgnoredDevice{
+				Name:              exp.host,
+				Endpoint:          "https://" + exp.host + "/redfish/v1/Chassis",
+				Module:            C220,
+				CredentialProfile: exp.credProfile,
+			}
+			log.Info("added host "+exp.host+" to ignored list", zap.Any("trace_id", exp.ctx.Value("traceID")))
+			var upMetric = (*exp.deviceMetrics)["up"]
+			(*upMetric)["up"].WithLabelValues().Set(float64(2))
+
+			return &exp, nil
+		}
 		return nil, err
 	}
 
-	chassisSN := path.Base(sysEndpoint)
+	exp.chassisSerialNumber = path.Base(sysEndpoint)
 
 	// chassis BIOS version
 	biosVer, err := getBIOSVersion(fqdn.String()+sysEndpoint, target, retryClient)
@@ -146,6 +171,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		log.Error("error when getting BIOS version from "+C220, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
+	exp.biosVersion = biosVer
 
 	// DIMM endpoints array
 	dimms, err := getDIMMEndpoints(fqdn.String()+sysEndpoint+"/Memory", target, retryClient)
@@ -190,24 +216,9 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		}
 	}
 
-	p := pool.NewPool(tasks, 1)
+	exp.pool = pool.NewPool(tasks, 1)
 
-	// Create new map[string]*metrics for each new Exporter
-	metrx := NewDeviceMetrics()
-
-	return &Exporter{
-		ctx:                 ctx,
-		pool:                p,
-		host:                fqdn.Host,
-		credProfile:         profile,
-		biosVersion:         biosVer,
-		chassisSerialNumber: chassisSN,
-		up: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "up",
-			Help: "Was the last scrape of chassis monitor successful.",
-		}),
-		deviceMetrics: metrx,
-	}, nil
+	return &exp, nil
 }
 
 // Describe describes all the metrics ever exported by the fishymetrics exporter. It
@@ -218,7 +229,6 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 			n.Describe(ch)
 		}
 	}
-	ch <- e.up.Desc()
 }
 
 // Collect fetches the stats from configured fishymetrics location and delivers them
@@ -233,10 +243,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	if _, ok := common.IgnoredDevices[e.host]; !ok {
 		e.scrape()
 	} else {
-		e.up.Set(float64(2))
+		var upMetric = (*e.deviceMetrics)["up"]
+		(*upMetric)["up"].WithLabelValues().Set(float64(2))
 	}
 
-	ch <- e.up
 	e.collectMetrics(ch)
 }
 
@@ -270,7 +280,7 @@ func (e *Exporter) scrape() {
 		if task.Err != nil {
 			deviceState := uint8(0)
 			// If credentials are incorrect we will add host to be ignored until manual intervention
-			if strings.Contains(task.Err.Error(), "401") {
+			if errors.Is(task.Err, common.ErrInvalidCredential) {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis",
@@ -279,7 +289,10 @@ func (e *Exporter) scrape() {
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))
 				deviceState = 2
-				e.up.Set(float64(deviceState))
+
+				var upMetric = (*e.deviceMetrics)["up"]
+				(*upMetric)["up"].WithLabelValues().Set(float64(deviceState))
+
 				log.Error("error from "+C220, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
 				return
 
@@ -328,7 +341,8 @@ func (e *Exporter) scrape() {
 		state &= result
 	}
 
-	e.up.Set(float64(state))
+	var upMetric = (*e.deviceMetrics)["up"]
+	(*upMetric)["up"].WithLabelValues().Set(float64(state))
 
 }
 
@@ -675,7 +689,11 @@ func getChassisEndpoint(url, host string, client *retryablehttp.Client) (string,
 	}
 	defer resp.Body.Close()
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		return "", fmt.Errorf("HTTP status %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusUnauthorized {
+			return "", common.ErrInvalidCredential
+		} else {
+			return "", fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
 	}
 
 	body, err := io.ReadAll(resp.Body)

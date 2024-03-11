@@ -149,17 +149,17 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	switch moduleName {
 	case "moonshot":
-		exporter = moonshot.NewExporter(r.Context(), target, uri, credProf)
+		exporter, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
 	case "dl380":
-		exporter = dl380.NewExporter(r.Context(), target, uri, credProf)
+		exporter, err = dl380.NewExporter(r.Context(), target, uri, credProf)
 	case "dl360":
-		exporter = dl360.NewExporter(r.Context(), target, uri, credProf)
+		exporter, err = dl360.NewExporter(r.Context(), target, uri, credProf)
 	case "dl560":
-		exporter = dl560.NewExporter(r.Context(), target, uri, credProf)
+		exporter, err = dl560.NewExporter(r.Context(), target, uri, credProf)
 	case "dl20":
-		exporter = dl20.NewExporter(r.Context(), target, uri, credProf)
+		exporter, err = dl20.NewExporter(r.Context(), target, uri, credProf)
 	case "xl420":
-		exporter = xl420.NewExporter(r.Context(), target, uri, credProf)
+		exporter, err = xl420.NewExporter(r.Context(), target, uri, credProf)
 	case "c220":
 		exporter, err = c220.NewExporter(r.Context(), target, uri, credProf)
 	case "s3260m4":
