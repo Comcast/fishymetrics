@@ -87,9 +87,13 @@ type LinksUpper struct {
 }
 
 type LinksLower struct {
-	Drives         []URL `json:"Drives,omitempty"`
-	LogicalDrives  URL   `json:"LogicalDrives,omitempty"`
-	PhysicalDrives URL   `json:"PhysicalDrives,omitempty"`
+	Drives         []HRef `json:"Drives,omitempty"`
+	LogicalDrives  HRef   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives HRef   `json:"PhysicalDrives,omitempty"`
+}
+
+type HRef struct {
+	URL string `json:"href"`
 }
 
 type URL struct {

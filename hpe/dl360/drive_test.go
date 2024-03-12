@@ -147,10 +147,10 @@ func Test_DL360_Drives(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(MustMarshal(GenericDrive{
 				LinksLower: LinksLower{
-					LogicalDrives: URL{
+					LogicalDrives: HRef{
 						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/",
 					},
-					PhysicalDrives: URL{
+					PhysicalDrives: HRef{
 						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/",
 					},
 				},
