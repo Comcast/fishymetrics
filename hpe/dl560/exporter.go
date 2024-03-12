@@ -177,7 +177,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		if arrayCtrlResp.LinksUpper.LogicalDrives.URL != "" {
 			logicalDrives, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksUpper.LogicalDrives.URL, target, retryClient)
 			if err != nil {
-				log.Error("error when getting logical drives endpoint from "+DL560, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksUpper.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 				return nil, err
 			}
 
@@ -190,11 +190,37 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		if arrayCtrlResp.LinksUpper.PhysicalDrives.URL != "" {
 			physicalDrives, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksUpper.PhysicalDrives.URL, target, retryClient)
 			if err != nil {
-				log.Error("error when getting physical drives endpoint from "+DL560, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksUpper.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 				return nil, err
 			}
 
 			for _, member := range physicalDrives.Members {
+				physicalDriveURLs = append(physicalDriveURLs, member.URL)
+			}
+		}
+
+		if arrayCtrlResp.LinksLower.LogicalDrives.URL != "" {
+			logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksLower.LogicalDrives.URL, target, retryClient)
+			if err != nil {
+				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksLower.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
+			}
+
+			// loop through each Member in the "LogicalDrive" field
+			for _, member := range logicalDriveOutput.Members {
+				// append each URL in the Members array to the logicalDriveURLs array.
+				logicalDriveURLs = append(logicalDriveURLs, member.URL)
+			}
+		}
+
+		if arrayCtrlResp.LinksLower.PhysicalDrives.URL != "" {
+			physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksLower.PhysicalDrives.URL, target, retryClient)
+			if err != nil {
+				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksLower.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
+			}
+
+			for _, member := range physicalDriveOutput.Members {
 				physicalDriveURLs = append(physicalDriveURLs, member.URL)
 			}
 		}
@@ -484,8 +510,8 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	}
 
 	// Check nvme drive is enabled then check status and convert string to numeric values
-	if dlnvme.Status.State == "Enabled" {
-		if dlnvme.Status.Health == "OK" {
+	if dlnvme.Oem.Hpe.DriveStatus.State == "Enabled" {
+		if dlnvme.Oem.Hpe.DriveStatus.Health == "OK" {
 			state = OK
 		} else {
 			state = BAD

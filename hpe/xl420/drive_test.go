@@ -29,88 +29,229 @@ import (
 )
 
 const (
-	logicalDrivesUpperResponse = `
+	GoodLogicalDriveUpperResponse = `
 		 # HELP xl420_logical_drive_status Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED
 		 # TYPE xl420_logical_drive_status gauge
 		 xl420_logical_drive_status{logicaldrivename="TESTDRIVE NAME 1",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="ABCDEF12345"} 1
 	`
-	diskDrivesUpperResponse = `
+	GoodDiskDriveUpperResponse = `
 		 # HELP xl420_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
 		 # TYPE xl420_disk_drive_status gauge
 		 xl420_disk_drive_status{id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
 	`
-	logicalDrivesLowerResponse = `
+	GoodLogicalDriveLowerResponse = `
 		 # HELP xl420_logical_drive_status Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED
 		 # TYPE xl420_logical_drive_status gauge
 		 xl420_logical_drive_status{logicaldrivename="TESTDRIVE NAME 2",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="FEDCBA12345"} 1
 	`
-	diskDrivesLowerResponse = `
+	GoodDiskDriveLowerResponse = `
 		 # HELP xl420_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
 		 # TYPE xl420_disk_drive_status gauge
 		 xl420_disk_drive_status{id="1",location="1I:1:2",name="HpeSmartStorageDiskDrive",serialnumber="DEF456"} 1
 	`
+	GoodNvmeDriveResponse = `
+		 # HELP xl420_nvme_drive_status Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED
+		 # TYPE xl420_nvme_drive_status gauge
+		 xl420_nvme_drive_status{id="0",protocol="NVMe",serviceLabel="Box 3:Bay 7"} 1
+	`
 )
 
 var (
-	GoodUpperDiskDrive = MustMarshal(DiskDriveMetrics{
+	GoodDiskDriveUpper = MustMarshal(struct {
+		Id            string `json:"Id"`
+		CapacityMiB   int    `json:"CapacityMiB"`
+		Description   string `json:"Description"`
+		InterfaceType string `json:"InterfaceType"`
+		Name          string `json:"Name"`
+		Model         string `json:"Model"`
+		Status        struct {
+			Health string `json:"Health"`
+			State  string `json:"State"`
+		} `json:"Status"`
+		Location     string `json:"Location"`
+		SerialNumber string `json:"SerialNumber"`
+	}{
 		Id:            "0",
 		CapacityMiB:   572325,
 		Description:   "HPE Smart Storage Disk Drive View",
 		InterfaceType: "SAS",
 		Name:          "HpeSmartStorageDiskDrive",
 		Model:         "TESTMODEL",
-		Status: Status{
+		Status: struct {
+			Health string `json:"Health"`
+			State  string `json:"State"`
+		}{
 			Health: "OK",
 			State:  "Enabled",
 		},
 		Location:     "1I:1:1",
 		SerialNumber: "ABC123",
 	})
-	GoodLowerDiskDrive = MustMarshal(DiskDriveMetrics{
+
+	GoodDiskDriveLower = MustMarshal(struct {
+		Id            string `json:"Id"`
+		CapacityMiB   int    `json:"CapacityMiB"`
+		Description   string `json:"Description"`
+		InterfaceType string `json:"InterfaceType"`
+		Name          string `json:"Name"`
+		Model         string `json:"Model"`
+		Status        struct {
+			Health string `json:"Health"`
+			State  string `json:"State"`
+		} `json:"Status"`
+		Location     string `json:"Location"`
+		SerialNumber string `json:"SerialNumber"`
+	}{
 		Id:            "1",
 		CapacityMiB:   572325,
 		Description:   "HPE Smart Storage Disk Drive View",
 		InterfaceType: "SAS",
 		Name:          "HpeSmartStorageDiskDrive",
 		Model:         "TESTMODEL",
-		Status: Status{
+		Status: struct {
+			Health string `json:"Health"`
+			State  string `json:"State"`
+		}{
 			Health: "OK",
 			State:  "Enabled",
 		},
 		Location:     "1I:1:2",
 		SerialNumber: "DEF456",
 	})
-	GoodUpperLogicalDrive = MustMarshal(LogicalDriveMetrics{
+
+	GoodLogicalDriveUpper = MustMarshal(struct {
+		Id                 string `json:"Id"`
+		CapacityMiB        int    `json:"CapacityMiB"`
+		Description        string `json:"Description"`
+		InterfaceType      string `json:"InterfaceType"`
+		LogicalDriveName   string `json:"LogicalDriveName"`
+		LogicalDriveNumber int    `json:"LogicalDriveNumber"`
+		Name               string `json:"Name"`
+		Raid               string `json:"Raid"`
+		Status             struct {
+			Health string `json:"Health"`
+			State  string `json:"State"`
+		} `json:"Status"`
+		StripeSizebytes        int    `json:"StripeSizebytes"`
+		VolumeUniqueIdentifier string `json:"VolumeUniqueIdentifier"`
+	}{
 		Id:                 "1",
 		CapacityMiB:        572293,
-		Description:        "HPE Smart Storage Logical Drive View",
+		Description:        "HPE Smart Storage Disk Drive View",
 		InterfaceType:      "SAS",
 		LogicalDriveName:   "TESTDRIVE NAME 1",
 		LogicalDriveNumber: 1,
 		Name:               "HpeSmartStorageLogicalDrive",
 		Raid:               "1",
-		Status: Status{
+		Status: struct {
+			Health string `json:"Health"`
+			State  string `json:"State"`
+		}{
 			Health: "OK",
 			State:  "Enabled",
 		},
 		StripeSizebytes:        262144,
 		VolumeUniqueIdentifier: "ABCDEF12345",
 	})
-	GoodLowerLogicalDrive = MustMarshal(LogicalDriveMetrics{
+
+	GoodLogicalDriveLower = MustMarshal(struct {
+		Id                 string `json:"Id"`
+		CapacityMiB        int    `json:"CapacityMiB"`
+		Description        string `json:"Description"`
+		InterfaceType      string `json:"InterfaceType"`
+		LogicalDriveName   string `json:"LogicalDriveName"`
+		LogicalDriveNumber int    `json:"LogicalDriveNumber"`
+		Name               string `json:"Name"`
+		Raid               string `json:"Raid"`
+		Status             struct {
+			Health string `json:"Health"`
+			State  string `json:"State"`
+		} `json:"Status"`
+		StripeSizebytes        int    `json:"StripeSizebytes"`
+		VolumeUniqueIdentifier string `json:"VolumeUniqueIdentifier"`
+	}{
 		Id:                 "1",
 		CapacityMiB:        572293,
-		Description:        "HPE Smart Storage Logical Drive View",
+		Description:        "HPE Smart Storage Disk Drive View",
 		InterfaceType:      "SAS",
 		LogicalDriveName:   "TESTDRIVE NAME 2",
 		LogicalDriveNumber: 1,
 		Name:               "HpeSmartStorageLogicalDrive",
 		Raid:               "1",
-		Status: Status{
+		Status: struct {
+			Health string `json:"Health"`
+			State  string `json:"State"`
+		}{
 			Health: "OK",
 			State:  "Enabled",
 		},
 		StripeSizebytes:        262144,
 		VolumeUniqueIdentifier: "FEDCBA12345",
+	})
+
+	GoodNvmeDrive = MustMarshal(struct {
+		Id        string `json:"Id"`
+		Model     string `json:"Model"`
+		Name      string `json:"Name"`
+		MediaType string `json:"MediaType"`
+		Oem       struct {
+			Hpe struct {
+				DriveStatus struct {
+					Health string `json:"Health"`
+					State  string `json:"State"`
+				} `json:"DriveStatus"`
+			} `json:"Hpe"`
+		} `json:"Oem"`
+		PhysicalLocation struct {
+			PartLocation struct {
+				ServiceLabel string `json:"ServiceLabel"`
+			} `json:"PartLocation"`
+		} `json:"PhysicalLocation"`
+		Protocol         string `json:"Protocol"`
+		FailurePredicted bool   `json:"FailurePredicted"`
+		CapacityBytes    int    `json:"CapacityBytes"`
+	}{
+		Id:        "0",
+		Model:     "TESTMODEL",
+		Name:      "TESTNAME",
+		MediaType: "SSD",
+		Oem: struct {
+			Hpe struct {
+				DriveStatus struct {
+					Health string `json:"Health"`
+					State  string `json:"State"`
+				} `json:"DriveStatus"`
+			} `json:"Hpe"`
+		}{
+			Hpe: struct {
+				DriveStatus struct {
+					Health string `json:"Health"`
+					State  string `json:"State"`
+				} `json:"DriveStatus"`
+			}{
+				DriveStatus: struct {
+					Health string `json:"Health"`
+					State  string `json:"State"`
+				}{
+					Health: "OK",
+					State:  "Enabled",
+				},
+			},
+		},
+		PhysicalLocation: struct {
+			PartLocation struct {
+				ServiceLabel string `json:"ServiceLabel"`
+			} `json:"PartLocation"`
+		}{
+			PartLocation: struct {
+				ServiceLabel string `json:"ServiceLabel"`
+			}{
+				ServiceLabel: "Box 3:Bay 7",
+			},
+		},
+		Protocol:         "NVMe",
+		FailurePredicted: false,
+		CapacityBytes:    1600321314816,
 	})
 )
 
@@ -118,9 +259,16 @@ func Test_XL420_Drives(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(GenericDrive{
+			w.Write(MustMarshal(struct {
+				MembersCount int `json:"Members@odata.count"`
+				Members      []struct {
+					URL string `json:"@odata.id"`
+				} `json:"Members"`
+			}{
 				MembersCount: 2,
-				Members: []Members{
+				Members: []struct {
+					URL string `json:"@odata.id"`
+				}{
 					{
 						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/",
 					},
@@ -132,12 +280,32 @@ func Test_XL420_Drives(t *testing.T) {
 			return
 		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(GenericDrive{
-				LinksUpper: LinksUpper{
-					LogicalDrives: URL{
+			w.Write(MustMarshal(struct {
+				LinksUpper struct {
+					LogicalDrives struct {
+						URL string `json:"@odata.id"`
+					} `json:"LogicalDrives"`
+					PhysicalDrives struct {
+						URL string `json:"@odata.id"`
+					} `json:"PhysicalDrives"`
+				} `json:"Links"`
+			}{
+				LinksUpper: struct {
+					LogicalDrives struct {
+						URL string `json:"@odata.id"`
+					} `json:"LogicalDrives"`
+					PhysicalDrives struct {
+						URL string `json:"@odata.id"`
+					} `json:"PhysicalDrives"`
+				}{
+					LogicalDrives: struct {
+						URL string `json:"@odata.id"`
+					}{
 						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/",
 					},
-					PhysicalDrives: URL{
+					PhysicalDrives: struct {
+						URL string `json:"@odata.id"`
+					}{
 						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/DiskDrives/",
 					},
 				},
@@ -145,12 +313,32 @@ func Test_XL420_Drives(t *testing.T) {
 			return
 		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(GenericDrive{
-				LinksLower: LinksLower{
-					LogicalDrives: URL{
+			w.Write(MustMarshal(struct {
+				LinksLower struct {
+					LogicalDrives struct {
+						URL string `json:"href"`
+					} `json:"LogicalDrives"`
+					PhysicalDrives struct {
+						URL string `json:"href"`
+					} `json:"PhysicalDrives"`
+				} `json:"links"`
+			}{
+				LinksLower: struct {
+					LogicalDrives struct {
+						URL string `json:"href"`
+					} `json:"LogicalDrives"`
+					PhysicalDrives struct {
+						URL string `json:"href"`
+					} `json:"PhysicalDrives"`
+				}{
+					LogicalDrives: struct {
+						URL string `json:"href"`
+					}{
 						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/",
 					},
-					PhysicalDrives: URL{
+					PhysicalDrives: struct {
+						URL string `json:"href"`
+					}{
 						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/",
 					},
 				},
@@ -158,9 +346,16 @@ func Test_XL420_Drives(t *testing.T) {
 			return
 		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(GenericDrive{
+			w.Write(MustMarshal(struct {
+				MembersCount int `json:"Members@odata.count"`
+				Members      []struct {
+					URL string `json:"@odata.id"`
+				} `json:"Members"`
+			}{
 				MembersCount: 1,
-				Members: []Members{
+				Members: []struct {
+					URL string `json:"@odata.id"`
+				}{
 					{
 						URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1/",
 					},
@@ -169,9 +364,16 @@ func Test_XL420_Drives(t *testing.T) {
 			return
 		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(GenericDrive{
+			w.Write(MustMarshal(struct {
+				MembersCount int `json:"Members@odata.count"`
+				Members      []struct {
+					URL string `json:"@odata.id"`
+				} `json:"Members"`
+			}{
 				MembersCount: 1,
-				Members: []Members{
+				Members: []struct {
+					URL string `json:"@odata.id"`
+				}{
 					{
 						URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/1/",
 					},
@@ -180,9 +382,16 @@ func Test_XL420_Drives(t *testing.T) {
 			return
 		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/DiskDrives/" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(GenericDrive{
+			w.Write(MustMarshal(struct {
+				MembersCount int `json:"Members@odata.count"`
+				Members      []struct {
+					URL string `json:"@odata.id"`
+				} `json:"Members"`
+			}{
 				MembersCount: 1,
-				Members: []Members{
+				Members: []struct {
+					URL string `json:"@odata.id"`
+				}{
 					{
 						URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/0/DiskDrives/0/",
 					},
@@ -191,9 +400,16 @@ func Test_XL420_Drives(t *testing.T) {
 			return
 		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(GenericDrive{
+			w.Write(MustMarshal(struct {
+				MembersCount int `json:"Members@odata.count"`
+				Members      []struct {
+					URL string `json:"@odata.id"`
+				} `json:"Members"`
+			}{
 				MembersCount: 1,
-				Members: []Members{
+				Members: []struct {
+					URL string `json:"@odata.id"`
+				}{
 					{
 						URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/0/",
 					},
@@ -202,8 +418,26 @@ func Test_XL420_Drives(t *testing.T) {
 			return
 		} else if r.URL.Path == "/redfish/v1/good/Chassis/1/" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(GenericDrive{
-				LinksUpper: LinksUpper{},
+			w.Write(MustMarshal(struct {
+				LinksUpper struct {
+					Drives []struct {
+						URL string `json:"@odata.id"`
+					} `json:"Drives"`
+				} `json:"Links"`
+			}{
+				LinksUpper: struct {
+					Drives []struct {
+						URL string `json:"@odata.id"`
+					} `json:"Drives"`
+				}{
+					Drives: []struct {
+						URL string `json:"@odata.id"`
+					}{
+						{
+							URL: "/redfish/v1/Systems/1/Storage/DA000000/Drives/DA000000/",
+						},
+					},
+				},
 			}))
 			return
 		}
@@ -231,6 +465,14 @@ func Test_XL420_Drives(t *testing.T) {
 		return nil
 	}
 
+	nvmeDevMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportNVMeDriveMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	tests := []struct {
 		name       string
 		uri        string
@@ -242,44 +484,54 @@ func Test_XL420_Drives(t *testing.T) {
 		expected   string
 	}{
 		{
-			name:       "Member Links Upper Logical Drive",
+			name:       "Good Logical Drive Links Uppercase",
 			uri:        "/redfish/v1/good",
 			metricName: "xl420_logical_drive_status",
 			metricRef1: "logicalDriveMetrics",
 			metricRef2: "raidStatus",
 			exportFunc: logicalDevMetrics,
-			payload:    GoodUpperLogicalDrive,
-			expected:   logicalDrivesUpperResponse,
+			payload:    GoodLogicalDriveUpper,
+			expected:   GoodLogicalDriveUpperResponse,
 		},
 		{
-			name:       "Member Links Lower Logical Drive",
+			name:       "Good Logical Drive Links Lowercase",
 			uri:        "/redfish/v1/good",
 			metricName: "xl420_logical_drive_status",
 			metricRef1: "logicalDriveMetrics",
 			metricRef2: "raidStatus",
 			exportFunc: logicalDevMetrics,
-			payload:    GoodLowerLogicalDrive,
-			expected:   logicalDrivesLowerResponse,
+			payload:    GoodLogicalDriveLower,
+			expected:   GoodLogicalDriveLowerResponse,
 		},
 		{
-			name:       "Member Links Upper Disk Drive",
+			name:       "Good Disk Drive Links Uppercase",
 			uri:        "/redfish/v1/good",
 			metricName: "xl420_disk_drive_status",
 			metricRef1: "diskDriveMetrics",
 			metricRef2: "driveStatus",
 			exportFunc: physDevMetrics,
-			payload:    GoodUpperDiskDrive,
-			expected:   diskDrivesUpperResponse,
+			payload:    GoodDiskDriveUpper,
+			expected:   GoodDiskDriveUpperResponse,
 		},
 		{
-			name:       "Member Links Lower Disk Drive",
+			name:       "Good Disk Drive Links Lowercase",
 			uri:        "/redfish/v1/good",
 			metricName: "xl420_disk_drive_status",
 			metricRef1: "diskDriveMetrics",
 			metricRef2: "driveStatus",
 			exportFunc: physDevMetrics,
-			payload:    GoodLowerDiskDrive,
-			expected:   diskDrivesLowerResponse,
+			payload:    GoodDiskDriveLower,
+			expected:   GoodDiskDriveLowerResponse,
+		},
+		{
+			name:       "Good Nvme Drive",
+			uri:        "/redfish/v1/good",
+			metricName: "xl420_nvme_drive_status",
+			metricRef1: "nvmeMetrics",
+			metricRef2: "nvmeDriveStatus",
+			exportFunc: nvmeDevMetrics,
+			payload:    GoodNvmeDrive,
+			expected:   GoodNvmeDriveResponse,
 		},
 	}
 

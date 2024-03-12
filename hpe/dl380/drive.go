@@ -24,6 +24,7 @@ type NVMeDriveMetrics struct {
 	Model            string           `json:"Model"`
 	Name             string           `json:"Name"`
 	MediaType        string           `json:"MediaType"`
+	Oem              Oem              `json:"Oem"`
 	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
 	Protocol         string           `json:"Protocol"`
 	Status           DriveStatus      `json:"Status"`
@@ -64,7 +65,7 @@ type DiskDriveMetrics struct {
 // NVME, Logical, and Physical Disk Drive Status
 type DriveStatus struct {
 	Health string `json:"Health"`
-	State  string `json:"State"`
+	State  string `json:"State,omitempty"`
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
@@ -88,9 +89,13 @@ type LinksUpper struct {
 }
 
 type LinksLower struct {
-	Drives         []URL `json:"Drives,omitempty"`
-	LogicalDrives  URL   `json:"LogicalDrives,omitempty"`
-	PhysicalDrives URL   `json:"PhysicalDrives,omitempty"`
+	Drives         []HRef `json:"Drives,omitempty"`
+	LogicalDrives  HRef   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives HRef   `json:"PhysicalDrives,omitempty"`
+}
+
+type HRef struct {
+	URL string `json:"href"`
 }
 
 type URL struct {
@@ -115,6 +120,6 @@ type Oem struct {
 // Contents of Hpe
 type HpeCont struct {
 	CurrentTemperatureCelsius int         `json:"CurrentTemperatureCelsius"`
-	DriveStatus               DriveStatus `json:"Status"`
+	DriveStatus               DriveStatus `json:"DriveStatus"`
 	NVMeID                    string      `json:"NVMeId"`
 }

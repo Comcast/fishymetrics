@@ -445,8 +445,8 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	}
 
 	// Check nvme drive is enabled then check status and convert string to numeric values
-	if dlnvme.Status.State == "Enabled" {
-		if dlnvme.Status.Health == "OK" {
+	if dlnvme.Oem.Hpe.DriveStatus.State == "Enabled" {
+		if dlnvme.Oem.Hpe.DriveStatus.Health == "OK" {
 			state = OK
 		} else {
 			state = BAD
