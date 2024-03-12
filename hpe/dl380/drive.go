@@ -63,8 +63,8 @@ type DiskDriveMetrics struct {
 
 // NVME, Logical, and Physical Disk Drive Status
 type DriveStatus struct {
-	Health string `json:"Health,omitempty"`
-	State  string `json:"Enabled,omitempty"`
+	Health string `json:"Health"`
+	State  string `json:"State"`
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
