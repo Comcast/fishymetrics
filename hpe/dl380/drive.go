@@ -24,6 +24,7 @@ type NVMeDriveMetrics struct {
 	Model            string           `json:"Model"`
 	Name             string           `json:"Name"`
 	MediaType        string           `json:"MediaType"`
+	Oem              Oem              `json:"Oem"`
 	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
 	Protocol         string           `json:"Protocol"`
 	Status           DriveStatus      `json:"Status"`
@@ -32,6 +33,7 @@ type NVMeDriveMetrics struct {
 }
 
 // Logical Drives
+// // /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/LogicalDrives/X/
 type LogicalDriveMetrics struct {
 	Id                     string      `json:"Id"`
 	CapacityMiB            int         `json:"CapacityMiB"`
@@ -47,6 +49,7 @@ type LogicalDriveMetrics struct {
 }
 
 // Disk Drives
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/DiskDrives/X/
 type DiskDriveMetrics struct {
 	Id            string      `json:"Id"`
 	CapacityMiB   int         `json:"CapacityMiB"`
@@ -61,27 +64,42 @@ type DiskDriveMetrics struct {
 
 // NVME, Logical, and Physical Disk Drive Status
 type DriveStatus struct {
-	Health string `json:"Health,omitempty"`
-	State  string `json:"Enabled,omitempty"`
+	Health string `json:"Health"`
+	State  string `json:"State,omitempty"`
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ for Logical and Physical Drives
+// /redfish/v1/Chassis/1/Drives/ for NVMe Drive(s)
 type GenericDrive struct {
-	Members []struct {
-		URL string `json:"@odata.id"`
-	} `json:"Members,omitempty"`
-	Links struct {
-		Drives []struct {
-			URL string `json:"@odata.id"`
-		} `json:"Drives,omitempty"`
-		LogicalDrives struct {
-			URL string `json:"@odata.id"`
-		} `json:"LogicalDrives,omitempty"`
-		PhysicalDrives struct {
-			URL string `json:"@odata.id"`
-		} `json:"PhysicalDrives,omitempty"`
-	} `json:"Links,omitempty"`
-	MembersCount int `json:"Members@odata.count,omitempty"`
+	Members      []Members  `json:"Members,omitempty"`
+	LinksUpper   LinksUpper `json:"Links,omitempty"`
+	LinksLower   LinksLower `json:"links,omitempty"`
+	MembersCount int        `json:"Members@odata.count,omitempty"`
+}
+
+type Members struct {
+	URL string `json:"@odata.id"`
+}
+
+type LinksUpper struct {
+	Drives         []URL `json:"Drives,omitempty"`
+	LogicalDrives  URL   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives URL   `json:"PhysicalDrives,omitempty"`
+}
+
+type LinksLower struct {
+	Drives         []HRef `json:"Drives,omitempty"`
+	LogicalDrives  HRef   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives HRef   `json:"PhysicalDrives,omitempty"`
+}
+
+type HRef struct {
+	URL string `json:"href"`
+}
+
+type URL struct {
+	URL string `json:"@odata.id"`
 }
 
 // PhysicalLocation
@@ -102,6 +120,6 @@ type Oem struct {
 // Contents of Hpe
 type HpeCont struct {
 	CurrentTemperatureCelsius int         `json:"CurrentTemperatureCelsius"`
-	DriveStatus               DriveStatus `json:"Status"`
+	DriveStatus               DriveStatus `json:"DriveStatus"`
 	NVMeID                    string      `json:"NVMeId"`
 }

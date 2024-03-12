@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,6 +28,10 @@ import (
 	"github.com/comcast/fishymetrics/config"
 
 	"github.com/hashicorp/go-retryablehttp"
+)
+
+var (
+	ErrInvalidCredential = errors.New("invalid credential")
 )
 
 type GenericMetricPayload struct {
@@ -106,7 +111,7 @@ func Fetch(uri, metricType, host, profile string, client *retryablehttp.Client) 
 					}
 					ChassisCreds.Set(host, credential)
 				} else {
-					return nil, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
+					return nil, metricType, ErrInvalidCredential
 				}
 
 				// build new request with updated credentials
@@ -118,7 +123,7 @@ func Fetch(uri, metricType, host, profile string, client *retryablehttp.Client) 
 					return nil, metricType, fmt.Errorf("Retry DoRequest failed - " + err.Error())
 				}
 				if resp.StatusCode == http.StatusUnauthorized {
-					return nil, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
+					return nil, metricType, ErrInvalidCredential
 				}
 			} else {
 				return nil, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)

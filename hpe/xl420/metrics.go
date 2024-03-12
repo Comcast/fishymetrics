@@ -35,6 +35,10 @@ func newServerMetric(metricName string, docString string, constLabels prometheus
 
 func NewDeviceMetrics() *map[string]*metrics {
 	var (
+		UpMetric = &metrics{
+			"up": newServerMetric("up", "was the last scrape of fishymetrics successful.", nil, []string{}),
+		}
+
 		ThermalMetrics = &metrics{
 			"fanSpeed":          newServerMetric("xl420_thermal_fan_speed", "Current fan speed in the unit of percentage, possible values are 0 - 100", nil, []string{"name"}),
 			"fanStatus":         newServerMetric("xl420_thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name"}),
@@ -49,12 +53,20 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"supplyTotalCapacity": newServerMetric("xl420_power_supply_total_capacity", "Total output capacity of all the power supplies", nil, []string{"memberId"}),
 		}
 
-		LogicalDriveMetrics = &metrics{
-			"logicalDriveStatus": newServerMetric("xl420_logical_drive_status", "Current logical drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicalDriveNumber", "raid"}),
+		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
+		// NVMe Drive Metrics
+		NVMeDriveMetrics = &metrics{
+			"nvmeDriveStatus": newServerMetric("xl420_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"protocol", "id", "serviceLabel"}),
 		}
 
-		PhysicalDriveMetrics = &metrics{
-			"physicalDriveStatus": newServerMetric("xl420_physical_drive_status", "Current physical drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "id", "location", "serialnumber"}),
+		// Phyiscal Storage Disk Drive Metrics
+		DiskDriveMetrics = &metrics{
+			"driveStatus": newServerMetric("xl420_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "id", "location", "serialnumber"}), // DiskDriveStatus values
+		}
+
+		// Logical Disk Drive Metrics
+		LogicalDriveMetrics = &metrics{
+			"raidStatus": newServerMetric("xl420_logical_drive_status", "Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
 		}
 
 		MemoryMetrics = &metrics{
@@ -62,10 +74,12 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		Metrics = &map[string]*metrics{
+			"up":                  UpMetric,
 			"thermalMetrics":      ThermalMetrics,
 			"powerMetrics":        PowerMetrics,
+			"nvmeMetrics":         NVMeDriveMetrics,
+			"diskDriveMetrics":    DiskDriveMetrics,
 			"logicalDriveMetrics": LogicalDriveMetrics,
-			"driveMetrics":        PhysicalDriveMetrics,
 			"memoryMetrics":       MemoryMetrics,
 		}
 	)

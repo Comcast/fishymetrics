@@ -18,50 +18,103 @@ package xl420
 
 // /redfish/v1/Systems/1/SmartStorage/ArrayControllers/
 
-type GenericDrive struct {
-	Members []struct {
-		URL string `json:"@odata.id"`
-	} `json:"Members"`
-	MembersCount int `json:"Members@odata.count,omitempty"`
-	Links        *struct {
-		LogicalDrives *struct {
-			URL string `json:"href"`
-		} `json:"LogicalDrives,omitempty"`
-		PhysicalDrives *struct {
-			URL string `json:"href"`
-		} `json:"PhysicalDrives,omitempty"`
-	} `json:"Links,omitempty"`
-	Link *struct {
-		LogicalDrives *struct {
-			URL string `json:"href"`
-		} `json:"LogicalDrives,omitempty"`
-		PhysicalDrives *struct {
-			URL string `json:"href"`
-		} `json:"PhysicalDrives,omitempty"`
-	} `json:"links,omitempty"`
+// NVME's
+// /redfish/v1/chassis/1/
+type NVMeDriveMetrics struct {
+	ID               string           `json:"Id"`
+	Model            string           `json:"Model"`
+	Name             string           `json:"Name"`
+	MediaType        string           `json:"MediaType"`
+	Oem              Oem              `json:"Oem"`
+	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
+	Protocol         string           `json:"Protocol"`
+	Status           Status           `json:"Status"`
+	FailurePredicted bool             `json:"FailurePredicted"`
+	CapacityBytes    int              `json:"CapacityBytes"`
 }
 
+// Logical Drives
 // /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/LogicalDrives/X/
 type LogicalDriveMetrics struct {
-	ID                 string `json:"Id"`
-	CapacityMiB        int    `json:"CapacityMiB"`
-	Description        string `json:"Description"`
-	InterfaceType      string `json:"InterfaceType"`
-	LogicalDriveName   string `json:"LogicalDriveName"`
-	LogicalDriveNumber int    `json:"LogicalDriveNumber"`
-	Name               string `json:"Name"`
-	Raid               string `json:"Raid"`
-	Status             Status `json:"Status"`
-	StripeSizeBytes    int    `json:"StripeSizeBytes"`
+	Id                     string `json:"Id"`
+	CapacityMiB            int    `json:"CapacityMiB"`
+	Description            string `json:"Description"`
+	InterfaceType          string `json:"InterfaceType"`
+	LogicalDriveName       string `json:"LogicalDriveName"`
+	LogicalDriveNumber     int    `json:"LogicalDriveNumber"`
+	Name                   string `json:"Name"`
+	Raid                   string `json:"Raid"`
+	Status                 Status `json:"Status"`
+	StripeSizebytes        int    `json:"StripeSizebytes"`
+	VolumeUniqueIdentifier string `json:"VolumeUniqueIdentifier"`
 }
 
+// Disk Drives
 // /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/DiskDrives/X/
-type PhysicalDriveMetrics struct {
-	ID           string `json:"Id"`
-	CapacityGB   int    `json:"CapacityGB"`
-	Location     string `json:"Location"`
-	Model        string `json:"Model"`
-	Name         string `json:"Name"`
-	SerialNumber string `json:"SerialNumber"`
-	Status       Status `json:"Status"`
+type DiskDriveMetrics struct {
+	Id            string `json:"Id"`
+	CapacityMiB   int    `json:"CapacityMiB"`
+	Description   string `json:"Description"`
+	InterfaceType string `json:"InterfaceType"`
+	Name          string `json:"Name"`
+	Model         string `json:"Model"`
+	Status        Status `json:"Status"`
+	Location      string `json:"Location"`
+	SerialNumber  string `json:"SerialNumber"`
+}
+
+// GenericDrive is used to iterate over differing drive endpoints
+// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ for Logical and Physical Drives
+// /redfish/v1/Chassis/1/Drives/ for NVMe Drive(s)
+type GenericDrive struct {
+	Members      []Members  `json:"Members,omitempty"`
+	LinksUpper   LinksUpper `json:"Links,omitempty"`
+	LinksLower   LinksLower `json:"links,omitempty"`
+	MembersCount int        `json:"Members@odata.count,omitempty"`
+}
+
+type Members struct {
+	URL string `json:"@odata.id"`
+}
+
+type LinksUpper struct {
+	Drives         []URL `json:"Drives,omitempty"`
+	LogicalDrives  URL   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives URL   `json:"PhysicalDrives,omitempty"`
+}
+
+type LinksLower struct {
+	Drives         []HRef `json:"Drives,omitempty"`
+	LogicalDrives  HRef   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives HRef   `json:"PhysicalDrives,omitempty"`
+}
+
+type HRef struct {
+	URL string `json:"href"`
+}
+
+type URL struct {
+	URL string `json:"@odata.id"`
+}
+
+// PhysicalLocation
+type PhysicalLocation struct {
+	PartLocation PartLocation `json:"PartLocation"`
+}
+
+// PartLocation is a variable that determines the Box and the Bay location of the NVMe drive
+type PartLocation struct {
+	ServiceLabel string `json:"ServiceLabel"`
+}
+
+// Contents of Oem
+type Oem struct {
+	Hpe HpeCont `json:"Hpe"`
+}
+
+// Contents of Hpe
+type HpeCont struct {
+	CurrentTemperatureCelsius int    `json:"CurrentTemperatureCelsius"`
+	DriveStatus               Status `json:"DriveStatus"`
+	NVMeID                    string `json:"NVMeId"`
 }
