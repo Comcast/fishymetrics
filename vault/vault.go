@@ -115,7 +115,11 @@ func (v *Vault) GetKVSecret(ctx context.Context, props *SecretProperties, secret
 			kvSecret, err = v.client.KVv1(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
 		}
 	} else {
-		kvSecret, err = v.client.KVv2(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
+		if props.SecretName != "" {
+			kvSecret, err = v.client.KVv2(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, props.SecretName))
+		} else {
+			kvSecret, err = v.client.KVv2(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
+		}
 	}
 
 	if err != nil {
