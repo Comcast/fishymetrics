@@ -18,6 +18,7 @@ package vault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -29,6 +30,8 @@ import (
 
 var (
 	log *zap.Logger
+
+	ErrBadTLSConfig = errors.New("bad TLS configuration")
 )
 
 type Parameters struct {
@@ -36,6 +39,7 @@ type Parameters struct {
 	Address         string
 	ApproleRoleID   string
 	ApproleSecretID string
+	CACertBytes     []byte
 }
 
 // the locations / field names of kv2 secrets
@@ -49,7 +53,7 @@ type SecretProperties struct {
 }
 
 type Vault struct {
-	mu         sync.Mutex
+	mu         sync.RWMutex
 	client     *vault.Client
 	Parameters Parameters
 	isLoggedIn bool
@@ -61,6 +65,13 @@ type Vault struct {
 func NewVaultAppRoleClient(ctx context.Context, parameters Parameters) (*Vault, error) {
 	config := vault.DefaultConfig()
 	config.Address = parameters.Address
+	if len(parameters.CACertBytes) > 0 {
+		if err := config.ConfigureTLS(&vault.TLSConfig{
+			CACertBytes: parameters.CACertBytes,
+		}); err != nil {
+			return nil, fmt.Errorf("unable to configure TLS: %w", err)
+		}
+	}
 
 	client, err := vault.NewClient(config)
 	if err != nil {
@@ -78,13 +89,18 @@ func NewVaultAppRoleClient(ctx context.Context, parameters Parameters) (*Vault, 
 // A combination of a RoleID and a SecretID is required to log into Vault
 // with AppRole authentication method.
 func (v *Vault) login(ctx context.Context) (*vault.Secret, error) {
+	var roleId, secretId string
+	v.mu.RLock()
+	roleId = v.Parameters.ApproleRoleID
+	secretId = v.Parameters.ApproleSecretID
+	v.mu.RUnlock()
 
 	approleSecretID := &approle.SecretID{
-		FromString: v.Parameters.ApproleSecretID,
+		FromString: secretId,
 	}
 
 	appRoleAuth, err := approle.NewAppRoleAuth(
-		v.Parameters.ApproleRoleID,
+		roleId,
 		approleSecretID,
 	)
 	if err != nil {
@@ -95,9 +111,6 @@ func (v *Vault) login(ctx context.Context) (*vault.Secret, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to login using approle auth method: %w", err)
 	}
-	if authInfo == nil {
-		return nil, fmt.Errorf("no approle info was returned after login")
-	}
 
 	return authInfo, nil
 }
@@ -106,20 +119,27 @@ func (v *Vault) login(ctx context.Context) (*vault.Secret, error) {
 func (v *Vault) GetKVSecret(ctx context.Context, props *SecretProperties, secret string) (*vault.KVSecret, error) {
 	var kvSecret *vault.KVSecret
 	var err error
+	var secretPath string
 
-	// perform more checks based on profile
-	if props.MountPath != "kv2" {
+	if props.Path != "" {
 		if props.SecretName != "" {
-			kvSecret, err = v.client.KVv1(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, props.SecretName))
+			secretPath = fmt.Sprintf("%s/%s", props.Path, props.SecretName)
 		} else {
-			kvSecret, err = v.client.KVv1(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
+			secretPath = fmt.Sprintf("%s/%s", props.Path, secret)
 		}
 	} else {
 		if props.SecretName != "" {
-			kvSecret, err = v.client.KVv2(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, props.SecretName))
+			secretPath = props.SecretName
 		} else {
-			kvSecret, err = v.client.KVv2(props.MountPath).Get(ctx, fmt.Sprintf("%s/%s", props.Path, secret))
+			secretPath = secret
 		}
+	}
+
+	// perform more checks based on profile
+	if props.MountPath != "kv2" {
+		kvSecret, err = v.client.KVv1(props.MountPath).Get(ctx, secretPath)
+	} else {
+		kvSecret, err = v.client.KVv2(props.MountPath).Get(ctx, secretPath)
 	}
 
 	if err != nil {
@@ -135,6 +155,8 @@ func wait(sleepTime time.Duration, c chan bool) {
 }
 
 func (v *Vault) IsLoggedIn() bool {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
 	return v.isLoggedIn
 }
 
@@ -180,15 +202,17 @@ func (v *Vault) manageTokenLifecycle(ctx context.Context, token *vault.Secret, d
 
 	log = zap.L()
 
-	renew := token.Auth.Renewable
-	if !renew {
-		log.Info("token is not configured to be renewable. re-attempting login")
-		return nil
+	if token.Auth != nil {
+		renew := token.Auth.Renewable
+		if !renew {
+			log.Info("token is not configured to be renewable. re-attempting login")
+			return nil
+		}
 	}
 
 	watcher, err := v.client.NewLifetimeWatcher(&vault.LifetimeWatcherInput{
 		Secret:    token,
-		Increment: 3600,
+		Increment: token.LeaseDuration / 2,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to initialize new lifetime watcher for renewing auth token: %w", err)
@@ -197,14 +221,8 @@ func (v *Vault) manageTokenLifecycle(ctx context.Context, token *vault.Secret, d
 	go watcher.Start()
 	defer wg.Done()
 	defer func() {
-		var tok string
-		if renewal != nil {
-			tok = renewal.Secret.Auth.ClientToken
-		} else {
-			tok = token.Auth.ClientToken
-		}
 		log.Info("revoking token before app shutdown")
-		err := v.client.Auth().Token().RevokeSelfWithContext(ctx, tok)
+		err := v.client.Auth().Token().RevokeSelfWithContext(ctx, v.client.Token())
 		if err != nil {
 			log.Error("unable to revoke token", zap.Error(err))
 		}
@@ -229,6 +247,7 @@ func (v *Vault) manageTokenLifecycle(ctx context.Context, token *vault.Secret, d
 			return nil
 
 		case renewal = <-watcher.RenewCh():
+			v.client.SetToken(renewal.Secret.Auth.ClientToken)
 			log.Info(fmt.Sprintf("successfully renewed: %#v", renewal))
 		}
 	}

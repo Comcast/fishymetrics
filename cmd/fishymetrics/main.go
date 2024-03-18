@@ -300,7 +300,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":" + *exporterPort,
-		Handler: loggingHandler(app, mux),
+		Handler: loggingHandler(mux),
 	}
 
 	wg.Add(1)
@@ -350,7 +350,7 @@ func (r *statusResponseWriter) WriteHeader(status int) {
 
 // loggingHandler accepts an http.Handler and wraps it with a
 // handler that logs the request and response information.
-func loggingHandler(ctx interface{}, h http.Handler) http.Handler {
+func loggingHandler(h http.Handler) http.Handler {
 	if h == nil {
 		h = http.DefaultServeMux
 	}
