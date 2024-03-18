@@ -20,7 +20,7 @@ docker:
 	.
 
 test:
-	go test -v -cover -p 1 -race ${FLAGS} ${TEST_PKGS}
+	go test -v -cover -coverprofile cp.out -p 1 -race ${FLAGS} ${TEST_PKGS}
 
 clean:
 	rm -rf build/
