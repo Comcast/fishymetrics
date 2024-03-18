@@ -484,7 +484,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 		if ps.Status.State == "Enabled" {
 			if ps.MemberID != "" {
 				(*dlPower)["supplyOutput"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
-			} else if string(ps.Oem.Hp.BayNumber) == "null" {
+			} else if fmt.Sprint(ps.Oem.Hp.BayNumber) == "null" {
 				(*dlPower)["supplyOutput"].WithLabelValues(strconv.Itoa(ps.Oem.Hpe.BayNumber), ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
 			} else {
 				(*dlPower)["supplyOutput"].WithLabelValues(strconv.Itoa(ps.Oem.Hp.BayNumber), ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
@@ -496,7 +496,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			}
 			if ps.MemberID != "" {
 				(*dlPower)["supplyStatus"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(state)
-			} else if string(ps.Oem.Hp.BayNumber) == "null" {
+			} else if fmt.Sprint(ps.Oem.Hp.BayNumber) == "null" {
 				(*dlPower)["supplyStatus"].WithLabelValues(strconv.Itoa(ps.Oem.Hpe.BayNumber), ps.SparePartNumber).Set(state)
 			} else {
 				(*dlPower)["supplyStatus"].WithLabelValues(strconv.Itoa(ps.Oem.Hp.BayNumber), ps.SparePartNumber).Set(state)
