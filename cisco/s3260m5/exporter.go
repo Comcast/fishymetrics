@@ -224,11 +224,21 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		}
 	}
 
+	// Storage controller endpoints array
+	rcontrollers, err := getRaidEndpoint(fqdn.String()+uri+"/Systems/"+serial+"/Storage", target, retryClient)
+	if err != nil {
+		log.Error("error when getting storage controller endpoints from "+S3260M5, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
+	for _, rcontroller := range rcontrollers.Members {
+		tasks = append(tasks,
+			pool.NewTask(common.Fetch(fqdn.String()+rcontroller.URL, DRIVE, target, profile, retryClient)))
+	}
+
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+mgr+"/Processors/CPU1", PROCESSOR, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+mgr+"/Processors/CPU2", PROCESSOR, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/"+serial+"/Storage/SBMezz1", DRIVE, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/"+serial+"/Storage/SBMezz2", DRIVE, target, profile, retryClient)))
+		pool.NewTask(common.Fetch(fqdn.String()+mgr+"/Processors/CPU2", PROCESSOR, target, profile, retryClient)))
 
 	for _, dimm := range dimms.Members {
 		tasks = append(tasks,
@@ -739,4 +749,46 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (Collectio
 	}
 
 	return dimms, nil
+}
+
+func getRaidEndpoint(url, host string, client *retryablehttp.Client) (Collection, error) {
+	var rcontrollers Collection
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return rcontrollers, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return rcontrollers, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return rcontrollers, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else {
+			return rcontrollers, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return rcontrollers, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &rcontrollers)
+	if err != nil {
+		return rcontrollers, fmt.Errorf("Error Unmarshalling S3260M5 Chassis struct - " + err.Error())
+	}
+
+	return rcontrollers, nil
 }
