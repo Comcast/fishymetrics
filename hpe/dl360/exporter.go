@@ -33,6 +33,7 @@ import (
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	"github.com/comcast/fishymetrics/oem"
 	"github.com/comcast/fishymetrics/pool"
 	"go.uber.org/zap"
 
@@ -463,7 +464,7 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 	var state float64
-	var pm PowerMetrics
+	var pm oem.PowerMetrics
 	var dlPower = (*e.deviceMetrics)["powerMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
@@ -511,7 +512,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 func (e *Exporter) exportThermalMetrics(body []byte) error {
 
 	var state float64
-	var tm ThermalMetrics
+	var tm oem.ThermalMetrics
 	var dlThermal = (*e.deviceMetrics)["thermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
@@ -522,10 +523,18 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	for _, fan := range tm.Fans {
 		// Check fan status and convert string to numeric values
 		if fan.Status.State == "Enabled" {
+			var fanSpeed float64
+			switch fan.Reading.(type) {
+			case string:
+				fanSpeed, _ = strconv.ParseFloat(fan.Reading.(string), 32)
+			case float64:
+				fanSpeed = fan.Reading.(float64)
+			}
+
 			if fan.FanName != "" {
 				(*dlThermal)["fanSpeed"].WithLabelValues(fan.FanName).Set(float64(fan.CurrentReading))
 			} else {
-				(*dlThermal)["fanSpeed"].WithLabelValues(fan.Name).Set(float64(fan.Reading))
+				(*dlThermal)["fanSpeed"].WithLabelValues(fan.Name).Set(fanSpeed)
 			}
 			if fan.Status.Health == "OK" {
 				state = OK

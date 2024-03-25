@@ -33,6 +33,7 @@ import (
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	"github.com/comcast/fishymetrics/oem"
 	"github.com/comcast/fishymetrics/pool"
 	"go.uber.org/zap"
 
@@ -378,7 +379,7 @@ func (e *Exporter) scrape() {
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 	var state float64
-	var pm PowerMetrics
+	var pm oem.PowerMetrics
 	var dlPower = (*e.deviceMetrics)["powerMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
@@ -409,7 +410,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 func (e *Exporter) exportThermalMetrics(body []byte) error {
 
 	var state float64
-	var tm ThermalMetrics
+	var tm oem.ThermalMetrics
 	var dlThermal = (*e.deviceMetrics)["thermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
