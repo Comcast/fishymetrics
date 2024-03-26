@@ -26,6 +26,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Removed references to internal URLs/FQDNs to opensource the project
 - Cisco S3260M5 module to support FW Ver 4.2(xx) [#18](https://github.com/Comcast/fishymetrics/issues/18)
 - HP DL360 module to support responses from iLO4 [#34](https://github.com/Comcast/fishymetrics/issues/34)
+- HP DL360 & XL420 to include processor, iloselftest and smart storage battery metrics [#43](https://github.com/Comcast/fishymetrics/issues/43)
 
 ## [0.7.1]
 
