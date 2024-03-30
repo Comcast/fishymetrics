@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ type StorageControllerMetrics struct {
 type StorageController struct {
 	Status          Status `json:"Status"`
 	MemberId        string `json:"MemberId"`
+	Manufacturer    string `json:"Manufacturer,omitempty"`
 	Model           string `json:"Model"`
 	Name            string `json:"Name"`
 	FirmwareVersion string `json:"FirmwareVersion"`

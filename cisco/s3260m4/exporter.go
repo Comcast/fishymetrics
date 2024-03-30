@@ -34,6 +34,7 @@ import (
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	"github.com/comcast/fishymetrics/oem"
 	"github.com/comcast/fishymetrics/pool"
 	"go.uber.org/zap"
 
@@ -346,7 +347,7 @@ func (e *Exporter) scrape() {
 
 // exportFirmwareMetrics collects the Cisco UCS S3260M4's device metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportFirmwareMetrics(body []byte) error {
-	var chas Chassis
+	var chas oem.Chassis
 	var dm = (*e.deviceMetrics)["deviceInfo"]
 	err := json.Unmarshal(body, &chas)
 	if err != nil {
@@ -362,7 +363,7 @@ func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 	var state float64
-	var pm PowerMetrics
+	var pm oem.PowerMetrics
 	var pow = (*e.deviceMetrics)["powerMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
@@ -390,7 +391,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				watts, _ = strconv.ParseFloat(pc.PowerMetrics.AverageConsumedWatts.(string), 32)
 			}
 		}
-		(*pow)["supplyTotalConsumed"].WithLabelValues(pm.Url, e.chassisSerialNumber).Set(watts)
+		(*pow)["supplyTotalConsumed"].WithLabelValues(pc.MemberID, e.chassisSerialNumber).Set(watts)
 	}
 
 	for _, pv := range pm.Voltages {
@@ -428,40 +429,40 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 func (e *Exporter) exportThermalMetrics(body []byte) error {
 
 	var state float64
-	var tm ThermalMetrics
+	var tm oem.ThermalMetrics
 	var therm = (*e.deviceMetrics)["thermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling S3260M4 ThermalMetrics - " + err.Error())
 	}
 
-	if tm.Status.State == "Enabled" {
-		if tm.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
-		}
-		(*therm)["thermalSummary"].WithLabelValues(tm.Url, e.chassisSerialNumber).Set(state)
-	}
-
 	// Iterate through fans
 	for _, fan := range tm.Fans {
 		// Check fan status and convert string to numeric values
 		if fan.Status.State == "Enabled" {
-			var celsFan float64
+			var fanSpeed float64
 			switch fan.Reading.(type) {
 			case string:
-				celsFan, _ = strconv.ParseFloat(fan.Reading.(string), 32)
+				fanSpeed, _ = strconv.ParseFloat(fan.Reading.(string), 32)
 			case float64:
-				celsFan = fan.Reading.(float64)
+				fanSpeed = fan.Reading.(float64)
 			}
-			(*therm)["fanSpeed"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(celsFan)
+
+			if fan.FanName != "" {
+				(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.chassisSerialNumber).Set(float64(fan.CurrentReading))
+			} else {
+				(*therm)["fanSpeed"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(fanSpeed)
+			}
 			if fan.Status.Health == "OK" {
 				state = OK
 			} else {
 				state = BAD
 			}
-			(*therm)["fanStatus"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(state)
+			if fan.FanName != "" {
+				(*therm)["fanStatus"].WithLabelValues(fan.FanName, e.chassisSerialNumber).Set(state)
+			} else {
+				(*therm)["fanStatus"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(state)
+			}
 		}
 	}
 
@@ -469,16 +470,16 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	for _, sensor := range tm.Temperatures {
 		// Check sensor status and convert string to numeric values
 		if sensor.Status.State == "Enabled" {
-			var celsSensor float64
+			var celsTemp float64
 			switch sensor.ReadingCelsius.(type) {
 			case string:
-				celsSensor, _ = strconv.ParseFloat(sensor.ReadingCelsius.(string), 32)
+				celsTemp, _ = strconv.ParseFloat(sensor.ReadingCelsius.(string), 32)
 			case int:
-				celsSensor = float64(sensor.ReadingCelsius.(int))
+				celsTemp = float64(sensor.ReadingCelsius.(int))
 			case float64:
-				celsSensor = sensor.ReadingCelsius.(float64)
+				celsTemp = sensor.ReadingCelsius.(float64)
 			}
-			(*therm)["sensorTemperature"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.chassisSerialNumber).Set(celsSensor)
+			(*therm)["sensorTemperature"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.chassisSerialNumber).Set(celsTemp)
 			if sensor.Status.Health == "OK" {
 				state = OK
 			} else {
@@ -495,7 +496,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 func (e *Exporter) exportMemoryMetrics(body []byte) error {
 
 	var state float64
-	var mm MemoryMetrics
+	var mm oem.MemoryMetrics
 	var mem = (*e.deviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &mm)
 	if err != nil {
@@ -525,21 +526,30 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 			}
 		default:
 			if s, ok := mm.Status.(map[string]interface{}); ok {
-				if s["State"].(string) == "Enabled" {
-					if s["Health"].(string) == "OK" {
-						state = OK
-					} else if s["Health"].(string) == "" {
-						state = OK
+				switch s["State"].(type) {
+				case string:
+					if s["State"].(string) == "Enabled" {
+						switch s["Health"].(type) {
+						case string:
+							if s["Health"].(string) == "OK" {
+								state = OK
+							} else if s["Health"].(string) == "" {
+								state = OK
+							} else {
+								state = BAD
+							}
+						case nil:
+							state = OK
+						}
+					} else if s["State"].(string) == "Absent" {
+						return nil
 					} else {
 						state = BAD
 					}
-				} else {
-					state = BAD
 				}
 			}
 		}
-
-		(*mem)["memoryStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, memCap, mm.Manufacturer, mm.PartNumber, mm.SerialNumber).Set(state)
+		(*mem)["memoryStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, memCap, mm.Manufacturer, strings.TrimRight(mm.PartNumber, " "), mm.SerialNumber).Set(state)
 	}
 
 	return nil
@@ -550,7 +560,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 
 	var state float64
 	var totThreads string
-	var pm ProcessorMetrics
+	var pm oem.ProcessorMetrics
 	var proc = (*e.deviceMetrics)["processorMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
@@ -563,14 +573,19 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 			totThreads = pm.TotalThreads.(string)
 		case float64:
 			totThreads = strconv.Itoa(int(pm.TotalThreads.(float64)))
+		case int:
+			totThreads = strconv.Itoa(pm.TotalThreads.(int))
 		}
 		if pm.Status.Health == "OK" {
 			state = OK
 		} else {
 			state = BAD
 		}
-		(*proc)["processorStatus"].WithLabelValues(pm.Name, e.chassisSerialNumber, pm.Description, totThreads).Set(state)
+	} else {
+		state = DISABLED
 	}
+
+	(*proc)["processorStatus"].WithLabelValues(pm.Name, e.chassisSerialNumber, pm.Description, totThreads).Set(state)
 
 	return nil
 }
@@ -579,7 +594,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 func (e *Exporter) exportDriveMetrics(body []byte) error {
 
 	var state float64
-	var scm StorageControllerMetrics
+	var scm oem.StorageControllerMetrics
 	var dlDrive = (*e.deviceMetrics)["driveMetrics"]
 	err := json.Unmarshal(body, &scm)
 	if err != nil {
@@ -597,14 +612,14 @@ func (e *Exporter) exportDriveMetrics(body []byte) error {
 			state = DISABLED
 		}
 
-		(*dlDrive)["storageControllerStatus"].WithLabelValues(path.Base(scm.Url), e.chassisSerialNumber, sc.FirmwareVersion, sc.Manufacturer, sc.Name).Set(state)
+		(*dlDrive)["storageControllerStatus"].WithLabelValues(sc.Name, e.chassisSerialNumber, sc.FirmwareVersion, sc.Manufacturer, sc.Model).Set(state)
 	}
 
 	return nil
 }
 
-func getManagerEndpoint(url, host string, client *retryablehttp.Client) (Chassis, error) {
-	var chas Chassis
+func getManagerEndpoint(url, host string, client *retryablehttp.Client) (oem.Chassis, error) {
+	var chas oem.Chassis
 	req := common.BuildRequest(url, host)
 
 	resp, err := client.Do(req)
@@ -634,7 +649,7 @@ func getManagerEndpoint(url, host string, client *retryablehttp.Client) (Chassis
 }
 
 func getChassisSerialNumber(url, host string, client *retryablehttp.Client) (string, error) {
-	var chassSN ChassisSerialNumber
+	var chassSN oem.ChassisSerialNumber
 	req := common.BuildRequest(url, host)
 
 	resp, err := client.Do(req)
@@ -659,8 +674,8 @@ func getChassisSerialNumber(url, host string, client *retryablehttp.Client) (str
 	return chassSN.SerialNumber, nil
 }
 
-func getChassisEndpoint(url, host string, client *retryablehttp.Client) (Collection, error) {
-	var chas Collection
+func getChassisEndpoint(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var chas oem.Collection
 	req := common.BuildRequest(url, host)
 
 	resp, err := client.Do(req)
@@ -686,7 +701,7 @@ func getChassisEndpoint(url, host string, client *retryablehttp.Client) (Collect
 }
 
 func getBIOSVersion(url, host string, client *retryablehttp.Client) (string, error) {
-	var biosVer ServerManager
+	var biosVer oem.ServerManager
 	req := common.BuildRequest(url, host)
 
 	resp, err := client.Do(req)
@@ -711,8 +726,8 @@ func getBIOSVersion(url, host string, client *retryablehttp.Client) (string, err
 	return biosVer.BiosVersion, nil
 }
 
-func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (Collection, error) {
-	var dimms Collection
+func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var dimms oem.Collection
 	var resp *http.Response
 	var err error
 	retryCount := 0
@@ -753,8 +768,8 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (Collectio
 	return dimms, nil
 }
 
-func getRaidEndpoint(url, host string, client *retryablehttp.Client) (Collection, error) {
-	var rcontrollers Collection
+func getRaidEndpoint(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var rcontrollers oem.Collection
 	var resp *http.Response
 	var err error
 	retryCount := 0

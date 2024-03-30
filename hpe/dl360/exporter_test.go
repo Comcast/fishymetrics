@@ -30,10 +30,25 @@ import (
 )
 
 const (
-	up2Response = `
+	up2Expected = `
 		 # HELP up was the last scrape of fishymetrics successful.
 		 # TYPE up gauge
 		 up 2
+	`
+	GoodLogicalDriveExpected = `
+		 # HELP dl360_logical_drive_status Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED
+		 # TYPE dl360_logical_drive_status gauge
+		 dl360_logical_drive_status{chassisSerialNumber="SN98765",logicaldrivename="TESTDRIVE NAME 1",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="ABCDEF12345"} 1
+	`
+	GoodDiskDriveExpected = `
+		 # HELP dl360_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
+		 # TYPE dl360_disk_drive_status gauge
+		 dl360_disk_drive_status{chassisSerialNumber="SN98765",id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
+	`
+	GoodNvmeDriveExpected = `
+		 # HELP dl360_nvme_drive_status Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED
+		 # TYPE dl360_nvme_drive_status gauge
+		 dl360_nvme_drive_status{chassisSerialNumber="SN98765",id="DA000000",protocol="NVMe",serviceLabel="Box 3:Bay 7"} 1
 	`
 )
 
@@ -61,7 +76,7 @@ func MustMarshal(v interface{}) []byte {
 
 func Test_DL360_Exporter(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/redfish/v1/badcred/Systems/1/SmartStorage/ArrayControllers/" {
+		if r.URL.Path == "/redfish/v1/badcred/Managers/1/" {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write(MustMarshal(TestErrorResponse{
 				Error: TestError{
@@ -99,7 +114,7 @@ func Test_DL360_Exporter(t *testing.T) {
 			metricName: "up",
 			metricRef1: "up",
 			metricRef2: "up",
-			expected:   up2Response,
+			expected:   up2Expected,
 		},
 	}
 
@@ -122,4 +137,351 @@ func Test_DL360_Exporter(t *testing.T) {
 
 		})
 	}
+}
+
+// Test_DL360_Upper_Lower_Links tests the uppercase and lowercase Links/links struct because of
+// the different firmware versions of the redfish API
+func Test_DL360_Upper_Lower_Links(t *testing.T) {
+	// server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// 	if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/" {
+	// 		w.WriteHeader(http.StatusOK)
+	// 		w.Write(MustMarshal(struct {
+	// 			MembersCount int `json:"Members@odata.count"`
+	// 			Members      []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			} `json:"Members"`
+	// 		}{
+	// 			MembersCount: 2,
+	// 			Members: []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			}{
+	// 				{
+	// 					URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/",
+	// 				},
+	// 				{
+	// 					URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/",
+	// 				},
+	// 			},
+	// 		}))
+	// 		return
+	// 	} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/" {
+	// 		w.WriteHeader(http.StatusOK)
+	// 		w.Write(MustMarshal(struct {
+	// 			LinksUpper struct {
+	// 				LogicalDrives struct {
+	// 					URL string `json:"@odata.id"`
+	// 				} `json:"LogicalDrives"`
+	// 				PhysicalDrives struct {
+	// 					URL string `json:"@odata.id"`
+	// 				} `json:"PhysicalDrives"`
+	// 			} `json:"Links"`
+	// 		}{
+	// 			LinksUpper: struct {
+	// 				LogicalDrives struct {
+	// 					URL string `json:"@odata.id"`
+	// 				} `json:"LogicalDrives"`
+	// 				PhysicalDrives struct {
+	// 					URL string `json:"@odata.id"`
+	// 				} `json:"PhysicalDrives"`
+	// 			}{
+	// 				LogicalDrives: struct {
+	// 					URL string `json:"@odata.id"`
+	// 				}{
+	// 					URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/",
+	// 				},
+	// 				PhysicalDrives: struct {
+	// 					URL string `json:"@odata.id"`
+	// 				}{
+	// 					URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/DiskDrives/",
+	// 				},
+	// 			},
+	// 		}))
+	// 		return
+	// 	} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/" {
+	// 		w.WriteHeader(http.StatusOK)
+	// 		w.Write(MustMarshal(struct {
+	// 			LinksLower struct {
+	// 				LogicalDrives struct {
+	// 					URL string `json:"href"`
+	// 				} `json:"LogicalDrives"`
+	// 				PhysicalDrives struct {
+	// 					URL string `json:"href"`
+	// 				} `json:"PhysicalDrives"`
+	// 			} `json:"links"`
+	// 		}{
+	// 			LinksLower: struct {
+	// 				LogicalDrives struct {
+	// 					URL string `json:"href"`
+	// 				} `json:"LogicalDrives"`
+	// 				PhysicalDrives struct {
+	// 					URL string `json:"href"`
+	// 				} `json:"PhysicalDrives"`
+	// 			}{
+	// 				LogicalDrives: struct {
+	// 					URL string `json:"href"`
+	// 				}{
+	// 					URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/",
+	// 				},
+	// 				PhysicalDrives: struct {
+	// 					URL string `json:"href"`
+	// 				}{
+	// 					URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/",
+	// 				},
+	// 			},
+	// 		}))
+	// 		return
+	// 	} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/" {
+	// 		w.WriteHeader(http.StatusOK)
+	// 		w.Write(MustMarshal(struct {
+	// 			MembersCount int `json:"Members@odata.count"`
+	// 			Members      []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			} `json:"Members"`
+	// 		}{
+	// 			MembersCount: 1,
+	// 			Members: []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			}{
+	// 				{
+	// 					URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1/",
+	// 				},
+	// 			},
+	// 		}))
+	// 		return
+	// 	} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/" {
+	// 		w.WriteHeader(http.StatusOK)
+	// 		w.Write(MustMarshal(struct {
+	// 			MembersCount int `json:"Members@odata.count"`
+	// 			Members      []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			} `json:"Members"`
+	// 		}{
+	// 			MembersCount: 1,
+	// 			Members: []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			}{
+	// 				{
+	// 					URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/1/",
+	// 				},
+	// 			},
+	// 		}))
+	// 		return
+	// 	} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/DiskDrives/" {
+	// 		w.WriteHeader(http.StatusOK)
+	// 		w.Write(MustMarshal(struct {
+	// 			MembersCount int `json:"Members@odata.count"`
+	// 			Members      []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			} `json:"Members"`
+	// 		}{
+	// 			MembersCount: 1,
+	// 			Members: []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			}{
+	// 				{
+	// 					URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/0/DiskDrives/0/",
+	// 				},
+	// 			},
+	// 		}))
+	// 		return
+	// 	} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/" {
+	// 		w.WriteHeader(http.StatusOK)
+	// 		w.Write(MustMarshal(struct {
+	// 			MembersCount int `json:"Members@odata.count"`
+	// 			Members      []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			} `json:"Members"`
+	// 		}{
+	// 			MembersCount: 1,
+	// 			Members: []struct {
+	// 				URL string `json:"@odata.id"`
+	// 			}{
+	// 				{
+	// 					URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/0/",
+	// 				},
+	// 			},
+	// 		}))
+	// 		return
+	// 	} else if r.URL.Path == "/redfish/v1/good/Chassis/1/" {
+	// 		w.WriteHeader(http.StatusOK)
+	// 		w.Write(MustMarshal(struct {
+	// 			LinksUpper struct {
+	// 				Drives []struct {
+	// 					URL string `json:"@odata.id"`
+	// 				} `json:"Drives"`
+	// 			} `json:"Links"`
+	// 		}{
+	// 			LinksUpper: struct {
+	// 				Drives []struct {
+	// 					URL string `json:"@odata.id"`
+	// 				} `json:"Drives"`
+	// 			}{
+	// 				Drives: []struct {
+	// 					URL string `json:"@odata.id"`
+	// 				}{
+	// 					{
+	// 						URL: "/redfish/v1/Systems/1/Storage/DA000000/Drives/DA000000/",
+	// 					},
+	// 				},
+	// 			},
+	// 		}))
+	// 		return
+	// 	}
+	// 	w.WriteHeader(http.StatusInternalServerError)
+	// 	w.Write([]byte("Unknown path - please create test case(s) for it"))
+	// }))
+	// defer server.Close()
+}
+
+func Test_DL360_Metrics_Handling(t *testing.T) {
+
+	var GoodLogicalDriveResponse = []byte(`{
+  			"Id": "1",
+  			"CapacityMiB": 915683,
+  			"Description": "HPE Smart Storage Logical Drive View",
+  			"InterfaceType": "SATA",
+  			"LogicalDriveName": "TESTDRIVE NAME 1",
+  			"LogicalDriveNumber": 1,
+  			"Name": "HpeSmartStorageLogicalDrive",
+  			"Raid": "1",
+  			"Status": {
+  			  "Health": "OK",
+  			  "State": "Enabled"
+  			},
+  			"StripeSizeBytes": 262144,
+  			"VolumeUniqueIdentifier": "ABCDEF12345"
+		}`)
+	var GoodDiskDriveResponse = []byte(`{
+  			"Id": "0",
+  			"CapacityMiB": 915715,
+  			"Description": "HPE Smart Storage Disk Drive View",
+  			"InterfaceType": "SATA",
+  			"Location": "1I:1:1",
+  			"Model": "MK000960GWXFH",
+  			"Name": "HpeSmartStorageDiskDrive",
+  			"SerialNumber": "ABC123",
+  			"Status": {
+  			  "Health": "OK",
+  			  "State": "Enabled"
+  			}
+		}`)
+	var GoodNvmeDriveResponse = []byte(`{
+  			"Id": "DA000000",
+  			"CapacityBytes": 1600321314816,
+  			"FailurePredicted": false,
+  			"MediaType": "SSD",
+  			"Model": "MO001600KXPTR",
+  			"Name": "Secondary Storage Device",
+  			"Oem": {
+  			  "Hpe": {
+  			    "CurrentTemperatureCelsius": 33,
+  			    "DriveStatus": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    },
+  			    "NVMeId": "1c5c_MO001600KXPTR_KJC3N4902I2603P04"
+  			  }
+  			},
+  			"PhysicalLocation": {
+  			  "PartLocation": {
+  			    "ServiceLabel": "Box 3:Bay 7"
+  			  }
+  			},
+  			"Protocol": "NVMe"
+		}`)
+
+	var exporter prometheus.Collector
+
+	assert := assert.New(t)
+
+	metrx := NewDeviceMetrics()
+
+	exporter = &Exporter{
+		ctx:                 context.Background(),
+		host:                "fishymetrics.com",
+		biosVersion:         "U99 v0.00 (xx/xx/xxxx)",
+		chassisSerialNumber: "SN98765",
+		deviceMetrics:       metrx,
+	}
+
+	prometheus.MustRegister(exporter)
+
+	logicalDevMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportLogicalDriveMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	physDevMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportPhysicalDriveMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	nvmeDevMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportNVMeDriveMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	tests := []struct {
+		name       string
+		metricName string
+		metricRef1 string
+		metricRef2 string
+		handleFunc func(*Exporter, []byte) error
+		response   []byte
+		expected   string
+	}{
+		{
+			name:       "Good Logical Drive",
+			metricName: "dl360_logical_drive_status",
+			metricRef1: "logicalDriveMetrics",
+			metricRef2: "raidStatus",
+			handleFunc: logicalDevMetrics,
+			response:   GoodLogicalDriveResponse,
+			expected:   GoodLogicalDriveExpected,
+		},
+		{
+			name:       "Good Disk Drive",
+			metricName: "dl360_disk_drive_status",
+			metricRef1: "diskDriveMetrics",
+			metricRef2: "driveStatus",
+			handleFunc: physDevMetrics,
+			response:   GoodDiskDriveResponse,
+			expected:   GoodDiskDriveExpected,
+		},
+		{
+			name:       "Good Nvme Drive",
+			metricName: "dl360_nvme_drive_status",
+			metricRef1: "nvmeMetrics",
+			metricRef2: "nvmeDriveStatus",
+			handleFunc: nvmeDevMetrics,
+			response:   GoodNvmeDriveResponse,
+			expected:   GoodNvmeDriveExpected,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.handleFunc(exporter.(*Exporter), test.response)
+			if err != nil {
+				t.Error(err)
+			}
+
+			metric := (*exporter.(*Exporter).deviceMetrics)[test.metricRef1]
+			m := (*metric)[test.metricRef2]
+
+			assert.Empty(testutil.CollectAndCompare(m, strings.NewReader(test.expected), test.metricName))
+
+			m.Reset()
+		})
+	}
+	prometheus.Unregister(exporter)
 }

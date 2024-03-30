@@ -40,37 +40,43 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		ThermalMetrics = &metrics{
-			"fanSpeed":          newServerMetric("dl380_thermal_fan_speed", "Current fan speed in the unit of percentage, possible values are 0 - 100", nil, []string{"name"}),
-			"fanStatus":         newServerMetric("dl380_thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name"}),
-			"sensorTemperature": newServerMetric("dl380_thermal_sensor_temperature", "Current sensor temperature reading in Celsius", nil, []string{"name"}),
-			"sensorStatus":      newServerMetric("dl380_thermal_sensor_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"name"}),
+			"fanSpeed":          newServerMetric("dl380_thermal_fan_speed", "Current fan speed in the unit of percentage, possible values are 0 - 100", nil, []string{"name", "chassisSerialNumber"}),
+			"fanStatus":         newServerMetric("dl380_thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber"}),
+			"sensorTemperature": newServerMetric("dl380_thermal_sensor_temperature", "Current sensor temperature reading in Celsius", nil, []string{"name", "chassisSerialNumber"}),
+			"sensorStatus":      newServerMetric("dl380_thermal_sensor_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber"}),
 		}
 
 		PowerMetrics = &metrics{
-			"supplyOutput":        newServerMetric("dl380_power_supply_output", "Power supply output in watts", nil, []string{"memberId", "sparePartNumber"}),
-			"supplyStatus":        newServerMetric("dl380_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"memberId", "sparePartNumber"}),
-			"supplyTotalConsumed": newServerMetric("dl380_power_supply_total_consumed", "Total output of all power supplies in watts", nil, []string{"memberId"}),
-			"supplyTotalCapacity": newServerMetric("dl380_power_supply_total_capacity", "Total output capacity of all the power supplies", nil, []string{"memberId"}),
+			"voltageOutput":       newServerMetric("dl380_power_voltage_output", "Power voltage output in watts", nil, []string{"name", "chassisSerialNumber"}),
+			"voltageStatus":       newServerMetric("dl380_power_voltage_status", "Current power voltage status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber"}),
+			"supplyOutput":        newServerMetric("dl380_power_supply_output", "Power supply output in watts", nil, []string{"memberId", "chassisSerialNumber", "sparePartNumber"}),
+			"supplyStatus":        newServerMetric("dl380_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"memberId", "chassisSerialNumber", "sparePartNumber"}),
+			"supplyTotalConsumed": newServerMetric("dl380_power_supply_total_consumed", "Total output of all power supplies in watts", nil, []string{"memberId", "chassisSerialNumber"}),
 		}
 
 		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
 		// NVMe Drive Metrics
 		NVMeDriveMetrics = &metrics{
-			"nvmeDriveStatus": newServerMetric("dl380_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"protocol", "id", "serviceLabel"}),
+			"nvmeDriveStatus": newServerMetric("dl380_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"chassisSerialNumber", "protocol", "id", "serviceLabel"}),
 		}
 
 		// Phyiscal Storage Disk Drive Metrics
 		DiskDriveMetrics = &metrics{
-			"driveStatus": newServerMetric("dl380_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "id", "location", "serialnumber"}), // DiskDriveStatus values
+			"driveStatus": newServerMetric("dl380_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "chassisSerialNumber", "id", "location", "serialnumber"}), // DiskDriveStatus values
 		}
 
 		// Logical Disk Drive Metrics
 		LogicalDriveMetrics = &metrics{
-			"raidStatus": newServerMetric("dl380_logical_drive_status", "Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
+			"raidStatus": newServerMetric("dl380_logical_drive_status", "Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "chassisSerialNumber", "logicaldrivename", "volumeuniqueidentifier", "raid"}), // Logical Drive Raid value
 		}
 
 		MemoryMetrics = &metrics{
-			"memoryStatus": newServerMetric("dl380_memory_status", "Current memory status 1 = OK, 0 = BAD", nil, []string{"totalSystemMemoryGiB"}),
+			"memoryStatus":     newServerMetric("dl380_memory_status", "Current memory status 1 = OK, 0 = BAD", nil, []string{"chassisSerialNumber", "totalSystemMemoryGiB"}),
+			"memoryDimmStatus": newServerMetric("dl380_memory_dimm_status", "Current dimm status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "capacityMiB", "manufacturer", "partNumber", "serialNumber"}),
+		}
+
+		DeviceMetrics = &metrics{
+			"deviceInfo": newServerMetric("device_info", "Current snapshot of device firmware information", nil, []string{"name", "chassisSerialNumber", "firmwareVersion", "biosVersion", "model"}),
 		}
 
 		Metrics = &map[string]*metrics{
@@ -81,6 +87,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"diskDriveMetrics":    DiskDriveMetrics,
 			"logicalDriveMetrics": LogicalDriveMetrics,
 			"memoryMetrics":       MemoryMetrics,
+			"deviceInfo":          DeviceMetrics,
 		}
 	)
 	return Metrics

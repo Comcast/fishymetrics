@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-package s3260m5
+package oem
 
-// /redfish/v1/Systems/XXXXX/Memory/DIMM_X1
+// /redfish/v1/Systems/XXXXX/Processors/CPUX
 
-// MemoryMetrics is the top level json object for UCS S3260 M5 Memory metadata
-type MemoryMetrics struct {
-	Name             string `json:"Name"`
-	CapacityMiB      int    `json:"CapacityMiB"`
-	Manufacturer     string `json:"Manufacturer"`
-	MemoryDeviceType string `json:"MemoryDeviceType"`
-	PartNumber       string `json:"PartNumber"`
-	SerialNumber     string `json:"SerialNumber"`
-	Status           Status `json:"Status"`
+// ProcessorMetrics is the top level json object for Processor metadata
+type ProcessorMetrics struct {
+	Name                  string      `json:"Name"`
+	Description           string      `json:"Description"`
+	Status                Status      `json:"Status"`
+	ProcessorArchitecture string      `json:"ProcessorArchitecture"`
+	TotalThreads          interface{} `json:"TotalThreads"`
+	TotalCores            interface{} `json:"TotalCores"`
+	Model                 string      `json:"Model"`
 }

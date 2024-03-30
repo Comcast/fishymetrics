@@ -16,22 +16,23 @@
 
 package oem
 
-// /redfish/v1/systems/1/
 // /redfish/v1/Systems/XXXXX/Memory/DIMM_X1
 
-// MemoryMetrics is the top level json object for UCS S3260 M4 Memory metadata
-// type MemoryMetrics struct {
-// 	Name             string      `json:"Name"`
-// 	CapacityMiB      interface{} `json:"CapacityMiB"`
-// 	Manufacturer     string      `json:"Manufacturer"`
-// 	MemoryDeviceType string      `json:"MemoryDeviceType"`
-// 	PartNumber       string      `json:"PartNumber"`
-// 	SerialNumber     string      `json:"SerialNumber"`
-// 	Status           interface{} `json:"Status"`
-// }
-
-// MemoryMetrics is the top level json object for Memory metadata
+// MemoryMetrics is the top level json object for a Memory DIMMs metadata
 type MemoryMetrics struct {
+	Name             string      `json:"Name"`
+	CapacityMiB      interface{} `json:"CapacityMiB"`
+	Manufacturer     string      `json:"Manufacturer"`
+	MemoryDeviceType string      `json:"MemoryDeviceType"`
+	PartNumber       string      `json:"PartNumber"`
+	SerialNumber     string      `json:"SerialNumber"`
+	Status           interface{} `json:"Status"`
+}
+
+// /redfish/v1/systems/1/
+
+// MemorySummaryMetrics is the top level json object for all Memory DIMMs metadata
+type MemorySummaryMetrics struct {
 	ID            string        `json:"Id"`
 	MemorySummary MemorySummary `json:"MemorySummary"`
 }
