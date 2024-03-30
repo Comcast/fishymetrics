@@ -20,8 +20,10 @@ package oem
 
 // ProcessorMetrics is the top level json object for Processor metadata
 type ProcessorMetrics struct {
+	Id                    string      `json:"Id"`
 	Name                  string      `json:"Name"`
 	Description           string      `json:"Description"`
+	Socket                string      `json:"Socket"`
 	Status                Status      `json:"Status"`
 	ProcessorArchitecture string      `json:"ProcessorArchitecture"`
 	TotalThreads          interface{} `json:"TotalThreads"`

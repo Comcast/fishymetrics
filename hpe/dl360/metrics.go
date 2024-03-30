@@ -54,6 +54,18 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"supplyTotalConsumed": newServerMetric("dl360_power_supply_total_consumed", "Total output of all power supplies in watts", nil, []string{"memberId", "chassisSerialNumber"}),
 		}
 
+		ProcessorMetrics = &metrics{
+			"processorStatus": newServerMetric("dl360_cpu_status", "Current cpu status 1 = OK, 0 = BAD", nil, []string{"id", "chassisSerialNumber", "socket", "model", "totalCores"}),
+		}
+
+		IloSelfTestMetrics = &metrics{
+			"iloSelfTestStatus": newServerMetric("dl360_ilo_selftest_status", "Current ilo selftest status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber"}),
+		}
+
+		StorageBatteryMetrics = &metrics{
+			"storageBatteryStatus": newServerMetric("dl360_storage_battery_status", "Current storage battery status 1 = OK, 0 = BAD", nil, []string{"id", "chassisSerialNumber", "name", "model", "serialnumber"}),
+		}
+
 		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
 		// NVMe Drive Metrics
 		NVMeDriveMetrics = &metrics{
@@ -83,9 +95,12 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"up":                  UpMetric,
 			"thermalMetrics":      ThermalMetrics,
 			"powerMetrics":        PowerMetrics,
+			"processorMetrics":    ProcessorMetrics,
 			"nvmeMetrics":         NVMeDriveMetrics,
 			"diskDriveMetrics":    DiskDriveMetrics,
 			"logicalDriveMetrics": LogicalDriveMetrics,
+			"storBatteryMetrics":  StorageBatteryMetrics,
+			"iloSelfTestMetrics":  IloSelfTestMetrics,
 			"memoryMetrics":       MemoryMetrics,
 			"deviceInfo":          DeviceMetrics,
 		}

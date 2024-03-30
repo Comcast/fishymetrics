@@ -87,3 +87,33 @@ type ServerManager struct {
 type ChassisSerialNumber struct {
 	SerialNumber string `json:"SerialNumber"`
 }
+
+// /redfish/v1/Systems/1/ or /redfish/v1/Managers/1/
+type SystemMetrics struct {
+	Oem OemSys `json:"Oem"`
+}
+
+type OemSys struct {
+	Hpe HpeSys `json:"Hpe,omitempty"`
+	Hp  HpeSys `json:"Hp,omitempty"`
+}
+
+type HpeSys struct {
+	Battery     []StorageBattery `json:"Battery"`
+	IloSelfTest []IloSelfTest    `json:"iLOSelfTestResults"`
+}
+
+type StorageBattery struct {
+	Condition    string `json:"Condition"`
+	Index        int    `json:"Index"`
+	Model        string `json:"Model"`
+	Present      string `json:"Present"`
+	Name         string `json:"ProductName"`
+	SerialNumber string `json:"SerialNumber"`
+}
+
+type IloSelfTest struct {
+	Name   string `json:"SelfTestName"`
+	Status string `json:"Status"`
+	Notes  string `json:"Notes"`
+}

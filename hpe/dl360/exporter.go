@@ -61,6 +61,12 @@ const (
 	MEMORY_SUMMARY = "MemorySummaryMetrics"
 	// FIRMWARE represents the firmware metric endpoints
 	FIRMWARE = "FirmwareMetrics"
+	// PROCESSOR represents the processor metric endpoints
+	PROCESSOR = "ProcessorMetrics"
+	// STORAGEBATTERY represents the processor metric endpoints
+	STORAGEBATTERY = "storBatteryMetrics"
+	// ILOSELFTEST represents the processor metric endpoints
+	ILOSELFTEST = "iloSelfTestMetrics"
 	// OK is a string representation of the float 1.0 for device status
 	OK = 1.0
 	// BAD is a string representation of the float 0.0 for device status
@@ -321,6 +327,22 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, profile, retryClient)))
 	}
 
+	tasks = append(tasks,
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", STORAGEBATTERY, target, profile, retryClient)),
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Managers/1/", ILOSELFTEST, target, profile, retryClient)))
+
+	processors, err := getProcessorEndpoints(fqdn.String()+uri+"/Systems/1/Processors/", target, retryClient)
+	if err != nil {
+		log.Error("error when getting Processors endpoints from "+DL360, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
+	for _, processor := range processors.Members {
+		tasks = append(tasks,
+			pool.NewTask(common.Fetch(fqdn.String()+processor.URL, PROCESSOR, target, profile, retryClient)))
+	}
+
 	exp.pool = pool.NewPool(tasks, 1)
 
 	return &exp, nil
@@ -420,6 +442,12 @@ func (e *Exporter) scrape() {
 			err = e.exportMemoryMetrics(task.Body)
 		case MEMORY_SUMMARY:
 			err = e.exportMemorySummaryMetrics(task.Body)
+		case PROCESSOR:
+			err = e.exportProcessorMetrics(task.Body)
+		case STORAGEBATTERY:
+			err = e.exportStorageBattery(task.Body)
+		case ILOSELFTEST:
+			err = e.exportIloSelfTest(task.Body)
 		}
 
 		if err != nil {
@@ -703,6 +731,44 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 	return nil
 }
 
+// exportStorageBattery collects the DL360's smart storge battery metrics in json format and sets the prometheus guage
+func (e *Exporter) exportStorageBattery(body []byte) error {
+
+	var state float64
+	var sysm oem.SystemMetrics
+	var storBattery = (*e.deviceMetrics)["storBatteryMetrics"]
+	err := json.Unmarshal(body, &sysm)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL360 Storage Battery Metrics - " + err.Error())
+	}
+
+	if fmt.Sprint(sysm.Oem.Hp.Battery) != "null" && len(sysm.Oem.Hp.Battery) > 0 {
+		for _, ssbat := range sysm.Oem.Hp.Battery {
+			if ssbat.Present == "Yes" {
+				if ssbat.Condition == "Ok" {
+					state = OK
+				} else {
+					state = BAD
+				}
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, ssbat.Name, ssbat.Model, ssbat.SerialNumber).Set(state)
+			}
+		}
+	} else if fmt.Sprint(sysm.Oem.Hpe.Battery) != "null" && len(sysm.Oem.Hpe.Battery) > 0 {
+		for _, ssbat := range sysm.Oem.Hpe.Battery {
+			if ssbat.Present == "Yes" {
+				if ssbat.Condition == "Ok" {
+					state = OK
+				} else {
+					state = BAD
+				}
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, ssbat.Name, ssbat.Model, ssbat.SerialNumber).Set(state)
+			}
+		}
+	}
+
+	return nil
+}
+
 // exportMemoryMetrics collects the memory dimm metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportMemoryMetrics(body []byte) error {
 
@@ -761,6 +827,74 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 			}
 		}
 		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, memCap, mm.Manufacturer, strings.TrimRight(mm.PartNumber, " "), mm.SerialNumber).Set(state)
+	}
+
+	return nil
+}
+
+// exportProcessorMetrics collects the DL360 processor metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportProcessorMetrics(body []byte) error {
+
+	var state float64
+	var totCores string
+	var pm oem.ProcessorMetrics
+	var proc = (*e.deviceMetrics)["processorMetrics"]
+	err := json.Unmarshal(body, &pm)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL360 ProcessorMetrics - " + err.Error())
+	}
+
+	switch pm.TotalCores.(type) {
+	case string:
+		totCores = pm.TotalCores.(string)
+	case float64:
+		totCores = strconv.Itoa(int(pm.TotalCores.(float64)))
+	case int:
+		totCores = strconv.Itoa(pm.TotalCores.(int))
+	}
+	if pm.Status.Health == "OK" {
+		state = OK
+	} else {
+		state = BAD
+	}
+	(*proc)["processorStatus"].WithLabelValues(pm.Id, e.chassisSerialNumber, pm.Socket, pm.Model, totCores).Set(state)
+
+	return nil
+}
+
+// exportIloSelfTest collects the DL360's iLO Self Test Results metrics in json format and sets the prometheus guage
+func (e *Exporter) exportIloSelfTest(body []byte) error {
+
+	var state float64
+	var sysm oem.SystemMetrics
+	var iloSelfTst = (*e.deviceMetrics)["iloSelfTestMetrics"]
+	err := json.Unmarshal(body, &sysm)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL360 iLO Self Test Metrics - " + err.Error())
+	}
+
+	if fmt.Sprint(sysm.Oem.Hp.IloSelfTest) != "null" && len(sysm.Oem.Hp.IloSelfTest) > 0 {
+		for _, ilost := range sysm.Oem.Hp.IloSelfTest {
+			if ilost.Status != "Informational" {
+				if ilost.Status == "OK" {
+					state = OK
+				} else {
+					state = BAD
+				}
+				(*iloSelfTst)["iloSelfTestStatus"].WithLabelValues(ilost.Name, e.chassisSerialNumber).Set(state)
+			}
+		}
+	} else if fmt.Sprint(sysm.Oem.Hpe.IloSelfTest) != "null" && len(sysm.Oem.Hpe.IloSelfTest) > 0 {
+		for _, ilost := range sysm.Oem.Hpe.IloSelfTest {
+			if ilost.Status != "Informational" {
+				if ilost.Status == "OK" {
+					state = OK
+				} else {
+					state = BAD
+				}
+				(*iloSelfTst)["iloSelfTestStatus"].WithLabelValues(ilost.Name, e.chassisSerialNumber).Set(state)
+			}
+		}
 	}
 
 	return nil
@@ -913,4 +1047,48 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 	}
 
 	return drive, nil
+}
+
+func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var processors oem.Collection
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return processors, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return processors, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return processors, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else if resp.StatusCode == http.StatusUnauthorized {
+			return processors, common.ErrInvalidCredential
+		} else {
+			return processors, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return processors, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &processors)
+	if err != nil {
+		return processors, fmt.Errorf("Error Unmarshalling DL360 Processors Collection struct - " + err.Error())
+	}
+
+	return processors, nil
 }
