@@ -19,6 +19,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 - Cisco UCS C220 - add additional edge cases when collecting memory metrics [#2](https://github.com/Comcast/fishymetrics/issues/2)
 - null pointer derefence errors when using incorrect credentials [#36](https://github.com/Comcast/fishymetrics/issues/36)
+- incorrect /Memory path for HPE hosts [#49](https://github.com/Comcast/fishymetrics/issues/49)
 
 ## Updated
 
@@ -28,6 +29,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - HP DL360 module to support responses from iLO4 [#34](https://github.com/Comcast/fishymetrics/issues/34)
 - HP DL360 & XL420 to include processor, iloselftest and smart storage battery metrics [#43](https://github.com/Comcast/fishymetrics/issues/43)
 - consolidate hardware component structs to a single package [#45](https://github.com/Comcast/fishymetrics/issues/45)
+- get chassis serial number from JSON response instead of url path [#50](https://github.com/Comcast/fishymetrics/issues/50)
 
 ## [0.7.1]
 
