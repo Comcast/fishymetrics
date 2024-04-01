@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package dl360
+package oem
 
-// /redfish/v1/Systems/1/BaseNetworkAdapters
+// /redfish/v1/Systems/X/BaseNetworkAdapters
 
-// NetworkAdapter is the top level json object for DL360 Network Adapter metadata
+// NetworkAdapter is the top level json object for Network Adapter metadata
 type NetworkAdapter struct {
 	ID             string          `json:"Id"`
 	Firmware       Firmware        `json:"Firmware"`
@@ -31,7 +31,7 @@ type NetworkAdapter struct {
 	UEFIDevicePath string          `json:"UEFIDevicePath"`
 }
 
-// Firmware is the top level json object for DL360 Network Adapter metadata
+// Firmware is the top level json object for Network Adapter metadata
 type Firmware struct {
 	Current FirmwareCurrent `json:"Current"`
 }
@@ -56,10 +56,4 @@ type PhysicalPorts struct {
 // Addr contains the IPv4 or IPv6 Address in string format
 type Addr struct {
 	Address string `json:"Address"`
-}
-
-// Status contains metadata for the health of a particular component/module
-type Status struct {
-	Health string `json:"Health"`
-	State  string `json:"State,omitempty"`
 }

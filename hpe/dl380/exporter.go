@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	"github.com/comcast/fishymetrics/oem"
 	"github.com/comcast/fishymetrics/pool"
 	"go.uber.org/zap"
 
@@ -55,6 +57,10 @@ const (
 	LOGICALDRIVE = "LogicalDriveMetrics"
 	// MEMORY represents the memory metric endpoints
 	MEMORY = "MemoryMetrics"
+	// MEMORY_SUMMARY represents the memory metric endpoints
+	MEMORY_SUMMARY = "MemorySummaryMetrics"
+	// FIRMWARE represents the firmware metric endpoints
+	FIRMWARE = "FirmwareMetrics"
 	// OK is a string representation of the float 1.0 for device status
 	OK = 1.0
 	// BAD is a string representation of the float 0.0 for device status
@@ -70,12 +76,14 @@ var (
 // Exporter collects chassis manager stats from the given URI and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	ctx           context.Context
-	mutex         sync.RWMutex
-	pool          *pool.Pool
-	host          string
-	credProfile   string
-	deviceMetrics *map[string]*metrics
+	ctx                 context.Context
+	mutex               sync.RWMutex
+	pool                *pool.Pool
+	host                string
+	credProfile         string
+	biosVersion         string
+	chassisSerialNumber string
+	deviceMetrics       *map[string]*metrics
 }
 
 // NewExporter returns an initialized Exporter for HPE DL380 device.
@@ -136,6 +144,36 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		(*upMetric)["up"].WithLabelValues().Set(float64(2))
 		return &exp, nil
 	}
+
+	// chassis system endpoint to use for memory, processor, bios version scrapes
+	sysEndpoint, err := getChassisEndpoint(fqdn.String()+uri+"/Managers/1/", target, retryClient)
+	if err != nil {
+		log.Error("error when getting chassis endpoint from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		if errors.Is(err, common.ErrInvalidCredential) {
+			common.IgnoredDevices[exp.host] = common.IgnoredDevice{
+				Name:              exp.host,
+				Endpoint:          "https://" + exp.host + "/redfish/v1/Chassis",
+				Module:            DL380,
+				CredentialProfile: exp.credProfile,
+			}
+			log.Info("added host "+exp.host+" to ignored list", zap.Any("trace_id", exp.ctx.Value("traceID")))
+			var upMetric = (*exp.deviceMetrics)["up"]
+			(*upMetric)["up"].WithLabelValues().Set(float64(2))
+
+			return &exp, nil
+		}
+		return nil, err
+	}
+
+	exp.chassisSerialNumber = path.Base(sysEndpoint)
+
+	// chassis BIOS version
+	biosVer, err := getBIOSVersion(fqdn.String()+sysEndpoint, target, retryClient)
+	if err != nil {
+		log.Error("error when getting BIOS version from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+	exp.biosVersion = biosVer
 
 	// vars for drive parsing
 	var (
@@ -259,11 +297,24 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, NVME, target, profile, retryClient)))
 	}
 
+	// DIMM endpoints array
+	dimms, err := getDIMMEndpoints(fqdn.String()+sysEndpoint+"/Memory", target, retryClient)
+	if err != nil {
+		log.Error("error when getting DIMM endpoints from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
 	// Additional tasks for pool to perform
 	tasks = append(tasks,
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY, target, profile, retryClient)))
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY_SUMMARY, target, profile, retryClient)))
+
+	// DIMMs
+	for _, dimm := range dimms.Members {
+		tasks = append(tasks,
+			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, profile, retryClient)))
+	}
 
 	exp.pool = pool.NewPool(tasks, 1)
 
@@ -348,6 +399,8 @@ func (e *Exporter) scrape() {
 		}
 
 		switch task.MetricType {
+		case FIRMWARE:
+			err = e.exportFirmwareMetrics(task.Body)
 		case THERMAL:
 			err = e.exportThermalMetrics(task.Body)
 		case POWER:
@@ -360,6 +413,8 @@ func (e *Exporter) scrape() {
 			err = e.exportLogicalDriveMetrics(task.Body)
 		case MEMORY:
 			err = e.exportMemoryMetrics(task.Body)
+		case MEMORY_SUMMARY:
+			err = e.exportMemorySummaryMetrics(task.Body)
 		}
 
 		if err != nil {
@@ -381,11 +436,175 @@ func (e *Exporter) scrape() {
 
 }
 
-// exportPhysicalDriveMetrics collects the DL380's physical drive metrics in json format and sets the prometheus gauges
+// exportFirmwareMetrics collects the device metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportFirmwareMetrics(body []byte) error {
+	var chas oem.Chassis
+	var dm = (*e.deviceMetrics)["deviceInfo"]
+	err := json.Unmarshal(body, &chas)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL380 FirmwareMetrics - " + err.Error())
+	}
+
+	(*dm)["deviceInfo"].WithLabelValues(chas.Description, e.chassisSerialNumber, chas.FirmwareVersion, e.biosVersion, DL380).Set(1.0)
+
+	return nil
+}
+
+// exportPowerMetrics collects the power metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportPowerMetrics(body []byte) error {
+
+	var state float64
+	var pm oem.PowerMetrics
+	var pow = (*e.deviceMetrics)["powerMetrics"]
+	err := json.Unmarshal(body, &pm)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL380 PowerMetrics - " + err.Error())
+	}
+
+	for _, pc := range pm.PowerControl.PowerControl {
+		var watts float64
+		switch pc.PowerConsumedWatts.(type) {
+		case float64:
+			if pc.PowerConsumedWatts.(float64) > 0 {
+				watts = pc.PowerConsumedWatts.(float64)
+			}
+		case string:
+			if pc.PowerConsumedWatts.(string) != "" {
+				watts, _ = strconv.ParseFloat(pc.PowerConsumedWatts.(string), 32)
+			}
+		default:
+			// use the AverageConsumedWatts if PowerConsumedWatts is not present
+			switch pc.PowerMetrics.AverageConsumedWatts.(type) {
+			case float64:
+				watts = pc.PowerMetrics.AverageConsumedWatts.(float64)
+			case string:
+				watts, _ = strconv.ParseFloat(pc.PowerMetrics.AverageConsumedWatts.(string), 32)
+			}
+		}
+		(*pow)["supplyTotalConsumed"].WithLabelValues(pc.MemberID, e.chassisSerialNumber).Set(watts)
+	}
+
+	for _, pv := range pm.Voltages {
+		if pv.Status.State == "Enabled" {
+			var volts float64
+			switch pv.ReadingVolts.(type) {
+			case float64:
+				volts = pv.ReadingVolts.(float64)
+			case string:
+				volts, _ = strconv.ParseFloat(pv.ReadingVolts.(string), 32)
+			}
+			(*pow)["voltageOutput"].WithLabelValues(pv.Name, e.chassisSerialNumber).Set(volts)
+			if pv.Status.Health == "OK" {
+				state = OK
+			} else {
+				state = BAD
+			}
+		} else {
+			state = BAD
+		}
+
+		(*pow)["voltageStatus"].WithLabelValues(pv.Name, e.chassisSerialNumber).Set(state)
+	}
+
+	for _, ps := range pm.PowerSupplies {
+		if ps.Status.State == "Enabled" {
+			var watts float64
+			switch ps.LastPowerOutputWatts.(type) {
+			case float64:
+				watts = ps.LastPowerOutputWatts.(float64)
+			case string:
+				watts, _ = strconv.ParseFloat(ps.LastPowerOutputWatts.(string), 32)
+			}
+			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(watts)
+			if ps.Status.Health == "OK" {
+				state = OK
+			} else if ps.Status.Health == "" {
+				state = OK
+			} else {
+				state = BAD
+			}
+		} else {
+			state = BAD
+		}
+
+		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(state)
+	}
+
+	return nil
+}
+
+// exportThermalMetrics collects the thermal and fan metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportThermalMetrics(body []byte) error {
+
+	var state float64
+	var tm oem.ThermalMetrics
+	var therm = (*e.deviceMetrics)["thermalMetrics"]
+	err := json.Unmarshal(body, &tm)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL380 ThermalMetrics - " + err.Error())
+	}
+
+	// Iterate through fans
+	for _, fan := range tm.Fans {
+		// Check fan status and convert string to numeric values
+		if fan.Status.State == "Enabled" {
+			var fanSpeed float64
+			switch fan.Reading.(type) {
+			case string:
+				fanSpeed, _ = strconv.ParseFloat(fan.Reading.(string), 32)
+			case float64:
+				fanSpeed = fan.Reading.(float64)
+			}
+
+			if fan.FanName != "" {
+				(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.chassisSerialNumber).Set(float64(fan.CurrentReading))
+			} else {
+				(*therm)["fanSpeed"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(fanSpeed)
+			}
+			if fan.Status.Health == "OK" {
+				state = OK
+			} else {
+				state = BAD
+			}
+			if fan.FanName != "" {
+				(*therm)["fanStatus"].WithLabelValues(fan.FanName, e.chassisSerialNumber).Set(state)
+			} else {
+				(*therm)["fanStatus"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(state)
+			}
+		}
+	}
+
+	// Iterate through sensors
+	for _, sensor := range tm.Temperatures {
+		// Check sensor status and convert string to numeric values
+		if sensor.Status.State == "Enabled" {
+			var celsTemp float64
+			switch sensor.ReadingCelsius.(type) {
+			case string:
+				celsTemp, _ = strconv.ParseFloat(sensor.ReadingCelsius.(string), 32)
+			case int:
+				celsTemp = float64(sensor.ReadingCelsius.(int))
+			case float64:
+				celsTemp = sensor.ReadingCelsius.(float64)
+			}
+			(*therm)["sensorTemperature"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.chassisSerialNumber).Set(celsTemp)
+			if sensor.Status.Health == "OK" {
+				state = OK
+			} else {
+				state = BAD
+			}
+			(*therm)["sensorStatus"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.chassisSerialNumber).Set(state)
+		}
+	}
+
+	return nil
+}
+
+// exportPhysicalDriveMetrics collects the physical drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 
 	var state float64
-	var dlphysical DiskDriveMetrics
+	var dlphysical oem.DiskDriveMetrics
 	var dlphysicaldrive = (*e.deviceMetrics)["diskDriveMetrics"]
 	err := json.Unmarshal(body, &dlphysical)
 	if err != nil {
@@ -404,14 +623,14 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 
 	// Physical drives need to have a unique identifier like location so as to not overwrite data
 	// physical drives can have the same ID, but belong to a different ArrayController, therefore need more than just the ID as a unique identifier.
-	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, dlphysical.Id, dlphysical.Location, dlphysical.SerialNumber).Set(state)
+	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, e.chassisSerialNumber, dlphysical.Id, dlphysical.Location, dlphysical.SerialNumber).Set(state)
 	return nil
 }
 
-// exportLogicalDriveMetrics collects the DL380's physical drive metrics in json format and sets the prometheus gauges
+// exportLogicalDriveMetrics collects the physical drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	var state float64
-	var dllogical LogicalDriveMetrics
+	var dllogical oem.LogicalDriveMetrics
 	var dllogicaldrive = (*e.deviceMetrics)["logicalDriveMetrics"]
 	err := json.Unmarshal(body, &dllogical)
 	if err != nil {
@@ -428,14 +647,14 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, dllogical.LogicalDriveName, dllogical.VolumeUniqueIdentifier, dllogical.Raid).Set(state)
+	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, e.chassisSerialNumber, dllogical.LogicalDriveName, dllogical.VolumeUniqueIdentifier, dllogical.Raid).Set(state)
 	return nil
 }
 
 // exportNVMeDriveMetrics collects the DL380 NVME drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	var state float64
-	var dlnvme NVMeDriveMetrics
+	var dlnvme oem.NVMeDriveMetrics
 	var dlnvmedrive = (*e.deviceMetrics)["nvmeMetrics"]
 	err := json.Unmarshal(body, &dlnvme)
 	if err != nil {
@@ -453,92 +672,19 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel).Set(state)
+	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(e.chassisSerialNumber, dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel).Set(state)
 	return nil
 }
 
-// exportPowerMetrics collects the DL380's power metrics in json format and sets the prometheus gauges
-func (e *Exporter) exportPowerMetrics(body []byte) error {
+// exportMemorySummaryMetrics collects the memory summary metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 
 	var state float64
-	var pm PowerMetrics
-	var dlPower = (*e.deviceMetrics)["powerMetrics"]
-	err := json.Unmarshal(body, &pm)
-	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 PowerMetrics - " + err.Error())
-	}
-
-	for _, pc := range pm.PowerControl {
-		(*dlPower)["supplyTotalConsumed"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerConsumedWatts))
-		(*dlPower)["supplyTotalCapacity"].WithLabelValues(pc.MemberID).Set(float64(pc.PowerCapacityWatts))
-	}
-
-	for _, ps := range pm.PowerSupplies {
-		if ps.Status.State == "Enabled" {
-			(*dlPower)["supplyOutput"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(float64(ps.LastPowerOutputWatts))
-			if ps.Status.Health == "OK" {
-				state = OK
-			} else {
-				state = BAD
-			}
-			(*dlPower)["supplyStatus"].WithLabelValues(ps.MemberID, ps.SparePartNumber).Set(state)
-		}
-	}
-
-	return nil
-}
-
-// exportThermalMetrics collects the DL380's thermal and fan metrics in json format and sets the prometheus gauges
-func (e *Exporter) exportThermalMetrics(body []byte) error {
-
-	var state float64
-	var tm ThermalMetrics
-	var dlThermal = (*e.deviceMetrics)["thermalMetrics"]
-	err := json.Unmarshal(body, &tm)
-	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 ThermalMetrics - " + err.Error())
-	}
-
-	// Iterate through fans
-	for _, fan := range tm.Fans {
-		// Check fan status and convert string to numeric values
-		if fan.Status.State == "Enabled" {
-			(*dlThermal)["fanSpeed"].WithLabelValues(fan.Name).Set(float64(fan.Reading))
-			if fan.Status.Health == "OK" {
-				state = OK
-			} else {
-				state = BAD
-			}
-			(*dlThermal)["fanStatus"].WithLabelValues(fan.Name).Set(state)
-		}
-	}
-
-	// Iterate through sensors
-	for _, sensor := range tm.Temperatures {
-		// Check sensor status and convert string to numeric values
-		if sensor.Status.State == "Enabled" {
-			(*dlThermal)["sensorTemperature"].WithLabelValues(strings.TrimRight(sensor.Name, " ")).Set(float64(sensor.ReadingCelsius))
-			if sensor.Status.Health == "OK" {
-				state = OK
-			} else {
-				state = BAD
-			}
-			(*dlThermal)["sensorStatus"].WithLabelValues(strings.TrimRight(sensor.Name, " ")).Set(state)
-		}
-	}
-
-	return nil
-}
-
-// exportMemoryMetrics collects the DL380 drive metrics in json format and sets the prometheus gauges
-func (e *Exporter) exportMemoryMetrics(body []byte) error {
-
-	var state float64
-	var dlm MemoryMetrics
+	var dlm oem.MemorySummaryMetrics
 	var dlMemory = (*e.deviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &dlm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DL380 MemoryMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling DL380 MemorySummaryMetrics - " + err.Error())
 	}
 	// Check memory status and convert string to numeric values
 	if dlm.MemorySummary.Status.HealthRollup == "OK" {
@@ -547,16 +693,182 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 		state = BAD
 	}
 
-	(*dlMemory)["memoryStatus"].WithLabelValues(strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
+	(*dlMemory)["memoryStatus"].WithLabelValues(e.chassisSerialNumber, strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
 
 	return nil
+}
+
+// exportMemoryMetrics collects the memory dimm metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportMemoryMetrics(body []byte) error {
+
+	var state float64
+	var mm oem.MemoryMetrics
+	var mem = (*e.deviceMetrics)["memoryMetrics"]
+	err := json.Unmarshal(body, &mm)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL380 MemoryMetrics - " + err.Error())
+	}
+
+	if mm.Status != "" {
+		var memCap string
+		var status string
+
+		switch mm.CapacityMiB.(type) {
+		case string:
+			memCap = mm.CapacityMiB.(string)
+		case int:
+			memCap = strconv.Itoa(mm.CapacityMiB.(int))
+		case float64:
+			memCap = strconv.Itoa(int(mm.CapacityMiB.(float64)))
+		}
+
+		switch mm.Status.(type) {
+		case string:
+			status = mm.Status.(string)
+			if status == "Operable" {
+				state = OK
+			} else {
+				state = BAD
+			}
+		default:
+			if s, ok := mm.Status.(map[string]interface{}); ok {
+				switch s["State"].(type) {
+				case string:
+					if s["State"].(string) == "Enabled" {
+						switch s["Health"].(type) {
+						case string:
+							if s["Health"].(string) == "OK" {
+								state = OK
+							} else if s["Health"].(string) == "" {
+								state = OK
+							} else {
+								state = BAD
+							}
+						case nil:
+							state = OK
+						}
+					} else if s["State"].(string) == "Absent" {
+						return nil
+					} else {
+						state = BAD
+					}
+				}
+			}
+		}
+		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, memCap, mm.Manufacturer, strings.TrimRight(mm.PartNumber, " "), mm.SerialNumber).Set(state)
+	}
+
+	return nil
+}
+
+func getChassisEndpoint(url, host string, client *retryablehttp.Client) (string, error) {
+	var chas oem.Chassis
+	var urlFinal string
+	req := common.BuildRequest(url, host)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusUnauthorized {
+			return "", common.ErrInvalidCredential
+		} else {
+			return "", fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &chas)
+	if err != nil {
+		return "", fmt.Errorf("Error Unmarshalling DL380 Chassis struct - " + err.Error())
+	}
+
+	if len(chas.Links.ManagerForServers.ServerManagerURLSlice) > 0 {
+		urlFinal = chas.Links.ManagerForServers.ServerManagerURLSlice[0]
+	}
+
+	return urlFinal, nil
+}
+
+func getBIOSVersion(url, host string, client *retryablehttp.Client) (string, error) {
+	var biosVer oem.ServerManager
+	req := common.BuildRequest(url, host)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		return "", fmt.Errorf("HTTP status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &biosVer)
+	if err != nil {
+		return "", fmt.Errorf("Error Unmarshalling DL380 ServerManager struct - " + err.Error())
+	}
+
+	return biosVer.BiosVersion, nil
+}
+
+func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var dimms oem.Collection
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return dimms, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return dimms, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return dimms, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else {
+			return dimms, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return dimms, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &dimms)
+	if err != nil {
+		return dimms, fmt.Errorf("Error Unmarshalling DL380 Memory Collection struct - " + err.Error())
+	}
+
+	return dimms, nil
 }
 
 // The getDriveEndpoint function is used in a recursive fashion to get the body response
 // of any type of drive, NVMe, Physical DiskDrives, or Logical Drives, using the GenericDrive struct
 // This is used to find the final drive endpoints to append to the task pool for final scraping.
-func getDriveEndpoint(url, host string, client *retryablehttp.Client) (GenericDrive, error) {
-	var drive GenericDrive
+func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.GenericDrive, error) {
+	var drive oem.GenericDrive
 	var resp *http.Response
 	var err error
 	retryCount := 0

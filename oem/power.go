@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,28 @@
  * limitations under the License.
  */
 
-package c220
+package oem
 
 import (
 	"bytes"
 	"encoding/json"
 )
 
-// JSON
-// /redfish/v1/Chassis/1/Power/
+// /redfish/v1/Chassis/X/Power/
 
 // PowerMetrics is the top level json object for Power metadata
 type PowerMetrics struct {
+	ID            string              `json:"Id"`
 	Name          string              `json:"Name"`
 	PowerControl  PowerControlWrapper `json:"PowerControl"`
 	PowerSupplies []PowerSupply       `json:"PowerSupplies"`
-	Voltages      []Voltages          `json:"Voltages"`
-	Url           string              `json:"@odata.id"`
+	Voltages      []Voltages          `json:"Voltages,omitempty"`
 }
 
 // PowerControl is the top level json object for metadata on power supply consumption
 type PowerControl struct {
+	MemberID           string      `json:"MemberId"`
+	PowerCapacityWatts int         `json:"PowerCapacityWatts,omitempty"`
 	PowerConsumedWatts interface{} `json:"PowerConsumedWatts"`
 	PowerMetrics       PowerMetric `json:"PowerMetrics"`
 }
@@ -48,7 +49,7 @@ type PowerControlWrapper struct {
 }
 
 func (w *PowerControlWrapper) UnmarshalJSON(data []byte) error {
-	// because of a change in output betwen c220 firmware versions we need to account for this
+	// because of a change in output betwen firmware versions we need to account for this
 	if bytes.Compare([]byte("{"), data[0:1]) == 0 {
 		var powCtlSlice PowerControl
 		err := json.Unmarshal(data, &powCtlSlice)
@@ -66,16 +67,9 @@ func (w *PowerControlWrapper) UnmarshalJSON(data []byte) error {
 // PowerMetric contains avg/min/max power metadata
 type PowerMetric struct {
 	AverageConsumedWatts interface{} `json:"AverageConsumedWatts"`
+	IntervalInMin        interface{} `json:"IntervalInMin,omitempty"`
 	MaxConsumedWatts     interface{} `json:"MaxConsumedWatts"`
 	MinConsumedWatts     interface{} `json:"MinConsumedWatts"`
-}
-
-// Voltages contains current/lower/upper voltage and power supply status metadata
-type Voltages struct {
-	Name                   string      `json:"Name"`
-	ReadingVolts           interface{} `json:"ReadingVolts"`
-	Status                 Status      `json:"Status"`
-	UpperThresholdCritical interface{} `json:"UpperThresholdCritical"`
 }
 
 // PowerSupply is the top level json object for metadata on power supply product info
@@ -83,12 +77,14 @@ type PowerSupply struct {
 	FirmwareVersion      string       `json:"FirmwareVersion"`
 	LastPowerOutputWatts interface{}  `json:"LastPowerOutputWatts"`
 	LineInputVoltage     interface{}  `json:"LineInputVoltage"`
-	LineInputVoltageType string       `json:"LineInputVoltageType"`
+	LineInputVoltageType string       `json:"LineInputVoltageType,omitempty"`
 	InputRanges          []InputRange `json:"InputRanges,omitempty"`
 	Manufacturer         string       `json:"Manufacturer"`
+	MemberID             string       `json:"MemberId"`
 	Model                string       `json:"Model"`
 	Name                 string       `json:"Name"`
-	PartNumber           string       `json:"PartNumber"`
+	Oem                  OemPower     `json:"Oem,omitempty"`
+	PowerCapacityWatts   int          `json:"PowerCapacityWatts,omitempty"`
 	PowerSupplyType      string       `json:"PowerSupplyType"`
 	SerialNumber         string       `json:"SerialNumber"`
 	SparePartNumber      string       `json:"SparePartNumber"`
@@ -97,6 +93,31 @@ type PowerSupply struct {
 
 // InputRange is the top level json object for input voltage metadata
 type InputRange struct {
-	InputType     string `json:"InputType"`
+	InputType     string `json:"InputType,omitempty"`
 	OutputWattage int    `json:"OutputWattage"`
+}
+
+// OemPower is the top level json object for historical data for wattage
+type OemPower struct {
+	Hpe Hpe `json:"Hpe,omitempty"`
+	Hp  Hpe `json:"Hp,omitempty"`
+}
+
+// Hpe contains metadata on power supply product info
+type Hpe struct {
+	AveragePowerOutputWatts int    `json:"AveragePowerOutputWatts"`
+	BayNumber               int    `json:"BayNumber"`
+	HotplugCapable          bool   `json:"HotplugCapable"`
+	MaxPowerOutputWatts     int    `json:"MaxPowerOutputWatts"`
+	Mismatched              bool   `json:"Mismatched"`
+	PowerSupplyStatus       Status `json:"PowerSupplyStatus"`
+	IPDUCapable             bool   `json:"iPDUCapable"`
+}
+
+// Voltages contains current/lower/upper voltage and power supply status metadata
+type Voltages struct {
+	Name                   string      `json:"Name"`
+	ReadingVolts           interface{} `json:"ReadingVolts"`
+	Status                 Status      `json:"Status"`
+	UpperThresholdCritical interface{} `json:"UpperThresholdCritical"`
 }

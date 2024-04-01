@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package dl380
+package oem
+
+// /redfish/v1/Systems/X/SmartStorage/ArrayControllers/
 
 // NVME's
-// /redfish/v1/chassis/1/
-// NVMeMetrics is the top level json object for DL380 NVMe Metrics Metadata
+// /redfish/v1/chassis/X/
 type NVMeDriveMetrics struct {
 	ID               string           `json:"Id"`
 	Model            string           `json:"Model"`
@@ -27,50 +28,44 @@ type NVMeDriveMetrics struct {
 	Oem              Oem              `json:"Oem"`
 	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
 	Protocol         string           `json:"Protocol"`
-	Status           DriveStatus      `json:"Status"`
+	Status           Status           `json:"Status"`
 	FailurePredicted bool             `json:"FailurePredicted"`
 	CapacityBytes    int              `json:"CapacityBytes"`
 }
 
 // Logical Drives
-// // /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/LogicalDrives/X/
+// /redfish/v1/Systems/X/SmartStorage/ArrayControllers/X/LogicalDrives/X/
 type LogicalDriveMetrics struct {
-	Id                     string      `json:"Id"`
-	CapacityMiB            int         `json:"CapacityMiB"`
-	Description            string      `json:"Description"`
-	InterfaceType          string      `json:"InterfaceType"`
-	LogicalDriveName       string      `json:"LogicalDriveName"`
-	LogicalDriveNumber     int         `json:"LogicalDriveNumber"`
-	Name                   string      `json:"Name"`
-	Raid                   string      `json:"Raid"`
-	Status                 DriveStatus `json:"Status"`
-	StripeSizebytes        int         `json:"StripeSizebytes"`
-	VolumeUniqueIdentifier string      `json:"VolumeUniqueIdentifier"`
+	Id                     string `json:"Id"`
+	CapacityMiB            int    `json:"CapacityMiB"`
+	Description            string `json:"Description"`
+	InterfaceType          string `json:"InterfaceType"`
+	LogicalDriveName       string `json:"LogicalDriveName"`
+	LogicalDriveNumber     int    `json:"LogicalDriveNumber"`
+	Name                   string `json:"Name"`
+	Raid                   string `json:"Raid"`
+	Status                 Status `json:"Status"`
+	StripeSizebytes        int    `json:"StripeSizebytes"`
+	VolumeUniqueIdentifier string `json:"VolumeUniqueIdentifier"`
 }
 
 // Disk Drives
-// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/DiskDrives/X/
+// /redfish/v1/Systems/X/SmartStorage/ArrayControllers/X/DiskDrives/X/
 type DiskDriveMetrics struct {
-	Id            string      `json:"Id"`
-	CapacityMiB   int         `json:"CapacityMiB"`
-	Description   string      `json:"Description"`
-	InterfaceType string      `json:"InterfaceType"`
-	Name          string      `json:"Name"`
-	Model         string      `json:"Model"`
-	Status        DriveStatus `json:"Status"`
-	Location      string      `json:"Location"`
-	SerialNumber  string      `json:"SerialNumber"`
-}
-
-// NVME, Logical, and Physical Disk Drive Status
-type DriveStatus struct {
-	Health string `json:"Health"`
-	State  string `json:"State,omitempty"`
+	Id            string `json:"Id"`
+	CapacityMiB   int    `json:"CapacityMiB"`
+	Description   string `json:"Description"`
+	InterfaceType string `json:"InterfaceType"`
+	Name          string `json:"Name"`
+	Model         string `json:"Model"`
+	Status        Status `json:"Status"`
+	Location      string `json:"Location"`
+	SerialNumber  string `json:"SerialNumber"`
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
-// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ for Logical and Physical Drives
-// /redfish/v1/Chassis/1/Drives/ for NVMe Drive(s)
+// /redfish/v1/Systems/X/SmartStorage/ArrayControllers/ for Logical and Physical Drives
+// /redfish/v1/Chassis/X/Drives/ for NVMe Drive(s)
 type GenericDrive struct {
 	Members      []Members  `json:"Members,omitempty"`
 	LinksUpper   LinksUpper `json:"Links,omitempty"`
@@ -119,7 +114,7 @@ type Oem struct {
 
 // Contents of Hpe
 type HpeCont struct {
-	CurrentTemperatureCelsius int         `json:"CurrentTemperatureCelsius"`
-	DriveStatus               DriveStatus `json:"DriveStatus"`
-	NVMeID                    string      `json:"NVMeId"`
+	CurrentTemperatureCelsius int    `json:"CurrentTemperatureCelsius"`
+	DriveStatus               Status `json:"DriveStatus"`
+	NVMeID                    string `json:"NVMeId"`
 }

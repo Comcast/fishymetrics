@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-package c220
+package oem
 
 // /redfish/v1/Systems/XXXXX/Processors/CPUX
 
-// ProcessorMetrics is the top level json object for UCS C220 Processor metadata
+// ProcessorMetrics is the top level json object for Processor metadata
 type ProcessorMetrics struct {
+	Id                    string      `json:"Id"`
 	Name                  string      `json:"Name"`
 	Description           string      `json:"Description"`
+	Socket                string      `json:"Socket"`
 	Status                Status      `json:"Status"`
 	ProcessorArchitecture string      `json:"ProcessorArchitecture"`
 	TotalThreads          interface{} `json:"TotalThreads"`

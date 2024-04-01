@@ -14,17 +14,30 @@
  * limitations under the License.
  */
 
-package dl560
+package oem
+
+// /redfish/v1/Systems/XXXXX/Memory/DIMM_X1
+
+// MemoryMetrics is the top level json object for a Memory DIMMs metadata
+type MemoryMetrics struct {
+	Name             string      `json:"Name"`
+	CapacityMiB      interface{} `json:"CapacityMiB"`
+	Manufacturer     string      `json:"Manufacturer"`
+	MemoryDeviceType string      `json:"MemoryDeviceType"`
+	PartNumber       string      `json:"PartNumber"`
+	SerialNumber     string      `json:"SerialNumber"`
+	Status           interface{} `json:"Status"`
+}
 
 // /redfish/v1/systems/1/
 
-// MemoryMetrics is the top level json object for DL560 Memory metadata
-type MemoryMetrics struct {
+// MemorySummaryMetrics is the top level json object for all Memory DIMMs metadata
+type MemorySummaryMetrics struct {
 	ID            string        `json:"Id"`
 	MemorySummary MemorySummary `json:"MemorySummary"`
 }
 
-// MemorySummary is the json object for DL560 MemorySummary metadata
+// MemorySummary is the json object for MemorySummary metadata
 type MemorySummary struct {
 	Status                         StatusMemory `json:"Status"`
 	TotalSystemMemoryGiB           int          `json:"TotalSystemMemoryGiB"`

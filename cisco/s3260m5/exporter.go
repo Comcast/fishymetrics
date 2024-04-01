@@ -34,6 +34,7 @@ import (
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	"github.com/comcast/fishymetrics/oem"
 	"github.com/comcast/fishymetrics/pool"
 	"go.uber.org/zap"
 
@@ -162,8 +163,8 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		return nil, err
 	}
 
-	if len(mgrEndpoints.Links.ServerManager) > 0 {
-		mgr = mgrEndpoints.Links.ServerManager[0].URL
+	if len(mgrEndpoints.Links.ManagerForServers.ServerManagerURLSlice) > 0 {
+		mgr = mgrEndpoints.Links.ManagerForServers.ServerManagerURLSlice[0]
 	}
 
 	// BMC Firmware major.minor
@@ -364,7 +365,7 @@ func (e *Exporter) scrape() {
 
 // exportFirmwareMetrics collects the Cisco UCS S3260M5's device metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportFirmwareMetrics(body []byte) error {
-	var chas Chassis
+	var chas oem.Chassis
 	var dm = (*e.deviceMetrics)["deviceInfo"]
 	err := json.Unmarshal(body, &chas)
 	if err != nil {
@@ -379,44 +380,80 @@ func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 // exportPowerMetrics collects the Cisco UCS S3260M5's power metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 	var state float64
-	var watts float64
-	var pm PowerMetrics
+	var pm oem.PowerMetrics
 	var pow = (*e.deviceMetrics)["powerMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling S3260M5 PowerMetrics - " + err.Error())
 	}
 
-	for _, pc := range pm.PowerControl {
-		if pc.PowerConsumedWatts == 0 {
+	for _, pc := range pm.PowerControl.PowerControl {
+		var watts float64
+		switch pc.PowerConsumedWatts.(type) {
+		case float64:
+			if pc.PowerConsumedWatts.(float64) > 0 {
+				watts = pc.PowerConsumedWatts.(float64)
+			}
+		case string:
+			if pc.PowerConsumedWatts.(string) != "" {
+				watts, _ = strconv.ParseFloat(pc.PowerConsumedWatts.(string), 32)
+			}
+		default:
 			// use the AverageConsumedWatts if PowerConsumedWatts is not present
-			watts = float64(pc.PowerMetrics.AverageConsumedWatts)
-		} else {
-			watts = float64(pc.PowerConsumedWatts)
+			switch pc.PowerMetrics.AverageConsumedWatts.(type) {
+			case float64:
+				watts = pc.PowerMetrics.AverageConsumedWatts.(float64)
+			case string:
+				watts, _ = strconv.ParseFloat(pc.PowerMetrics.AverageConsumedWatts.(string), 32)
+			}
 		}
-		(*pow)["supplyTotalConsumed"].WithLabelValues(pm.Url, e.chassisSerialNumber).Set(watts)
+		(*pow)["supplyTotalConsumed"].WithLabelValues(pc.MemberID, e.chassisSerialNumber).Set(watts)
 	}
 
 	for _, pv := range pm.Voltages {
 		if pv.Status.State == "Enabled" {
-			(*pow)["voltageOutput"].WithLabelValues(pv.Name, e.chassisSerialNumber).Set(pv.ReadingVolts)
+			var volts float64
+			switch pv.ReadingVolts.(type) {
+			case float64:
+				volts = pv.ReadingVolts.(float64)
+			case string:
+				volts, _ = strconv.ParseFloat(pv.ReadingVolts.(string), 32)
+			}
+			(*pow)["voltageOutput"].WithLabelValues(pv.Name, e.chassisSerialNumber).Set(volts)
 			if pv.Status.Health == "OK" {
 				state = OK
 			} else {
 				state = BAD
 			}
-			(*pow)["voltageStatus"].WithLabelValues(pv.Name, e.chassisSerialNumber).Set(state)
+		} else {
+			state = BAD
 		}
+
+		(*pow)["voltageStatus"].WithLabelValues(pv.Name, e.chassisSerialNumber).Set(state)
 	}
 
 	for _, ps := range pm.PowerSupplies {
 		if ps.Status.State == "Enabled" {
-			state = OK
-			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, ps.Model).Set(float64(ps.LastPowerOutputWatts))
+			var watts float64
+			switch ps.LastPowerOutputWatts.(type) {
+			case float64:
+				watts = ps.LastPowerOutputWatts.(float64)
+			case string:
+				watts, _ = strconv.ParseFloat(ps.LastPowerOutputWatts.(string), 32)
+			}
+			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(watts)
+			if ps.Status.Health == "OK" {
+				state = OK
+			} else if ps.Status.Health == "" {
+				state = OK
+			} else {
+				state = BAD
+			}
 		} else {
-			state = DISABLED
+			state = BAD
 		}
-		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, ps.Model).Set(state)
+
+		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(state)
 	}
 
 	return nil
@@ -424,35 +461,41 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 // exportThermalMetrics collects the Cisco UCS S3260M5's thermal and fan metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportThermalMetrics(body []byte) error {
-
 	var state float64
-	var tm ThermalMetrics
+	var tm oem.ThermalMetrics
 	var therm = (*e.deviceMetrics)["thermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling S3260M5 ThermalMetrics - " + err.Error())
 	}
 
-	if tm.Status.State == "Enabled" {
-		if tm.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
-		}
-		(*therm)["thermalSummary"].WithLabelValues(tm.Url, e.chassisSerialNumber).Set(state)
-	}
-
 	// Iterate through fans
 	for _, fan := range tm.Fans {
 		// Check fan status and convert string to numeric values
 		if fan.Status.State == "Enabled" {
-			(*therm)["fanSpeed"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(float64(fan.Reading))
+			var fanSpeed float64
+			switch fan.Reading.(type) {
+			case string:
+				fanSpeed, _ = strconv.ParseFloat(fan.Reading.(string), 32)
+			case float64:
+				fanSpeed = fan.Reading.(float64)
+			}
+
+			if fan.FanName != "" {
+				(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.chassisSerialNumber).Set(float64(fan.CurrentReading))
+			} else {
+				(*therm)["fanSpeed"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(fanSpeed)
+			}
 			if fan.Status.Health == "OK" {
 				state = OK
 			} else {
 				state = BAD
 			}
-			(*therm)["fanStatus"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(state)
+			if fan.FanName != "" {
+				(*therm)["fanStatus"].WithLabelValues(fan.FanName, e.chassisSerialNumber).Set(state)
+			} else {
+				(*therm)["fanStatus"].WithLabelValues(fan.Name, e.chassisSerialNumber).Set(state)
+			}
 		}
 	}
 
@@ -460,7 +503,16 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	for _, sensor := range tm.Temperatures {
 		// Check sensor status and convert string to numeric values
 		if sensor.Status.State == "Enabled" {
-			(*therm)["sensorTemperature"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.chassisSerialNumber).Set(sensor.ReadingCelsius)
+			var celsTemp float64
+			switch sensor.ReadingCelsius.(type) {
+			case string:
+				celsTemp, _ = strconv.ParseFloat(sensor.ReadingCelsius.(string), 32)
+			case int:
+				celsTemp = float64(sensor.ReadingCelsius.(int))
+			case float64:
+				celsTemp = sensor.ReadingCelsius.(float64)
+			}
+			(*therm)["sensorTemperature"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.chassisSerialNumber).Set(celsTemp)
 			if sensor.Status.Health == "OK" {
 				state = OK
 			} else {
@@ -475,28 +527,62 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 
 // exportMemoryMetrics collects the Cisco UCS S3260M5's memory metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportMemoryMetrics(body []byte) error {
-
 	var state float64
-	var mm MemoryMetrics
+	var mm oem.MemoryMetrics
 	var mem = (*e.deviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &mm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling S3260M5 MemoryMetrics - " + err.Error())
 	}
 
-	if mm.Status.State != "" {
-		if mm.Status.State == "Absent" {
-			return nil
-		} else if mm.Status.State == "Enabled" && mm.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
-		}
-	} else {
-		state = DISABLED
-	}
+	if mm.Status != "" {
+		var memCap string
+		var status string
 
-	(*mem)["memoryStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, strconv.Itoa(mm.CapacityMiB), mm.Manufacturer, mm.PartNumber, mm.SerialNumber).Set(state)
+		switch mm.CapacityMiB.(type) {
+		case string:
+			memCap = mm.CapacityMiB.(string)
+		case int:
+			memCap = strconv.Itoa(mm.CapacityMiB.(int))
+		case float64:
+			memCap = strconv.Itoa(int(mm.CapacityMiB.(float64)))
+		}
+
+		switch mm.Status.(type) {
+		case string:
+			status = mm.Status.(string)
+			if status == "Operable" {
+				state = OK
+			} else {
+				state = BAD
+			}
+		default:
+			if s, ok := mm.Status.(map[string]interface{}); ok {
+				switch s["State"].(type) {
+				case string:
+					if s["State"].(string) == "Enabled" {
+						switch s["Health"].(type) {
+						case string:
+							if s["Health"].(string) == "OK" {
+								state = OK
+							} else if s["Health"].(string) == "" {
+								state = OK
+							} else {
+								state = BAD
+							}
+						case nil:
+							state = OK
+						}
+					} else if s["State"].(string) == "Absent" {
+						return nil
+					} else {
+						state = BAD
+					}
+				}
+			}
+		}
+		(*mem)["memoryStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, memCap, mm.Manufacturer, strings.TrimRight(mm.PartNumber, " "), mm.SerialNumber).Set(state)
+	}
 
 	return nil
 }
@@ -505,7 +591,8 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 func (e *Exporter) exportProcessorMetrics(body []byte) error {
 
 	var state float64
-	var pm ProcessorMetrics
+	var totThreads string
+	var pm oem.ProcessorMetrics
 	var proc = (*e.deviceMetrics)["processorMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
@@ -513,6 +600,14 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	}
 
 	if pm.Status.State == "Enabled" {
+		switch pm.TotalThreads.(type) {
+		case string:
+			totThreads = pm.TotalThreads.(string)
+		case float64:
+			totThreads = strconv.Itoa(int(pm.TotalThreads.(float64)))
+		case int:
+			totThreads = strconv.Itoa(pm.TotalThreads.(int))
+		}
 		if pm.Status.Health == "OK" {
 			state = OK
 		} else {
@@ -522,7 +617,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*proc)["processorStatus"].WithLabelValues(pm.Name, e.chassisSerialNumber, pm.Description, strconv.Itoa(pm.TotalThreads)).Set(state)
+	(*proc)["processorStatus"].WithLabelValues(pm.Name, e.chassisSerialNumber, pm.Description, totThreads).Set(state)
 
 	return nil
 }
@@ -531,14 +626,14 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 func (e *Exporter) exportDriveMetrics(body []byte) error {
 
 	var state float64
-	var scm StorageControllerMetrics
+	var scm oem.StorageControllerMetrics
 	var dlDrive = (*e.deviceMetrics)["driveMetrics"]
 	err := json.Unmarshal(body, &scm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling S3260M5 DriveMetrics - " + err.Error())
 	}
 	// Check logical drive is enabled then check status and convert string to numeric values
-	for _, sc := range scm.StorageControllers {
+	for _, sc := range scm.StorageController.StorageController {
 		if sc.Status.State == "Enabled" {
 			if sc.Status.Health == "OK" {
 				state = OK
@@ -555,8 +650,8 @@ func (e *Exporter) exportDriveMetrics(body []byte) error {
 	return nil
 }
 
-func getManagerEndpoint(url, host string, client *retryablehttp.Client) (Chassis, error) {
-	var chas Chassis
+func getManagerEndpoint(url, host string, client *retryablehttp.Client) (oem.Chassis, error) {
+	var chas oem.Chassis
 	var resp *http.Response
 	var err error
 	retryCount := 0
@@ -600,7 +695,7 @@ func getManagerEndpoint(url, host string, client *retryablehttp.Client) (Chassis
 }
 
 func getChassisSerialNumber(url, host string, client *retryablehttp.Client) (string, error) {
-	var chassSN ChassisSerialNumber
+	var chassSN oem.ChassisSerialNumber
 	req := common.BuildRequest(url, host)
 
 	resp, err := client.Do(req)
@@ -625,8 +720,8 @@ func getChassisSerialNumber(url, host string, client *retryablehttp.Client) (str
 	return chassSN.SerialNumber, nil
 }
 
-func getChassisEndpoint(url, host string, client *retryablehttp.Client) (Collection, error) {
-	var chas Collection
+func getChassisEndpoint(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var chas oem.Collection
 	var resp *http.Response
 	var err error
 	retryCount := 0
@@ -668,7 +763,7 @@ func getChassisEndpoint(url, host string, client *retryablehttp.Client) (Collect
 }
 
 func getBIOSVersion(url, host string, client *retryablehttp.Client) (string, error) {
-	var biosVer ServerManager
+	var biosVer oem.ServerManager
 	var resp *http.Response
 	var err error
 	retryCount := 0
@@ -709,8 +804,8 @@ func getBIOSVersion(url, host string, client *retryablehttp.Client) (string, err
 	return biosVer.BiosVersion, nil
 }
 
-func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (Collection, error) {
-	var dimms Collection
+func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var dimms oem.Collection
 	var resp *http.Response
 	var err error
 	retryCount := 0
@@ -751,8 +846,8 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (Collectio
 	return dimms, nil
 }
 
-func getRaidEndpoint(url, host string, client *retryablehttp.Client) (Collection, error) {
-	var rcontrollers Collection
+func getRaidEndpoint(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var rcontrollers oem.Collection
 	var resp *http.Response
 	var err error
 	retryCount := 0

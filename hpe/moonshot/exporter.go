@@ -33,6 +33,7 @@ import (
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	"github.com/comcast/fishymetrics/oem/moonshot"
 	"github.com/comcast/fishymetrics/pool"
 	"go.uber.org/zap"
 
@@ -342,7 +343,7 @@ func (e *Exporter) scrape() {
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 	var state float64
-	var pm PowerMetrics
+	var pm moonshot.PowerMetrics
 	var msPower = (*e.deviceMetrics)["powerMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
@@ -368,7 +369,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 func (e *Exporter) exportThermalMetrics(body []byte) error {
 
 	var state float64
-	var tm ThermalMetrics
+	var tm moonshot.ThermalMetrics
 	var msThermal = (*e.deviceMetrics)["thermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
@@ -405,7 +406,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 // exportSwitchMetrics collects the switches metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportSwitchMetrics(body []byte) error {
 	var state float64
-	var sm Sw
+	var sm moonshot.Sw
 	var msSw = (*e.deviceMetrics)["swMetrics"]
 	err := json.Unmarshal(body, &sm)
 	if err != nil {
@@ -426,7 +427,7 @@ func (e *Exporter) exportSwitchMetrics(body []byte) error {
 func (e *Exporter) exportSwitchThermalMetrics(namePrefix string, body []byte) error {
 
 	var state float64
-	var tm ThermalMetrics
+	var tm moonshot.ThermalMetrics
 	var msSwThermal = (*e.deviceMetrics)["swThermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
@@ -451,7 +452,7 @@ func (e *Exporter) exportSwitchThermalMetrics(namePrefix string, body []byte) er
 // exportSwitchPowerMetrics collects the switches power metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportSwitchPowerMetrics(namePrefix string, body []byte) error {
 
-	var spm SwPowerMetrics
+	var spm moonshot.SwPowerMetrics
 	var msSwPower = (*e.deviceMetrics)["swPowerMetrics"]
 	err := json.Unmarshal(body, &spm)
 	if err != nil {
