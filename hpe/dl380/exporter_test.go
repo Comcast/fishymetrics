@@ -30,235 +30,26 @@ import (
 )
 
 const (
-	up2Response = `
+	up2Expected = `
 		 # HELP up was the last scrape of fishymetrics successful.
 		 # TYPE up gauge
 		 up 2
 	`
-	GoodLogicalDriveUpperResponse = `
+	GoodLogicalDriveExpected = `
 		 # HELP dl380_logical_drive_status Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED
 		 # TYPE dl380_logical_drive_status gauge
-		 dl380_logical_drive_status{logicaldrivename="TESTDRIVE NAME 1",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="ABCDEF12345"} 1
+		 dl380_logical_drive_status{chassisSerialNumber="SN98765",logicaldrivename="TESTDRIVE NAME 1",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="ABCDEF12345"} 1
 	`
-	GoodDiskDriveUpperResponse = `
+	GoodDiskDriveExpected = `
 		 # HELP dl380_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
 		 # TYPE dl380_disk_drive_status gauge
-		 dl380_disk_drive_status{id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
+		 dl380_disk_drive_status{chassisSerialNumber="SN98765",id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
 	`
-	GoodLogicalDriveLowerResponse = `
-		 # HELP dl380_logical_drive_status Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED
-		 # TYPE dl380_logical_drive_status gauge
-		 dl380_logical_drive_status{logicaldrivename="TESTDRIVE NAME 2",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="FEDCBA12345"} 1
-	`
-	GoodDiskDriveLowerResponse = `
-		 # HELP dl380_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
-		 # TYPE dl380_disk_drive_status gauge
-		 dl380_disk_drive_status{id="1",location="1I:1:2",name="HpeSmartStorageDiskDrive",serialnumber="DEF456"} 1
-	`
-	GoodNvmeDriveResponse = `
+	GoodNvmeDriveExpected = `
 		 # HELP dl380_nvme_drive_status Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED
 		 # TYPE dl380_nvme_drive_status gauge
-		 dl380_nvme_drive_status{id="0",protocol="NVMe",serviceLabel="Box 3:Bay 7"} 1
+		 dl380_nvme_drive_status{chassisSerialNumber="SN98765",id="DA000000",protocol="NVMe",serviceLabel="Box 3:Bay 7"} 1
 	`
-)
-
-var (
-	GoodDiskDriveUpper = MustMarshal(struct {
-		Id            string `json:"Id"`
-		CapacityMiB   int    `json:"CapacityMiB"`
-		Description   string `json:"Description"`
-		InterfaceType string `json:"InterfaceType"`
-		Name          string `json:"Name"`
-		Model         string `json:"Model"`
-		Status        struct {
-			Health string `json:"Health"`
-			State  string `json:"State"`
-		} `json:"Status"`
-		Location     string `json:"Location"`
-		SerialNumber string `json:"SerialNumber"`
-	}{
-		Id:            "0",
-		CapacityMiB:   572325,
-		Description:   "HPE Smart Storage Disk Drive View",
-		InterfaceType: "SAS",
-		Name:          "HpeSmartStorageDiskDrive",
-		Model:         "TESTMODEL",
-		Status: struct {
-			Health string `json:"Health"`
-			State  string `json:"State"`
-		}{
-			Health: "OK",
-			State:  "Enabled",
-		},
-		Location:     "1I:1:1",
-		SerialNumber: "ABC123",
-	})
-
-	GoodDiskDriveLower = MustMarshal(struct {
-		Id            string `json:"Id"`
-		CapacityMiB   int    `json:"CapacityMiB"`
-		Description   string `json:"Description"`
-		InterfaceType string `json:"InterfaceType"`
-		Name          string `json:"Name"`
-		Model         string `json:"Model"`
-		Status        struct {
-			Health string `json:"Health"`
-			State  string `json:"State"`
-		} `json:"Status"`
-		Location     string `json:"Location"`
-		SerialNumber string `json:"SerialNumber"`
-	}{
-		Id:            "1",
-		CapacityMiB:   572325,
-		Description:   "HPE Smart Storage Disk Drive View",
-		InterfaceType: "SAS",
-		Name:          "HpeSmartStorageDiskDrive",
-		Model:         "TESTMODEL",
-		Status: struct {
-			Health string `json:"Health"`
-			State  string `json:"State"`
-		}{
-			Health: "OK",
-			State:  "Enabled",
-		},
-		Location:     "1I:1:2",
-		SerialNumber: "DEF456",
-	})
-
-	GoodLogicalDriveUpper = MustMarshal(struct {
-		Id                 string `json:"Id"`
-		CapacityMiB        int    `json:"CapacityMiB"`
-		Description        string `json:"Description"`
-		InterfaceType      string `json:"InterfaceType"`
-		LogicalDriveName   string `json:"LogicalDriveName"`
-		LogicalDriveNumber int    `json:"LogicalDriveNumber"`
-		Name               string `json:"Name"`
-		Raid               string `json:"Raid"`
-		Status             struct {
-			Health string `json:"Health"`
-			State  string `json:"State"`
-		} `json:"Status"`
-		StripeSizebytes        int    `json:"StripeSizebytes"`
-		VolumeUniqueIdentifier string `json:"VolumeUniqueIdentifier"`
-	}{
-		Id:                 "1",
-		CapacityMiB:        572293,
-		Description:        "HPE Smart Storage Disk Drive View",
-		InterfaceType:      "SAS",
-		LogicalDriveName:   "TESTDRIVE NAME 1",
-		LogicalDriveNumber: 1,
-		Name:               "HpeSmartStorageLogicalDrive",
-		Raid:               "1",
-		Status: struct {
-			Health string `json:"Health"`
-			State  string `json:"State"`
-		}{
-			Health: "OK",
-			State:  "Enabled",
-		},
-		StripeSizebytes:        262144,
-		VolumeUniqueIdentifier: "ABCDEF12345",
-	})
-
-	GoodLogicalDriveLower = MustMarshal(struct {
-		Id                 string `json:"Id"`
-		CapacityMiB        int    `json:"CapacityMiB"`
-		Description        string `json:"Description"`
-		InterfaceType      string `json:"InterfaceType"`
-		LogicalDriveName   string `json:"LogicalDriveName"`
-		LogicalDriveNumber int    `json:"LogicalDriveNumber"`
-		Name               string `json:"Name"`
-		Raid               string `json:"Raid"`
-		Status             struct {
-			Health string `json:"Health"`
-			State  string `json:"State"`
-		} `json:"Status"`
-		StripeSizebytes        int    `json:"StripeSizebytes"`
-		VolumeUniqueIdentifier string `json:"VolumeUniqueIdentifier"`
-	}{
-		Id:                 "1",
-		CapacityMiB:        572293,
-		Description:        "HPE Smart Storage Disk Drive View",
-		InterfaceType:      "SAS",
-		LogicalDriveName:   "TESTDRIVE NAME 2",
-		LogicalDriveNumber: 1,
-		Name:               "HpeSmartStorageLogicalDrive",
-		Raid:               "1",
-		Status: struct {
-			Health string `json:"Health"`
-			State  string `json:"State"`
-		}{
-			Health: "OK",
-			State:  "Enabled",
-		},
-		StripeSizebytes:        262144,
-		VolumeUniqueIdentifier: "FEDCBA12345",
-	})
-
-	GoodNvmeDrive = MustMarshal(struct {
-		Id        string `json:"Id"`
-		Model     string `json:"Model"`
-		Name      string `json:"Name"`
-		MediaType string `json:"MediaType"`
-		Oem       struct {
-			Hpe struct {
-				DriveStatus struct {
-					Health string `json:"Health"`
-					State  string `json:"State"`
-				} `json:"DriveStatus"`
-			} `json:"Hpe"`
-		} `json:"Oem"`
-		PhysicalLocation struct {
-			PartLocation struct {
-				ServiceLabel string `json:"ServiceLabel"`
-			} `json:"PartLocation"`
-		} `json:"PhysicalLocation"`
-		Protocol         string `json:"Protocol"`
-		FailurePredicted bool   `json:"FailurePredicted"`
-		CapacityBytes    int    `json:"CapacityBytes"`
-	}{
-		Id:        "0",
-		Model:     "TESTMODEL",
-		Name:      "TESTNAME",
-		MediaType: "SSD",
-		Oem: struct {
-			Hpe struct {
-				DriveStatus struct {
-					Health string `json:"Health"`
-					State  string `json:"State"`
-				} `json:"DriveStatus"`
-			} `json:"Hpe"`
-		}{
-			Hpe: struct {
-				DriveStatus struct {
-					Health string `json:"Health"`
-					State  string `json:"State"`
-				} `json:"DriveStatus"`
-			}{
-				DriveStatus: struct {
-					Health string `json:"Health"`
-					State  string `json:"State"`
-				}{
-					Health: "OK",
-					State:  "Enabled",
-				},
-			},
-		},
-		PhysicalLocation: struct {
-			PartLocation struct {
-				ServiceLabel string `json:"ServiceLabel"`
-			} `json:"PartLocation"`
-		}{
-			PartLocation: struct {
-				ServiceLabel string `json:"ServiceLabel"`
-			}{
-				ServiceLabel: "Box 3:Bay 7",
-			},
-		},
-		Protocol:         "NVMe",
-		FailurePredicted: false,
-		CapacityBytes:    1600321314816,
-	})
 )
 
 type TestErrorResponse struct {
@@ -285,7 +76,7 @@ func MustMarshal(v interface{}) []byte {
 
 func Test_DL380_Exporter(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/redfish/v1/badcred/Systems/1/SmartStorage/ArrayControllers/" {
+		if r.URL.Path == "/redfish/v1/badcred/Managers/1/" {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write(MustMarshal(TestErrorResponse{
 				Error: TestError{
@@ -323,7 +114,7 @@ func Test_DL380_Exporter(t *testing.T) {
 			metricName: "up",
 			metricRef1: "up",
 			metricRef2: "up",
-			expected:   up2Response,
+			expected:   up2Expected,
 		},
 	}
 
@@ -348,199 +139,78 @@ func Test_DL380_Exporter(t *testing.T) {
 	}
 }
 
-func Test_DL380_Drives(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/" {
-			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(struct {
-				MembersCount int `json:"Members@odata.count"`
-				Members      []struct {
-					URL string `json:"@odata.id"`
-				} `json:"Members"`
-			}{
-				MembersCount: 2,
-				Members: []struct {
-					URL string `json:"@odata.id"`
-				}{
-					{
-						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/",
-					},
-					{
-						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/",
-					},
-				},
-			}))
-			return
-		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/" {
-			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(struct {
-				LinksUpper struct {
-					LogicalDrives struct {
-						URL string `json:"@odata.id"`
-					} `json:"LogicalDrives"`
-					PhysicalDrives struct {
-						URL string `json:"@odata.id"`
-					} `json:"PhysicalDrives"`
-				} `json:"Links"`
-			}{
-				LinksUpper: struct {
-					LogicalDrives struct {
-						URL string `json:"@odata.id"`
-					} `json:"LogicalDrives"`
-					PhysicalDrives struct {
-						URL string `json:"@odata.id"`
-					} `json:"PhysicalDrives"`
-				}{
-					LogicalDrives: struct {
-						URL string `json:"@odata.id"`
-					}{
-						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/",
-					},
-					PhysicalDrives: struct {
-						URL string `json:"@odata.id"`
-					}{
-						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/DiskDrives/",
-					},
-				},
-			}))
-			return
-		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/" {
-			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(struct {
-				LinksLower struct {
-					LogicalDrives struct {
-						URL string `json:"href"`
-					} `json:"LogicalDrives"`
-					PhysicalDrives struct {
-						URL string `json:"href"`
-					} `json:"PhysicalDrives"`
-				} `json:"links"`
-			}{
-				LinksLower: struct {
-					LogicalDrives struct {
-						URL string `json:"href"`
-					} `json:"LogicalDrives"`
-					PhysicalDrives struct {
-						URL string `json:"href"`
-					} `json:"PhysicalDrives"`
-				}{
-					LogicalDrives: struct {
-						URL string `json:"href"`
-					}{
-						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/",
-					},
-					PhysicalDrives: struct {
-						URL string `json:"href"`
-					}{
-						URL: "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/",
-					},
-				},
-			}))
-			return
-		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/" {
-			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(struct {
-				MembersCount int `json:"Members@odata.count"`
-				Members      []struct {
-					URL string `json:"@odata.id"`
-				} `json:"Members"`
-			}{
-				MembersCount: 1,
-				Members: []struct {
-					URL string `json:"@odata.id"`
-				}{
-					{
-						URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/0/LogicalDrives/1/",
-					},
-				},
-			}))
-			return
-		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/" {
-			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(struct {
-				MembersCount int `json:"Members@odata.count"`
-				Members      []struct {
-					URL string `json:"@odata.id"`
-				} `json:"Members"`
-			}{
-				MembersCount: 1,
-				Members: []struct {
-					URL string `json:"@odata.id"`
-				}{
-					{
-						URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/2/LogicalDrives/1/",
-					},
-				},
-			}))
-			return
-		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/0/DiskDrives/" {
-			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(struct {
-				MembersCount int `json:"Members@odata.count"`
-				Members      []struct {
-					URL string `json:"@odata.id"`
-				} `json:"Members"`
-			}{
-				MembersCount: 1,
-				Members: []struct {
-					URL string `json:"@odata.id"`
-				}{
-					{
-						URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/0/DiskDrives/0/",
-					},
-				},
-			}))
-			return
-		} else if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/" {
-			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(struct {
-				MembersCount int `json:"Members@odata.count"`
-				Members      []struct {
-					URL string `json:"@odata.id"`
-				} `json:"Members"`
-			}{
-				MembersCount: 1,
-				Members: []struct {
-					URL string `json:"@odata.id"`
-				}{
-					{
-						URL: "/redfish/v1/Systems/1/SmartStorage/ArrayControllers/2/DiskDrives/0/",
-					},
-				},
-			}))
-			return
-		} else if r.URL.Path == "/redfish/v1/good/Chassis/1/" {
-			w.WriteHeader(http.StatusOK)
-			w.Write(MustMarshal(struct {
-				LinksUpper struct {
-					Drives []struct {
-						URL string `json:"@odata.id"`
-					} `json:"Drives"`
-				} `json:"Links"`
-			}{
-				LinksUpper: struct {
-					Drives []struct {
-						URL string `json:"@odata.id"`
-					} `json:"Drives"`
-				}{
-					Drives: []struct {
-						URL string `json:"@odata.id"`
-					}{
-						{
-							URL: "/redfish/v1/Systems/1/Storage/DA000000/Drives/DA000000/",
-						},
-					},
-				},
-			}))
-			return
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Unknown path - please create test case(s) for it"))
-	}))
-	defer server.Close()
+func Test_DL380_Metrics_Handling(t *testing.T) {
 
-	ctx := context.Background()
+	var GoodLogicalDriveResponse = []byte(`{
+  			"Id": "1",
+  			"CapacityMiB": 915683,
+  			"Description": "HPE Smart Storage Logical Drive View",
+  			"InterfaceType": "SATA",
+  			"LogicalDriveName": "TESTDRIVE NAME 1",
+  			"LogicalDriveNumber": 1,
+  			"Name": "HpeSmartStorageLogicalDrive",
+  			"Raid": "1",
+  			"Status": {
+  			  "Health": "OK",
+  			  "State": "Enabled"
+  			},
+  			"StripeSizeBytes": 262144,
+  			"VolumeUniqueIdentifier": "ABCDEF12345"
+		}`)
+	var GoodDiskDriveResponse = []byte(`{
+  			"Id": "0",
+  			"CapacityMiB": 915715,
+  			"Description": "HPE Smart Storage Disk Drive View",
+  			"InterfaceType": "SATA",
+  			"Location": "1I:1:1",
+  			"Model": "model name",
+  			"Name": "HpeSmartStorageDiskDrive",
+  			"SerialNumber": "ABC123",
+  			"Status": {
+  			  "Health": "OK",
+  			  "State": "Enabled"
+  			}
+		}`)
+	var GoodNvmeDriveResponse = []byte(`{
+  			"Id": "DA000000",
+  			"CapacityBytes": 1600321314816,
+  			"FailurePredicted": false,
+  			"MediaType": "SSD",
+  			"Model": "model name",
+  			"Name": "Secondary Storage Device",
+  			"Oem": {
+  			  "Hpe": {
+  			    "CurrentTemperatureCelsius": 33,
+  			    "DriveStatus": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    },
+  			    "NVMeId": "drive id"
+  			  }
+  			},
+  			"PhysicalLocation": {
+  			  "PartLocation": {
+  			    "ServiceLabel": "Box 3:Bay 7"
+  			  }
+  			},
+  			"Protocol": "NVMe"
+		}`)
+
+	var exporter prometheus.Collector
+
 	assert := assert.New(t)
+
+	metrx := NewDeviceMetrics()
+
+	exporter = &Exporter{
+		ctx:                 context.Background(),
+		host:                "fishymetrics.com",
+		biosVersion:         "U99 v0.00 (xx/xx/xxxx)",
+		chassisSerialNumber: "SN98765",
+		deviceMetrics:       metrx,
+	}
+
+	prometheus.MustRegister(exporter)
 
 	logicalDevMetrics := func(exp *Exporter, payload []byte) error {
 		err := exp.exportLogicalDriveMetrics(payload)
@@ -568,88 +238,55 @@ func Test_DL380_Drives(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		uri        string
 		metricName string
 		metricRef1 string
 		metricRef2 string
-		exportFunc func(*Exporter, []byte) error
-		payload    []byte
+		handleFunc func(*Exporter, []byte) error
+		response   []byte
 		expected   string
 	}{
 		{
-			name:       "Good Logical Drive Links Uppercase",
-			uri:        "/redfish/v1/good",
+			name:       "Good Logical Drive",
 			metricName: "dl380_logical_drive_status",
 			metricRef1: "logicalDriveMetrics",
 			metricRef2: "raidStatus",
-			exportFunc: logicalDevMetrics,
-			payload:    GoodLogicalDriveUpper,
-			expected:   GoodLogicalDriveUpperResponse,
+			handleFunc: logicalDevMetrics,
+			response:   GoodLogicalDriveResponse,
+			expected:   GoodLogicalDriveExpected,
 		},
 		{
-			name:       "Good Logical Drive Links Lowercase",
-			uri:        "/redfish/v1/good",
-			metricName: "dl380_logical_drive_status",
-			metricRef1: "logicalDriveMetrics",
-			metricRef2: "raidStatus",
-			exportFunc: logicalDevMetrics,
-			payload:    GoodLogicalDriveLower,
-			expected:   GoodLogicalDriveLowerResponse,
-		},
-		{
-			name:       "Good Disk Drive Links Uppercase",
-			uri:        "/redfish/v1/good",
+			name:       "Good Disk Drive",
 			metricName: "dl380_disk_drive_status",
 			metricRef1: "diskDriveMetrics",
 			metricRef2: "driveStatus",
-			exportFunc: physDevMetrics,
-			payload:    GoodDiskDriveUpper,
-			expected:   GoodDiskDriveUpperResponse,
-		},
-		{
-			name:       "Good Disk Drive Links Lowercase",
-			uri:        "/redfish/v1/good",
-			metricName: "dl380_disk_drive_status",
-			metricRef1: "diskDriveMetrics",
-			metricRef2: "driveStatus",
-			exportFunc: physDevMetrics,
-			payload:    GoodDiskDriveLower,
-			expected:   GoodDiskDriveLowerResponse,
+			handleFunc: physDevMetrics,
+			response:   GoodDiskDriveResponse,
+			expected:   GoodDiskDriveExpected,
 		},
 		{
 			name:       "Good Nvme Drive",
-			uri:        "/redfish/v1/good",
 			metricName: "dl380_nvme_drive_status",
 			metricRef1: "nvmeMetrics",
 			metricRef2: "nvmeDriveStatus",
-			exportFunc: nvmeDevMetrics,
-			payload:    GoodNvmeDrive,
-			expected:   GoodNvmeDriveResponse,
+			handleFunc: nvmeDevMetrics,
+			response:   GoodNvmeDriveResponse,
+			expected:   GoodNvmeDriveExpected,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var exporter prometheus.Collector
-			var err error
-			exporter, err = NewExporter(ctx, server.URL, test.uri, "")
-			assert.Nil(err)
-			assert.NotNil(exporter)
+			metric := (*exporter.(*Exporter).deviceMetrics)[test.metricRef1]
+			m := (*metric)[test.metricRef2]
+			m.Reset()
 
-			prometheus.MustRegister(exporter)
-
-			err = test.exportFunc(exporter.(*Exporter), test.payload)
+			err := test.handleFunc(exporter.(*Exporter), test.response)
 			if err != nil {
 				t.Error(err)
 			}
 
-			metric := (*exporter.(*Exporter).deviceMetrics)[test.metricRef1]
-			m := (*metric)[test.metricRef2]
-
 			assert.Empty(testutil.CollectAndCompare(m, strings.NewReader(test.expected), test.metricName))
-
-			prometheus.Unregister(exporter)
-
 		})
 	}
+	prometheus.Unregister(exporter)
 }

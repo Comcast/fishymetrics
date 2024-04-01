@@ -35,6 +35,16 @@ const (
 		 # TYPE up gauge
 		 up 2
 	`
+	GoodDeviceInfoExpected = `
+         # HELP device_info Current snapshot of device firmware information
+         # TYPE device_info gauge
+         device_info{biosVersion="U99 v0.00 (xx/xx/xxxx)",chassisSerialNumber="SN98765",firmwareVersion="iLO 5 v2.65",model="DL360",name="test description"} 1
+	`
+	GoodCPUStatusExpected = `
+	     # HELP dl360_cpu_status Current cpu status 1 = OK, 0 = BAD
+         # TYPE dl360_cpu_status gauge
+         dl360_cpu_status{chassisSerialNumber="SN98765",id="1",model="cpu model",socket="Proc 1",totalCores="99"} 1
+	`
 	GoodLogicalDriveExpected = `
 		 # HELP dl360_logical_drive_status Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED
 		 # TYPE dl360_logical_drive_status gauge
@@ -49,6 +59,71 @@ const (
 		 # HELP dl360_nvme_drive_status Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED
 		 # TYPE dl360_nvme_drive_status gauge
 		 dl360_nvme_drive_status{chassisSerialNumber="SN98765",id="DA000000",protocol="NVMe",serviceLabel="Box 3:Bay 7"} 1
+	`
+	GoodILOSelfTestExpected = `
+	     # HELP dl360_ilo_selftest_status Current ilo selftest status 1 = OK, 0 = BAD
+         # TYPE dl360_ilo_selftest_status gauge
+         dl360_ilo_selftest_status{chassisSerialNumber="SN98765",name="EEPROM"} 1
+	`
+	GoodStorageBatteryStatusExpected = `
+	     # HELP dl360_storage_battery_status Current storage battery status 1 = OK, 0 = BAD
+         # TYPE dl360_storage_battery_status gauge
+         dl360_storage_battery_status{chassisSerialNumber="SN98765",id="1",model="battery model",name="HPE Smart Storage Battery ",serialnumber="123456789"} 1
+	`
+	GoodMemoryDimmExpected = `
+         # HELP dl360_memory_dimm_status Current dimm status 1 = OK, 0 = BAD
+         # TYPE dl360_memory_dimm_status gauge
+         dl360_memory_dimm_status{capacityMiB="32768",chassisSerialNumber="SN98765",manufacturer="HPE",name="proc1dimm1",partNumber="part number",serialNumber="123456789"} 1
+	`
+	GoodMemorySummaryExpected = `
+	     # HELP dl360_memory_status Current memory status 1 = OK, 0 = BAD
+         # TYPE dl360_memory_status gauge
+         dl360_memory_status{chassisSerialNumber="SN98765",totalSystemMemoryGiB="384"} 1
+	`
+	GoodThermalFanSpeedExpected = `
+	     # HELP dl360_thermal_fan_speed Current fan speed in the unit of percentage, possible values are 0 - 100
+         # TYPE dl360_thermal_fan_speed gauge
+         dl360_thermal_fan_speed{chassisSerialNumber="SN98765",name="Fan 1"} 16
+	`
+	GoodThermalFanStatusExpected = `
+	     # HELP dl360_thermal_fan_status Current fan status 1 = OK, 0 = BAD
+         # TYPE dl360_thermal_fan_status gauge
+         dl360_thermal_fan_status{chassisSerialNumber="SN98765",name="Fan 1"} 1
+	`
+	GoodThermalSensorStatusExpected = `
+	     # HELP dl360_thermal_sensor_status Current sensor status 1 = OK, 0 = BAD
+         # TYPE dl360_thermal_sensor_status gauge
+         dl360_thermal_sensor_status{chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 1
+	`
+	GoodThermalSensorTempExpected = `
+	     # HELP dl360_thermal_sensor_temperature Current sensor temperature reading in Celsius
+         # TYPE dl360_thermal_sensor_temperature gauge
+         dl360_thermal_sensor_temperature{chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 22
+	`
+	GoodPowerVoltageOutputExpected = `
+	     # HELP dl360_power_voltage_output Power voltage output in watts
+         # TYPE dl360_power_voltage_output gauge
+         dl360_power_voltage_output{chassisSerialNumber="SN98765",name="PSU1_VOUT"} 12.2
+	`
+	GoodPowerVoltageStatusExpected = `
+	     # HELP dl360_power_voltage_status Current power voltage status 1 = OK, 0 = BAD
+         # TYPE dl360_power_voltage_status gauge
+         dl360_power_voltage_status{chassisSerialNumber="SN98765",name="PSU1_VOUT"} 1
+	`
+	GoodPowerSupplyOutputExpected = `
+	     # HELP dl360_power_supply_output Power supply output in watts
+         # TYPE dl360_power_supply_output gauge
+         dl360_power_supply_output{chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC",serialNumber="123456789"} 91
+	`
+	GoodPowerSupplyStatusExpected = `
+	     # HELP dl360_power_supply_status Current power supply status 1 = OK, 0 = BAD
+         # TYPE dl360_power_supply_status gauge
+         dl360_power_supply_status{chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC",serialNumber="123456789"} 1
+	`
+	GoodPowerSupplyTotalConsumedExpected = `
+	     # HELP dl360_power_supply_total_consumed Total output of all power supplies in watts
+         # TYPE dl360_power_supply_total_consumed gauge
+         dl360_power_supply_total_consumed{chassisSerialNumber="SN98765",memberId="0"} 206
 	`
 )
 
@@ -335,6 +410,24 @@ func Test_DL360_Upper_Lower_Links(t *testing.T) {
 
 func Test_DL360_Metrics_Handling(t *testing.T) {
 
+	var GoodDeviceInfoResponse = []byte(`{
+			"Description": "test description",
+  			"FirmwareVersion": "iLO 5 v2.65",
+  			"Model": "iLO 5"
+  		}`)
+	var GoodCPUStatusResponse = []byte(`{
+  			"Id": "1",
+  			"Model": "cpu model",
+  			"Name": "Processors",
+  			"ProcessorArchitecture": "x86",
+  			"Socket": "Proc 1",
+  			"Status": {
+  			  "Health": "OK",
+  			  "State": "Enabled"
+  			},
+  			"TotalCores": 99,
+  			"TotalThreads": 99
+  		}`)
 	var GoodLogicalDriveResponse = []byte(`{
   			"Id": "1",
   			"CapacityMiB": 915683,
@@ -357,7 +450,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			"Description": "HPE Smart Storage Disk Drive View",
   			"InterfaceType": "SATA",
   			"Location": "1I:1:1",
-  			"Model": "MK000960GWXFH",
+  			"Model": "model name",
   			"Name": "HpeSmartStorageDiskDrive",
   			"SerialNumber": "ABC123",
   			"Status": {
@@ -370,7 +463,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			"CapacityBytes": 1600321314816,
   			"FailurePredicted": false,
   			"MediaType": "SSD",
-  			"Model": "MO001600KXPTR",
+  			"Model": "model name",
   			"Name": "Secondary Storage Device",
   			"Oem": {
   			  "Hpe": {
@@ -379,7 +472,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			      "Health": "OK",
   			      "State": "Enabled"
   			    },
-  			    "NVMeId": "1c5c_MO001600KXPTR_KJC3N4902I2603P04"
+  			    "NVMeId": "drive id"
   			  }
   			},
   			"PhysicalLocation": {
@@ -389,6 +482,451 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			},
   			"Protocol": "NVMe"
 		}`)
+	var GoodILOSelfTestResponse = []byte(`{
+  			"Oem": {
+  			  "Hpe": {
+  			    "iLOSelfTestResults": [
+  			      {
+  			        "Notes": "",
+  			        "SelfTestName": "EEPROM",
+  			        "Status": "OK"
+  			      }
+  			    ]
+  			  }
+  			}
+  		}`)
+	var GoodStorageBatteryStatusResponse = []byte(`{
+  			"Oem": {
+  			  "Hp": {
+  			    "Battery": [
+  			      {
+  			        "Condition": "Ok",
+  			        "ErrorCode": 0,
+  			        "FirmwareVersion": "1.1",
+  			        "Index": 1,
+  			        "MaxCapWatts": 96,
+  			        "Model": "battery model",
+  			        "Present": "Yes",
+  			        "ProductName": "HPE Smart Storage Battery ",
+  			        "SerialNumber": "123456789",
+  			        "Spare": "815983-001"
+  			      }
+  			    ]
+  			  }
+  			}
+  		}`)
+	var GoodMemoryDimmResponse = []byte(`{
+  			"CapacityMiB": 32768,
+  			"Manufacturer": "HPE",
+  			"MemoryDeviceType": "DDR4",
+  			"Name": "proc1dimm1",
+  			"PartNumber": "part number  ",
+  			"SerialNumber": "123456789",
+  			"Status": {
+  			  "Health": "OK",
+  			  "State": "Enabled"
+  			}
+  		}`)
+	var GoodMemorySummaryResponse = []byte(`{
+  			"Id": "1",
+  			"MemorySummary": {
+  			  "Status": {
+  			    "HealthRollup": "OK"
+  			  },
+  			  "TotalSystemMemoryGiB": 384,
+  			  "TotalSystemPersistentMemoryGiB": 0
+  			}
+  		}`)
+	var GoodThermalFanSpeedResponse = []byte(`{
+			"@odata.id": "/redfish/v1/Chassis/1/Thermal/",
+  			"Id": "Thermal",
+  			"Fans": [
+  			  {
+  			    "MemberId": "0",
+  			    "Name": "Fan 1",
+  			    "Reading": 16,
+  			    "ReadingUnits": "Percent",
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    }
+  			  }
+  			],
+  			"Name": "Thermal",
+  			"Temperatures": [
+  			  {
+  			    "MemberId": "0",
+  			    "Name": "01-Inlet Ambient",
+  			    "PhysicalContext": "Intake",
+  			    "ReadingCelsius": 22,
+  			    "SensorNumber": 1,
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    },
+  			    "UpperThresholdCritical": 42,
+  			    "UpperThresholdFatal": 47
+  			  }
+  			]
+  		}`)
+	var GoodThermalFanStatusResponse = []byte(`{
+			"@odata.id": "/redfish/v1/Chassis/1/Thermal/",
+  			"Id": "Thermal",
+  			"Fans": [
+  			  {
+  			    "MemberId": "0",
+  			    "Name": "Fan 1",
+  			    "Reading": 18,
+  			    "ReadingUnits": "Percent",
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    }
+  			  }
+  			],
+  			"Name": "Thermal",
+  			"Temperatures": [
+  			  {
+  			    "MemberId": "0",
+  			    "Name": "01-Inlet Ambient",
+  			    "PhysicalContext": "Intake",
+  			    "ReadingCelsius": 22,
+  			    "SensorNumber": 1,
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    },
+  			    "UpperThresholdCritical": 42,
+  			    "UpperThresholdFatal": 47
+  			  }
+  			]
+  		}`)
+	var GoodThermalSensorStatusResponse = []byte(`{
+			"@odata.id": "/redfish/v1/Chassis/1/Thermal/",
+  			"Id": "Thermal",
+  			"Fans": [
+  			  {
+  			    "MemberId": "0",
+  			    "Name": "Fan 1",
+  			    "Reading": 18,
+  			    "ReadingUnits": "Percent",
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    }
+  			  }
+  			],
+  			"Name": "Thermal",
+  			"Temperatures": [
+  			  {
+  			    "MemberId": "0",
+  			    "Name": "01-Inlet Ambient",
+  			    "PhysicalContext": "Intake",
+  			    "ReadingCelsius": 22,
+  			    "SensorNumber": 1,
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    },
+  			    "UpperThresholdCritical": 42,
+  			    "UpperThresholdFatal": 47
+  			  }
+  			]
+  		}`)
+	var GoodThermalSensorTempResponse = []byte(`{
+			"@odata.id": "/redfish/v1/Chassis/1/Thermal/",
+  			"Id": "Thermal",
+  			"Fans": [
+  			  {
+  			    "MemberId": "0",
+  			    "Name": "Fan 1",
+  			    "Reading": 18,
+  			    "ReadingUnits": "Percent",
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    }
+  			  }
+  			],
+  			"Name": "Thermal",
+  			"Temperatures": [
+  			  {
+  			    "MemberId": "0",
+  			    "Name": "01-Inlet Ambient",
+  			    "PhysicalContext": "Intake",
+  			    "ReadingCelsius": 22,
+  			    "SensorNumber": 1,
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    },
+  			    "UpperThresholdCritical": 42,
+  			    "UpperThresholdFatal": 47
+  			  }
+  			]
+  		}`)
+	var GoodPowerVoltageOutputResponse = []byte(`{
+  			"PowerControl": [
+  			  {
+  			    "PhysicalContext": "PowerSupply",
+  			    "PowerMetrics": {
+  			      "MinConsumedWatts": 266,
+  			      "AverageConsumedWatts": 358,
+  			      "MaxConsumedWatts": 614
+  			    },
+  			    "MemberId": "1",
+  			    "PowerConsumedWatts": 378
+  			  }
+  			],
+  			"Voltages": [
+  			  {
+  			    "Status": {
+  			      "State": "Enabled",
+  			      "Health": "OK"
+  			    },
+  			    "UpperThresholdCritical": 14,
+  			    "Name": "PSU1_VOUT",
+  			    "ReadingVolts": 12.2
+  			  }
+  			],
+  			"Id": "Power",
+  			"PowerSupplies": [
+  			  {
+  			    "SerialNumber": "123456789",
+  			    "InputRanges": [
+  			      {
+  			        "InputType": "AC",
+  			        "OutputWattage": 1050
+  			      }
+  			    ],
+  			    "FirmwareVersion": "123",
+  			    "PowerOutputWatts": 160,
+  			    "LineInputVoltage": 202,
+  			    "Name": "PSU1",
+  			    "Status": {
+  			      "State": "Enabled"
+  			    },
+  			    "PowerInputWatts": 180,
+  			    "Manufacturer": "DELTA",
+  			    "LastPowerOutputWatts": 160,
+  			    "MemberId": "1",
+  			    "PartNumber": "part number",
+  			    "PowerSupplyType": "AC",
+  			    "Model": "psmodel",
+  			    "SparePartNumber": "part number"
+  			  }
+  			],
+  			"Name": "Power"
+  		}`)
+	var GoodPowerVoltageStatusResponse = []byte(`{
+  			"PowerControl": [
+  			  {
+  			    "PhysicalContext": "PowerSupply",
+  			    "PowerMetrics": {
+  			      "MinConsumedWatts": 266,
+  			      "AverageConsumedWatts": 358,
+  			      "MaxConsumedWatts": 614
+  			    },
+  			    "MemberId": "1",
+  			    "PowerConsumedWatts": 378
+  			  }
+  			],
+  			"Voltages": [
+  			  {
+  			    "Status": {
+  			      "State": "Enabled",
+  			      "Health": "OK"
+  			    },
+  			    "UpperThresholdCritical": 14,
+  			    "Name": "PSU1_VOUT",
+  			    "ReadingVolts": 12.2
+  			  }
+  			],
+  			"Id": "Power",
+  			"PowerSupplies": [
+  			  {
+  			    "SerialNumber": "123456789",
+  			    "InputRanges": [
+  			      {
+  			        "InputType": "AC",
+  			        "OutputWattage": 1050
+  			      }
+  			    ],
+  			    "FirmwareVersion": "123",
+  			    "PowerOutputWatts": 160,
+  			    "LineInputVoltage": 202,
+  			    "Name": "PSU1",
+  			    "Status": {
+  			      "State": "Enabled"
+  			    },
+  			    "PowerInputWatts": 180,
+  			    "Manufacturer": "DELTA",
+  			    "LastPowerOutputWatts": 160,
+  			    "MemberId": "1",
+  			    "PartNumber": "part number",
+  			    "PowerSupplyType": "AC",
+  			    "Model": "psmodel",
+  			    "SparePartNumber": "part number"
+  			  }
+  			],
+  			"Name": "Power"
+  		}`)
+	var GoodPowerSupplyOutputResponse = []byte(`{
+  			"Id": "Power",
+  			"Name": "PowerMetrics",
+  			"PowerControl": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerControl/0",
+  			    "MemberId": "0",
+  			    "PowerCapacityWatts": 1600,
+  			    "PowerConsumedWatts": 206,
+  			    "PowerMetrics": {
+  			      "AverageConsumedWatts": 207,
+  			      "IntervalInMin": 20,
+  			      "MaxConsumedWatts": 282,
+  			      "MinConsumedWatts": 205
+  			    }
+  			  }
+  			],
+  			"PowerSupplies": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
+  			    "FirmwareVersion": "2.04",
+  			    "LastPowerOutputWatts": 91,
+  			    "LineInputVoltage": 206,
+  			    "LineInputVoltageType": "ACHighLine",
+  			    "Manufacturer": "DELTA",
+  			    "MemberId": "0",
+  			    "Model": "psmodel",
+  			    "Name": "HpeServerPowerSupply",
+  			    "Oem": {
+  			      "Hpe": {
+  			        "AveragePowerOutputWatts": 91,
+  			        "BayNumber": 1,
+  			        "HotplugCapable": true,
+  			        "MaxPowerOutputWatts": 93,
+  			        "Mismatched": false,
+  			        "PowerSupplyStatus": {
+  			          "State": "Ok"
+  			        },
+  			        "iPDUCapable": false
+  			      }
+  			    },
+  			    "PowerCapacityWatts": 800,
+  			    "PowerSupplyType": "AC",
+  			    "SerialNumber": "123456789",
+  			    "SparePartNumber": "part number",
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    }
+  			  }
+  			]
+  		}`)
+	var GoodPowerSupplyStatusResponse = []byte(`{
+  			"Id": "Power",
+  			"Name": "PowerMetrics",
+  			"PowerControl": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerControl/0",
+  			    "MemberId": "0",
+  			    "PowerCapacityWatts": 1600,
+  			    "PowerConsumedWatts": 206,
+  			    "PowerMetrics": {
+  			      "AverageConsumedWatts": 207,
+  			      "IntervalInMin": 20,
+  			      "MaxConsumedWatts": 282,
+  			      "MinConsumedWatts": 205
+  			    }
+  			  }
+  			],
+  			"PowerSupplies": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
+  			    "FirmwareVersion": "2.04",
+  			    "LastPowerOutputWatts": 91,
+  			    "LineInputVoltage": 206,
+  			    "LineInputVoltageType": "ACHighLine",
+  			    "Manufacturer": "DELTA",
+  			    "MemberId": "0",
+  			    "Model": "psmodel",
+  			    "Name": "HpeServerPowerSupply",
+  			    "Oem": {
+  			      "Hpe": {
+  			        "AveragePowerOutputWatts": 91,
+  			        "BayNumber": 1,
+  			        "HotplugCapable": true,
+  			        "MaxPowerOutputWatts": 93,
+  			        "Mismatched": false,
+  			        "PowerSupplyStatus": {
+  			          "State": "Ok"
+  			        },
+  			        "iPDUCapable": false
+  			      }
+  			    },
+  			    "PowerCapacityWatts": 800,
+  			    "PowerSupplyType": "AC",
+  			    "SerialNumber": "123456789",
+  			    "SparePartNumber": "part number",
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    }
+  			  }
+  			]
+  		}`)
+	var GoodPowerSupplyTotalConsumedResponse = []byte(`{
+  			"Id": "Power",
+  			"Name": "PowerMetrics",
+  			"PowerControl": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerControl/0",
+  			    "MemberId": "0",
+  			    "PowerCapacityWatts": 1600,
+  			    "PowerConsumedWatts": 206,
+  			    "PowerMetrics": {
+  			      "AverageConsumedWatts": 207,
+  			      "IntervalInMin": 20,
+  			      "MaxConsumedWatts": 282,
+  			      "MinConsumedWatts": 205
+  			    }
+  			  }
+  			],
+  			"PowerSupplies": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
+  			    "FirmwareVersion": "2.04",
+  			    "LastPowerOutputWatts": 91,
+  			    "LineInputVoltage": 206,
+  			    "LineInputVoltageType": "ACHighLine",
+  			    "Manufacturer": "DELTA",
+  			    "MemberId": "0",
+  			    "Model": "psmodel",
+  			    "Name": "HpeServerPowerSupply",
+  			    "Oem": {
+  			      "Hpe": {
+  			        "AveragePowerOutputWatts": 91,
+  			        "BayNumber": 1,
+  			        "HotplugCapable": true,
+  			        "MaxPowerOutputWatts": 93,
+  			        "Mismatched": false,
+  			        "PowerSupplyStatus": {
+  			          "State": "Ok"
+  			        },
+  			        "iPDUCapable": false
+  			      }
+  			    },
+  			    "PowerCapacityWatts": 800,
+  			    "PowerSupplyType": "AC",
+  			    "SerialNumber": "123456789",
+  			    "SparePartNumber": "part number",
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    }
+  			  }
+  			]
+  		}`)
 
 	var exporter prometheus.Collector
 
@@ -405,6 +943,22 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 	}
 
 	prometheus.MustRegister(exporter)
+
+	deviceInfoMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportFirmwareMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	processorMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportProcessorMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 
 	logicalDevMetrics := func(exp *Exporter, payload []byte) error {
 		err := exp.exportLogicalDriveMetrics(payload)
@@ -430,6 +984,54 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		return nil
 	}
 
+	iloSelfTestMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportIloSelfTest(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	storBatterytMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportStorageBattery(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	memDimmMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportMemoryMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	memSummaryMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportMemorySummaryMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	thermMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportThermalMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	powMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportPowerMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	tests := []struct {
 		name       string
 		metricName string
@@ -439,6 +1041,24 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		response   []byte
 		expected   string
 	}{
+		{
+			name:       "Good Device Info",
+			metricName: "device_info",
+			metricRef1: "deviceInfo",
+			metricRef2: "deviceInfo",
+			handleFunc: deviceInfoMetrics,
+			response:   GoodDeviceInfoResponse,
+			expected:   GoodDeviceInfoExpected,
+		},
+		{
+			name:       "Good CPU Status",
+			metricName: "dl360_cpu_status",
+			metricRef1: "processorMetrics",
+			metricRef2: "processorStatus",
+			handleFunc: processorMetrics,
+			response:   GoodCPUStatusResponse,
+			expected:   GoodCPUStatusExpected,
+		},
 		{
 			name:       "Good Logical Drive",
 			metricName: "dl360_logical_drive_status",
@@ -466,21 +1086,138 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 			response:   GoodNvmeDriveResponse,
 			expected:   GoodNvmeDriveExpected,
 		},
+		{
+			name:       "Good iLO Self Test",
+			metricName: "dl360_ilo_selftest_status",
+			metricRef1: "iloSelfTestMetrics",
+			metricRef2: "iloSelfTestStatus",
+			handleFunc: iloSelfTestMetrics,
+			response:   GoodILOSelfTestResponse,
+			expected:   GoodILOSelfTestExpected,
+		},
+		{
+			name:       "Good Storage Battery Status",
+			metricName: "dl360_storage_battery_status",
+			metricRef1: "storBatteryMetrics",
+			metricRef2: "storageBatteryStatus",
+			handleFunc: storBatterytMetrics,
+			response:   GoodStorageBatteryStatusResponse,
+			expected:   GoodStorageBatteryStatusExpected,
+		},
+		{
+			name:       "Good Memory DIMM Status",
+			metricName: "dl360_memory_dimm_status",
+			metricRef1: "memoryMetrics",
+			metricRef2: "memoryDimmStatus",
+			handleFunc: memDimmMetrics,
+			response:   GoodMemoryDimmResponse,
+			expected:   GoodMemoryDimmExpected,
+		},
+		{
+			name:       "Good Memory Summary Status",
+			metricName: "dl360_memory_status",
+			metricRef1: "memoryMetrics",
+			metricRef2: "memoryStatus",
+			handleFunc: memSummaryMetrics,
+			response:   GoodMemorySummaryResponse,
+			expected:   GoodMemorySummaryExpected,
+		},
+		{
+			name:       "Good Thermal Fan Speed",
+			metricName: "dl360_thermal_fan_speed",
+			metricRef1: "thermalMetrics",
+			metricRef2: "fanSpeed",
+			handleFunc: thermMetrics,
+			response:   GoodThermalFanSpeedResponse,
+			expected:   GoodThermalFanSpeedExpected,
+		},
+		{
+			name:       "Good Thermal Fan Status",
+			metricName: "dl360_thermal_fan_status",
+			metricRef1: "thermalMetrics",
+			metricRef2: "fanStatus",
+			handleFunc: thermMetrics,
+			response:   GoodThermalFanStatusResponse,
+			expected:   GoodThermalFanStatusExpected,
+		},
+		{
+			name:       "Good Thermal Sensor Status",
+			metricName: "dl360_thermal_sensor_status",
+			metricRef1: "thermalMetrics",
+			metricRef2: "sensorStatus",
+			handleFunc: thermMetrics,
+			response:   GoodThermalSensorStatusResponse,
+			expected:   GoodThermalSensorStatusExpected,
+		},
+		{
+			name:       "Good Thermal Sensor Temperature",
+			metricName: "dl360_thermal_sensor_temperature",
+			metricRef1: "thermalMetrics",
+			metricRef2: "sensorTemperature",
+			handleFunc: thermMetrics,
+			response:   GoodThermalSensorTempResponse,
+			expected:   GoodThermalSensorTempExpected,
+		},
+		{
+			name:       "Good Power Voltage Output",
+			metricName: "dl360_power_voltage_output",
+			metricRef1: "powerMetrics",
+			metricRef2: "voltageOutput",
+			handleFunc: powMetrics,
+			response:   GoodPowerVoltageOutputResponse,
+			expected:   GoodPowerVoltageOutputExpected,
+		},
+		{
+			name:       "Good Power Voltage Status",
+			metricName: "dl360_power_voltage_status",
+			metricRef1: "powerMetrics",
+			metricRef2: "voltageStatus",
+			handleFunc: powMetrics,
+			response:   GoodPowerVoltageStatusResponse,
+			expected:   GoodPowerVoltageStatusExpected,
+		},
+		{
+			name:       "Good Power Supply Output",
+			metricName: "dl360_power_supply_output",
+			metricRef1: "powerMetrics",
+			metricRef2: "supplyOutput",
+			handleFunc: powMetrics,
+			response:   GoodPowerSupplyOutputResponse,
+			expected:   GoodPowerSupplyOutputExpected,
+		},
+		{
+			name:       "Good Power Supply Status",
+			metricName: "dl360_power_supply_status",
+			metricRef1: "powerMetrics",
+			metricRef2: "supplyStatus",
+			handleFunc: powMetrics,
+			response:   GoodPowerSupplyStatusResponse,
+			expected:   GoodPowerSupplyStatusExpected,
+		},
+		{
+			name:       "Good Power Supply Total Consumed",
+			metricName: "dl360_power_supply_total_consumed",
+			metricRef1: "powerMetrics",
+			metricRef2: "supplyTotalConsumed",
+			handleFunc: powMetrics,
+			response:   GoodPowerSupplyTotalConsumedResponse,
+			expected:   GoodPowerSupplyTotalConsumedExpected,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// clear metric before each test
+			metric := (*exporter.(*Exporter).deviceMetrics)[test.metricRef1]
+			m := (*metric)[test.metricRef2]
+			m.Reset()
+
 			err := test.handleFunc(exporter.(*Exporter), test.response)
 			if err != nil {
 				t.Error(err)
 			}
 
-			metric := (*exporter.(*Exporter).deviceMetrics)[test.metricRef1]
-			m := (*metric)[test.metricRef2]
-
 			assert.Empty(testutil.CollectAndCompare(m, strings.NewReader(test.expected), test.metricName))
-
-			m.Reset()
 		})
 	}
 	prometheus.Unregister(exporter)

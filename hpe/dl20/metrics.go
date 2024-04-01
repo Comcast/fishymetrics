@@ -49,8 +49,8 @@ func NewDeviceMetrics() *map[string]*metrics {
 		PowerMetrics = &metrics{
 			"voltageOutput":       newServerMetric("dl20_power_voltage_output", "Power voltage output in watts", nil, []string{"name", "chassisSerialNumber"}),
 			"voltageStatus":       newServerMetric("dl20_power_voltage_status", "Current power voltage status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber"}),
-			"supplyOutput":        newServerMetric("dl20_power_supply_output", "Power supply output in watts", nil, []string{"memberId", "chassisSerialNumber", "sparePartNumber"}),
-			"supplyStatus":        newServerMetric("dl20_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"memberId", "chassisSerialNumber", "sparePartNumber"}),
+			"supplyOutput":        newServerMetric("dl20_power_supply_output", "Power supply output in watts", nil, []string{"name", "chassisSerialNumber", "manufacturer", "partNumber", "serialNumber", "powerSupplyType", "model"}),
+			"supplyStatus":        newServerMetric("dl20_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "manufacturer", "partNumber", "serialNumber", "powerSupplyType", "model"}),
 			"supplyTotalConsumed": newServerMetric("dl20_power_supply_total_consumed", "Total output of all power supplies in watts", nil, []string{"memberId", "chassisSerialNumber"}),
 		}
 
