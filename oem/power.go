@@ -30,6 +30,7 @@ type PowerMetrics struct {
 	PowerControl  PowerControlWrapper `json:"PowerControl"`
 	PowerSupplies []PowerSupply       `json:"PowerSupplies"`
 	Voltages      []Voltages          `json:"Voltages,omitempty"`
+	Url           string              `json:"@odata.id"`
 }
 
 // PowerControl is the top level json object for metadata on power supply consumption
