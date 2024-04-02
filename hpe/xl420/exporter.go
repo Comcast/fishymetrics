@@ -26,7 +26,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -171,15 +170,13 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		return nil, err
 	}
 
-	exp.chassisSerialNumber = path.Base(sysEndpoint)
-
-	// chassis BIOS version
-	biosVer, err := getBIOSVersion(fqdn.String()+sysEndpoint, target, retryClient)
+	resp, err := getSystemsMetadata(fqdn.String()+sysEndpoint, target, retryClient)
 	if err != nil {
 		log.Error("error when getting BIOS version from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
-	exp.biosVersion = biosVer
+	exp.biosVersion = resp.BiosVersion
+	exp.chassisSerialNumber = resp.SerialNumber
 
 	// vars for drive parsing
 	var (
@@ -306,7 +303,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 	}
 
 	// DIMM endpoints array
-	dimms, err := getDIMMEndpoints(fqdn.String()+sysEndpoint+"/Memory", target, retryClient)
+	dimms, err := getDIMMEndpoints(fqdn.String()+sysEndpoint+"Memory/", target, retryClient)
 	if err != nil {
 		log.Error("error when getting DIMM endpoints from "+XL420, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
@@ -930,30 +927,30 @@ func getChassisEndpoint(url, host string, client *retryablehttp.Client) (string,
 	return urlFinal, nil
 }
 
-func getBIOSVersion(url, host string, client *retryablehttp.Client) (string, error) {
-	var biosVer oem.ServerManager
+func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.ServerManager, error) {
+	var sm oem.ServerManager
 	req := common.BuildRequest(url, host)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return sm, err
 	}
 	defer resp.Body.Close()
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		return "", fmt.Errorf("HTTP status %d", resp.StatusCode)
+		return sm, fmt.Errorf("HTTP status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("Error reading Response Body - " + err.Error())
+		return sm, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
 
-	err = json.Unmarshal(body, &biosVer)
+	err = json.Unmarshal(body, &sm)
 	if err != nil {
-		return "", fmt.Errorf("Error Unmarshalling XL420 ServerManager struct - " + err.Error())
+		return sm, fmt.Errorf("Error Unmarshalling XL420 ServerManager struct - " + err.Error())
 	}
 
-	return biosVer.BiosVersion, nil
+	return sm, nil
 }
 
 func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
