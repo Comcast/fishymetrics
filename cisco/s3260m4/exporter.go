@@ -391,7 +391,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				watts, _ = strconv.ParseFloat(pc.PowerMetrics.AverageConsumedWatts.(string), 32)
 			}
 		}
-		(*pow)["supplyTotalConsumed"].WithLabelValues(pc.MemberID, e.chassisSerialNumber).Set(watts)
+		(*pow)["supplyTotalConsumed"].WithLabelValues(pm.Url, e.chassisSerialNumber).Set(watts)
 	}
 
 	for _, pv := range pm.Voltages {
@@ -434,6 +434,15 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling S3260M4 ThermalMetrics - " + err.Error())
+	}
+
+	if tm.Status.State == "Enabled" {
+		if tm.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
+		(*therm)["thermalSummary"].WithLabelValues(tm.Url, e.chassisSerialNumber).Set(state)
 	}
 
 	// Iterate through fans
