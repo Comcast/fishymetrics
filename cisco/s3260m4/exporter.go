@@ -162,8 +162,8 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		return nil, err
 	}
 
-	if len(mgrEndpoints.Links.ManagerForServers.ServerManagerURLSlice) > 0 {
-		mgr = mgrEndpoints.Links.ManagerForServers.ServerManagerURLSlice[0]
+	if len(mgrEndpoints.LinksUpper.ManagerForServers.ServerManagerURLSlice) > 0 {
+		mgr = mgrEndpoints.LinksUpper.ManagerForServers.ServerManagerURLSlice[0]
 	}
 
 	// chassis BIOS version
@@ -621,7 +621,7 @@ func (e *Exporter) exportDriveMetrics(body []byte) error {
 			state = DISABLED
 		}
 
-		(*dlDrive)["storageControllerStatus"].WithLabelValues(sc.Name, e.chassisSerialNumber, sc.FirmwareVersion, sc.Manufacturer, sc.Model).Set(state)
+		(*dlDrive)["storageControllerStatus"].WithLabelValues(scm.Name, e.chassisSerialNumber, sc.FirmwareVersion, sc.Manufacturer, sc.Model).Set(state)
 	}
 
 	return nil

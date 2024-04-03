@@ -765,6 +765,7 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 func (e *Exporter) exportMemoryMetrics(body []byte) error {
 
 	var state float64
+	var memCap string
 	var mm oem.MemoryMetrics
 	var mem = (*e.deviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &mm)
@@ -772,8 +773,22 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling XL420 MemoryMetrics - " + err.Error())
 	}
 
-	if mm.Status != "" {
-		var memCap string
+	if mm.DIMMStatus != "" {
+		switch mm.SizeMB.(type) {
+		case string:
+			memCap = mm.SizeMB.(string)
+		case int:
+			memCap = strconv.Itoa(mm.SizeMB.(int))
+		case float64:
+			memCap = strconv.Itoa(int(mm.SizeMB.(float64)))
+		}
+		if mm.DIMMStatus == "GoodInUse" {
+			state = OK
+		} else {
+			state = BAD
+		}
+		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, memCap, strings.TrimRight(mm.Manufacturer, " "), strings.TrimRight(mm.PartNumber, " "), mm.SerialNumber).Set(state)
+	} else if mm.Status != "" {
 		var status string
 
 		switch mm.CapacityMiB.(type) {
@@ -920,8 +935,10 @@ func getChassisEndpoint(url, host string, client *retryablehttp.Client) (string,
 		return "", fmt.Errorf("Error Unmarshalling XL420 Chassis struct - " + err.Error())
 	}
 
-	if len(chas.Links.ManagerForServers.ServerManagerURLSlice) > 0 {
-		urlFinal = chas.Links.ManagerForServers.ServerManagerURLSlice[0]
+	if len(chas.LinksUpper.ManagerForServers.ServerManagerURLSlice) > 0 {
+		urlFinal = chas.LinksUpper.ManagerForServers.ServerManagerURLSlice[0]
+	} else if len(chas.LinksLower.ManagerForServers.ServerManagerURLSlice) > 0 {
+		urlFinal = chas.LinksLower.ManagerForServers.ServerManagerURLSlice[0]
 	}
 
 	return urlFinal, nil

@@ -22,11 +22,13 @@ package oem
 type MemoryMetrics struct {
 	Name             string      `json:"Name"`
 	CapacityMiB      interface{} `json:"CapacityMiB"`
+	SizeMB           interface{} `json:"SizeMB"`
 	Manufacturer     string      `json:"Manufacturer"`
 	MemoryDeviceType string      `json:"MemoryDeviceType"`
 	PartNumber       string      `json:"PartNumber"`
 	SerialNumber     string      `json:"SerialNumber"`
 	Status           interface{} `json:"Status"`
+	DIMMStatus       string      `json:"DIMMStatus"`
 }
 
 // /redfish/v1/systems/1/

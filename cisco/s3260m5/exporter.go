@@ -163,8 +163,8 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		return nil, err
 	}
 
-	if len(mgrEndpoints.Links.ManagerForServers.ServerManagerURLSlice) > 0 {
-		mgr = mgrEndpoints.Links.ManagerForServers.ServerManagerURLSlice[0]
+	if len(mgrEndpoints.LinksUpper.ManagerForServers.ServerManagerURLSlice) > 0 {
+		mgr = mgrEndpoints.LinksUpper.ManagerForServers.ServerManagerURLSlice[0]
 	}
 
 	// BMC Firmware major.minor

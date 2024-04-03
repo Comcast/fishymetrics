@@ -723,8 +723,8 @@ func getChassisEndpoint(url, host string, client *retryablehttp.Client) (string,
 		return "", fmt.Errorf("Error Unmarshalling C220 Chassis struct - " + err.Error())
 	}
 
-	if len(chas.Links.ManagerForServers.ServerManagerURLSlice) > 0 {
-		urlFinal = chas.Links.ManagerForServers.ServerManagerURLSlice[0]
+	if len(chas.LinksUpper.ManagerForServers.ServerManagerURLSlice) > 0 {
+		urlFinal = chas.LinksUpper.ManagerForServers.ServerManagerURLSlice[0]
 	}
 
 	return urlFinal, nil
