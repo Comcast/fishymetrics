@@ -75,6 +75,11 @@ const (
          # TYPE dl360_memory_dimm_status gauge
          dl360_memory_dimm_status{capacityMiB="32768",chassisSerialNumber="SN98765",manufacturer="HPE",name="proc1dimm1",partNumber="part number",serialNumber="123456789"} 1
 	`
+	GoodMemoryDimmExpectedG9 = `
+         # HELP dl360_memory_dimm_status Current dimm status 1 = OK, 0 = BAD
+         # TYPE dl360_memory_dimm_status gauge
+         dl360_memory_dimm_status{capacityMiB="32768",chassisSerialNumber="SN98765",manufacturer="HP",name="proc2dimm12",partNumber="part number",serialNumber=""} 1
+	`
 	GoodMemorySummaryExpected = `
 	     # HELP dl360_memory_status Current memory status 1 = OK, 0 = BAD
          # TYPE dl360_memory_status gauge
@@ -527,6 +532,14 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			  "State": "Enabled"
   			}
   		}`)
+	var GoodMemoryDimmResponseG9 = []byte(`{
+				"DIMMStatus": "GoodInUse",
+				"Name": "proc2dimm12",
+				"SizeMB": 32768,
+				"Manufacturer": "HP     ",
+				"PartNumber": "part number",
+				"DIMMType": "DDR4"
+			}`)
 	var GoodMemorySummaryResponse = []byte(`{
   			"Id": "1",
   			"MemorySummary": {
@@ -1112,6 +1125,15 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 			handleFunc: memDimmMetrics,
 			response:   GoodMemoryDimmResponse,
 			expected:   GoodMemoryDimmExpected,
+		},
+		{
+			name:       "Good Memory DIMM Status G9",
+			metricName: "dl360_memory_dimm_status",
+			metricRef1: "memoryMetrics",
+			metricRef2: "memoryDimmStatus",
+			handleFunc: memDimmMetrics,
+			response:   GoodMemoryDimmResponseG9,
+			expected:   GoodMemoryDimmExpectedG9,
 		},
 		{
 			name:       "Good Memory Summary Status",
