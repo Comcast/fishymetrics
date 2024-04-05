@@ -26,9 +26,12 @@ import (
 // Chassis contains the Model Number, Firmware, etc of the chassis
 type Chassis struct {
 	FirmwareVersion string `json:"FirmwareVersion"`
-	Links           struct {
+	LinksUpper      struct {
 		ManagerForServers ServerManagerURLWrapper `json:"ManagerForServers"`
 	} `json:"Links"`
+	LinksLower struct {
+		ManagerForServers ServerManagerURLWrapper `json:"ManagerForServers"`
+	} `json:"links"`
 	Model       string `json:"Model"`
 	Description string `json:"Description"`
 }
@@ -45,12 +48,17 @@ func (w *ServerManagerURLWrapper) UnmarshalJSON(data []byte) error {
 	// because of a change in output betwen c220 firmware versions we need to account for this
 	if bytes.Compare([]byte("[{"), data[0:2]) == 0 {
 		var serMgrTmp []struct {
-			Url string `json:"@odata.id,omitempty"`
+			UrlLinks string `json:"@odata.id,omitempty"`
+			Urllinks string `json:"href,omitempty"`
 		}
 		err := json.Unmarshal(data, &serMgrTmp)
 		if len(serMgrTmp) > 0 {
 			s := make([]string, 0)
-			s = append(s, serMgrTmp[0].Url)
+			if serMgrTmp[0].UrlLinks != "" {
+				s = append(s, serMgrTmp[0].UrlLinks)
+			} else {
+				s = append(s, serMgrTmp[0].Urllinks)
+			}
 			w.ServerManagerURLSlice = s
 			return nil
 		}
@@ -78,8 +86,9 @@ type Status struct {
 
 // ServerManager contains the BIOS version and Serial number of the chassis
 type ServerManager struct {
-	BiosVersion  string `json:"BiosVersion"`
-	SerialNumber string `json:"SerialNumber"`
+	BiosVersion   string `json:"BiosVersion"`
+	SerialNumber  string `json:"SerialNumber"`
+	IloServerName string `json:"HostName"`
 }
 
 // /redfish/v1/Chassis/CMC

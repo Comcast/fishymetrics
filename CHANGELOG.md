@@ -20,6 +20,8 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Cisco UCS C220 - add additional edge cases when collecting memory metrics [#2](https://github.com/Comcast/fishymetrics/issues/2)
 - null pointer derefence errors when using incorrect credentials [#36](https://github.com/Comcast/fishymetrics/issues/36)
 - incorrect /Memory path for HPE hosts [#49](https://github.com/Comcast/fishymetrics/issues/49)
+- Thermal Summary, Power total consumed for Cisco servers and Chassis, memory metrics for Gen9 server models [#53](https://github.com/Comcast/fishymetrics/issues/53)
+- Firmware gathering endpoint update and add device info to other HP models [#55](https://github.com/Comcast/fishymetrics/issues/55)
 
 ## Updated
 

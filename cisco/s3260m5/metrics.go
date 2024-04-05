@@ -44,6 +44,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"fanStatus":         newServerMetric("s3260m5_thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber"}),
 			"sensorTemperature": newServerMetric("s3260m5_thermal_sensor_temperature", "Current sensor temperature reading in Celsius", nil, []string{"name", "chassisSerialNumber"}),
 			"sensorStatus":      newServerMetric("s3260m5_thermal_sensor_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber"}),
+			"thermalSummary":    newServerMetric("s3260m5_thermal_summary_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"url", "chassisSerialNumber"}),
 		}
 
 		PowerMetrics = &metrics{
