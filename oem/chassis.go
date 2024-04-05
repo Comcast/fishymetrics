@@ -86,8 +86,9 @@ type Status struct {
 
 // ServerManager contains the BIOS version and Serial number of the chassis
 type ServerManager struct {
-	BiosVersion  string `json:"BiosVersion"`
-	SerialNumber string `json:"SerialNumber"`
+	BiosVersion   string `json:"BiosVersion"`
+	SerialNumber  string `json:"SerialNumber"`
+	IloServerName string `json:"HostName"`
 }
 
 // /redfish/v1/Chassis/CMC

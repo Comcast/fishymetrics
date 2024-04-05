@@ -82,6 +82,7 @@ type Exporter struct {
 	credProfile         string
 	biosVersion         string
 	chassisSerialNumber string
+	iloServerName       string
 	deviceMetrics       *map[string]*metrics
 }
 
@@ -171,6 +172,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 	}
 	exp.biosVersion = resp.BiosVersion
 	exp.chassisSerialNumber = resp.SerialNumber
+	exp.iloServerName = resp.IloServerName
 
 	// vars for drive parsing
 	var (
@@ -298,7 +300,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, profile, retryClient)),
 		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY_SUMMARY, target, profile, retryClient)),
-	)
+		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Managers/1/", FIRMWARE, target, profile, retryClient)))
 
 	// DIMMs
 	for _, dimm := range dimms.Members {
@@ -435,7 +437,7 @@ func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DL560 FirmwareMetrics - " + err.Error())
 	}
 
-	(*dm)["deviceInfo"].WithLabelValues(chas.Description, e.chassisSerialNumber, chas.FirmwareVersion, e.biosVersion, DL560).Set(1.0)
+	(*dm)["deviceInfo"].WithLabelValues(e.iloServerName, e.chassisSerialNumber, chas.FirmwareVersion, e.biosVersion, DL560).Set(1.0)
 
 	return nil
 }
