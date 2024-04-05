@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,17 +31,10 @@ import (
 	"time"
 
 	"github.com/comcast/fishymetrics/buildinfo"
-	"github.com/comcast/fishymetrics/cisco/c220"
-	"github.com/comcast/fishymetrics/cisco/s3260m4"
-	"github.com/comcast/fishymetrics/cisco/s3260m5"
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
-	"github.com/comcast/fishymetrics/hpe/dl20"
-	"github.com/comcast/fishymetrics/hpe/dl360"
-	"github.com/comcast/fishymetrics/hpe/dl380"
-	"github.com/comcast/fishymetrics/hpe/dl560"
-	"github.com/comcast/fishymetrics/hpe/moonshot"
-	"github.com/comcast/fishymetrics/hpe/xl420"
+	"github.com/comcast/fishymetrics/exporter"
+	"github.com/comcast/fishymetrics/exporter/moonshot"
 	"github.com/comcast/fishymetrics/logger"
 	"github.com/comcast/fishymetrics/middleware/muxprom"
 	fishy_vault "github.com/comcast/fishymetrics/vault"
@@ -99,7 +92,7 @@ var wg = sync.WaitGroup{}
 func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	var uri string
-	var exporter prometheus.Collector
+	var exp prometheus.Collector
 	var err error
 
 	target := query.Get("target")
@@ -143,34 +136,13 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	if moduleName == "moonshot" {
 		uri = "/rest/v1/chassis/1"
+		exp, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
 	} else {
 		uri = "/redfish/v1"
+		exp, err = exporter.NewExporter(r.Context(), target, uri, credProf, moduleName)
 	}
 
-	switch moduleName {
-	case "moonshot":
-		exporter, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
-	case "dl380":
-		exporter, err = dl380.NewExporter(r.Context(), target, uri, credProf)
-	case "dl360":
-		exporter, err = dl360.NewExporter(r.Context(), target, uri, credProf)
-	case "dl560":
-		exporter, err = dl560.NewExporter(r.Context(), target, uri, credProf)
-	case "dl20":
-		exporter, err = dl20.NewExporter(r.Context(), target, uri, credProf)
-	case "xl420":
-		exporter, err = xl420.NewExporter(r.Context(), target, uri, credProf)
-	case "c220":
-		exporter, err = c220.NewExporter(r.Context(), target, uri, credProf)
-	case "s3260m4":
-		exporter, err = s3260m4.NewExporter(r.Context(), target, uri, credProf)
-	case "s3260m5":
-		exporter, err = s3260m5.NewExporter(r.Context(), target, uri, credProf)
-	default:
-		log.Error("'module' parameter does not match available options", zap.String("module", moduleName), zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
-		http.Error(w, "'module' parameter does not match available options: [moonshot, dl360, dl380, dl560, dl20, xl420, c220, s3260m4, s3260m5]", http.StatusBadRequest)
-		return
-	}
+	http.NotFound(w, r)
 
 	if err != nil {
 		log.Error("failed to create chassis exporter", zap.Error(err), zap.Any("trace_id", r.Context().Value("traceID")))
@@ -178,7 +150,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	registry.MustRegister(exporter)
+	registry.MustRegister(exp)
 	// Delegate http serving to Prometheus client library, which will call collector.Collect.
 	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 	h.ServeHTTP(w, r)
