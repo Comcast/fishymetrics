@@ -446,6 +446,7 @@ func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 	var state float64
+	var bay int
 	var pm oem.PowerMetrics
 	var pow = (*e.deviceMetrics)["powerMetrics"]
 	err := json.Unmarshal(body, &pm)
@@ -499,6 +500,12 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	}
 
 	for _, ps := range pm.PowerSupplies {
+		if ps.Oem.Hp.PowerSupplyStatus.State != "" {
+			bay = ps.Oem.Hp.BayNumber
+		} else if ps.Oem.Hpe.PowerSupplyStatus.State != "" {
+			bay = ps.Oem.Hpe.BayNumber
+		}
+
 		if ps.Status.State == "Enabled" {
 			var watts float64
 			switch ps.LastPowerOutputWatts.(type) {
@@ -507,7 +514,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			case string:
 				watts, _ = strconv.ParseFloat(ps.LastPowerOutputWatts.(string), 32)
 			}
-			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(watts)
+			(*pow)["supplyOutput"].WithLabelValues(ps.Name, strconv.Itoa(bay), e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(watts)
 			if ps.Status.Health == "OK" {
 				state = OK
 			} else if ps.Status.Health == "" {
@@ -519,7 +526,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			state = BAD
 		}
 
-		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(state)
+		(*pow)["supplyStatus"].WithLabelValues(ps.Name, strconv.Itoa(bay), e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(state)
 	}
 
 	return nil

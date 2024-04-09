@@ -49,9 +49,13 @@ func NewDeviceMetrics() *map[string]*metrics {
 		PowerMetrics = &metrics{
 			"voltageOutput":       newServerMetric("dl380_power_voltage_output", "Power voltage output in watts", nil, []string{"name", "chassisSerialNumber"}),
 			"voltageStatus":       newServerMetric("dl380_power_voltage_status", "Current power voltage status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber"}),
-			"supplyOutput":        newServerMetric("dl380_power_supply_output", "Power supply output in watts", nil, []string{"name", "chassisSerialNumber", "manufacturer", "partNumber", "serialNumber", "powerSupplyType", "model"}),
-			"supplyStatus":        newServerMetric("dl380_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "manufacturer", "partNumber", "serialNumber", "powerSupplyType", "model"}),
+			"supplyOutput":        newServerMetric("dl380_power_supply_output", "Power supply output in watts", nil, []string{"name", "bayNumber", "chassisSerialNumber", "manufacturer", "partNumber", "serialNumber", "powerSupplyType", "model"}),
+			"supplyStatus":        newServerMetric("dl380_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"name", "bayNumber", "chassisSerialNumber", "manufacturer", "partNumber", "serialNumber", "powerSupplyType", "model"}),
 			"supplyTotalConsumed": newServerMetric("dl380_power_supply_total_consumed", "Total output of all power supplies in watts", nil, []string{"memberId", "chassisSerialNumber"}),
+		}
+
+		ProcessorMetrics = &metrics{
+			"processorStatus": newServerMetric("dl380_cpu_status", "Current cpu status 1 = OK, 0 = BAD", nil, []string{"id", "chassisSerialNumber", "socket", "model", "totalCores"}),
 		}
 
 		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
@@ -83,6 +87,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"up":                  UpMetric,
 			"thermalMetrics":      ThermalMetrics,
 			"powerMetrics":        PowerMetrics,
+			"processorMetrics":    ProcessorMetrics,
 			"nvmeMetrics":         NVMeDriveMetrics,
 			"diskDriveMetrics":    DiskDriveMetrics,
 			"logicalDriveMetrics": LogicalDriveMetrics,

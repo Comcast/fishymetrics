@@ -38,7 +38,7 @@ const (
 	GoodDeviceInfoExpected = `
          # HELP device_info Current snapshot of device firmware information
          # TYPE device_info gauge
-         device_info{biosVersion="U99 v0.00 (xx/xx/xxxx)",chassisSerialNumber="SN98765",firmwareVersion="iLO 5 v2.65",model="DL360",name="test description"} 1
+         device_info{biosVersion="U99 v0.00 (xx/xx/xxxx)",chassisSerialNumber="SN98765",firmwareVersion="iLO 5 v2.65",model="DL360",name="test hostname"} 1
 	`
 	GoodCPUStatusExpected = `
 	     # HELP dl360_cpu_status Current cpu status 1 = OK, 0 = BAD
@@ -118,12 +118,12 @@ const (
 	GoodPowerSupplyOutputExpected = `
 	     # HELP dl360_power_supply_output Power supply output in watts
          # TYPE dl360_power_supply_output gauge
-         dl360_power_supply_output{chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC",serialNumber="123456789"} 91
+         dl360_power_supply_output{bayNumber="1",chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC",serialNumber="123456789"} 91
 	`
 	GoodPowerSupplyStatusExpected = `
 	     # HELP dl360_power_supply_status Current power supply status 1 = OK, 0 = BAD
          # TYPE dl360_power_supply_status gauge
-         dl360_power_supply_status{chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC",serialNumber="123456789"} 1
+         dl360_power_supply_status{bayNumber="1",chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC",serialNumber="123456789"} 1
 	`
 	GoodPowerSupplyTotalConsumedExpected = `
 	     # HELP dl360_power_supply_total_consumed Total output of all power supplies in watts
@@ -952,6 +952,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		host:                "fishymetrics.com",
 		biosVersion:         "U99 v0.00 (xx/xx/xxxx)",
 		chassisSerialNumber: "SN98765",
+		iloServerName:       "test hostname",
 		deviceMetrics:       metrx,
 	}
 
