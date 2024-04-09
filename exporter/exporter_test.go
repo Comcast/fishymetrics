@@ -1106,8 +1106,14 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
 		host:                "fishymetrics.com",
 		Model:               "model a",
 		biosVersion:         "U99 v0.00 (xx/xx/xxxx)",
+<<<<<<< HEAD:exporter/exporter_test.go
 		ChassisSerialNumber: "SN98765",
 		DeviceMetrics:       NewDeviceMetrics(),
+=======
+		chassisSerialNumber: "SN98765",
+		iloServerName:       "test hostname",
+		deviceMetrics:       metrx,
+>>>>>>> 23673d6 (hp psu bay num and fix c220 drive status):hpe/dl360/exporter_test.go
 	}
 
 	prometheus.MustRegister(exporter)
