@@ -414,6 +414,14 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	}
 
 	for _, ps := range pm.PowerSupplies {
+		var watts float64
+		switch ps.LastPowerOutputWatts.(type) {
+		case float64:
+			watts = ps.LastPowerOutputWatts.(float64)
+		case string:
+			watts, _ = strconv.ParseFloat(ps.LastPowerOutputWatts.(string), 32)
+		}
+		(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, ps.Model).Set(watts)
 		if ps.Status.State == "Enabled" {
 			state = OK
 		} else {

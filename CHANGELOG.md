@@ -22,6 +22,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - incorrect /Memory path for HPE hosts [#49](https://github.com/Comcast/fishymetrics/issues/49)
 - Thermal Summary, Power total consumed for Cisco servers and Chassis, memory metrics for Gen9 server models [#53](https://github.com/Comcast/fishymetrics/issues/53)
 - Firmware gathering endpoint update and add device info to other HP models [#55](https://github.com/Comcast/fishymetrics/issues/55)
+- C220 drive metrics on hosts with fw < 4.0, psu metrics result and label values [#57](https://github.com/Comcast/fishymetrics/issues/57)
 
 ## Updated
 
@@ -32,6 +33,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - HP DL360 & XL420 to include processor, iloselftest and smart storage battery metrics [#43](https://github.com/Comcast/fishymetrics/issues/43)
 - consolidate hardware component structs to a single package [#45](https://github.com/Comcast/fishymetrics/issues/45)
 - get chassis serial number from JSON response instead of url path [#50](https://github.com/Comcast/fishymetrics/issues/50)
+- HP DL380 module to include CPU metrics and all HP models to include bayNumber in PSU metrics [#57](https://github.com/Comcast/fishymetrics/issues/57)
 
 ## [0.7.1]
 

@@ -60,6 +60,8 @@ const (
 	MEMORY_SUMMARY = "MemorySummaryMetrics"
 	// FIRMWARE represents the firmware metric endpoints
 	FIRMWARE = "FirmwareMetrics"
+	// PROCESSOR represents the processor metric endpoints
+	PROCESSOR = "ProcessorMetrics"
 	// OK is a string representation of the float 1.0 for device status
 	OK = 1.0
 	// BAD is a string representation of the float 0.0 for device status
@@ -316,6 +318,17 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, profile, retryClient)))
 	}
 
+	processors, err := getProcessorEndpoints(fqdn.String()+uri+"/Systems/1/Processors/", target, retryClient)
+	if err != nil {
+		log.Error("error when getting Processors endpoints from "+DL380, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
+	for _, processor := range processors.Members {
+		tasks = append(tasks,
+			pool.NewTask(common.Fetch(fqdn.String()+processor.URL, PROCESSOR, target, profile, retryClient)))
+	}
+
 	exp.pool = pool.NewPool(tasks, 1)
 
 	return &exp, nil
@@ -415,6 +428,8 @@ func (e *Exporter) scrape() {
 			err = e.exportMemoryMetrics(task.Body)
 		case MEMORY_SUMMARY:
 			err = e.exportMemorySummaryMetrics(task.Body)
+		case PROCESSOR:
+			err = e.exportProcessorMetrics(task.Body)
 		}
 
 		if err != nil {
@@ -436,6 +451,36 @@ func (e *Exporter) scrape() {
 
 }
 
+// exportProcessorMetrics collects the DL380 processor metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportProcessorMetrics(body []byte) error {
+
+	var state float64
+	var totCores string
+	var pm oem.ProcessorMetrics
+	var proc = (*e.deviceMetrics)["processorMetrics"]
+	err := json.Unmarshal(body, &pm)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling DL380 ProcessorMetrics - " + err.Error())
+	}
+
+	switch pm.TotalCores.(type) {
+	case string:
+		totCores = pm.TotalCores.(string)
+	case float64:
+		totCores = strconv.Itoa(int(pm.TotalCores.(float64)))
+	case int:
+		totCores = strconv.Itoa(pm.TotalCores.(int))
+	}
+	if pm.Status.Health == "OK" {
+		state = OK
+	} else {
+		state = BAD
+	}
+	(*proc)["processorStatus"].WithLabelValues(pm.Id, e.chassisSerialNumber, pm.Socket, pm.Model, totCores).Set(state)
+
+	return nil
+}
+
 // exportFirmwareMetrics collects the device metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 	var chas oem.Chassis
@@ -454,6 +499,7 @@ func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 	var state float64
+	var bay int
 	var pm oem.PowerMetrics
 	var pow = (*e.deviceMetrics)["powerMetrics"]
 	err := json.Unmarshal(body, &pm)
@@ -507,6 +553,12 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	}
 
 	for _, ps := range pm.PowerSupplies {
+		if ps.Oem.Hp.PowerSupplyStatus.State != "" {
+			bay = ps.Oem.Hp.BayNumber
+		} else if ps.Oem.Hpe.PowerSupplyStatus.State != "" {
+			bay = ps.Oem.Hpe.BayNumber
+		}
+
 		if ps.Status.State == "Enabled" {
 			var watts float64
 			switch ps.LastPowerOutputWatts.(type) {
@@ -515,7 +567,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			case string:
 				watts, _ = strconv.ParseFloat(ps.LastPowerOutputWatts.(string), 32)
 			}
-			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(watts)
+			(*pow)["supplyOutput"].WithLabelValues(ps.Name, strconv.Itoa(bay), e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(watts)
 			if ps.Status.Health == "OK" {
 				state = OK
 			} else if ps.Status.Health == "" {
@@ -527,7 +579,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			state = BAD
 		}
 
-		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(state)
+		(*pow)["supplyStatus"].WithLabelValues(ps.Name, strconv.Itoa(bay), e.chassisSerialNumber, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(state)
 	}
 
 	return nil
@@ -925,4 +977,48 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 	}
 
 	return drive, nil
+}
+
+func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var processors oem.Collection
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return processors, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return processors, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return processors, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else if resp.StatusCode == http.StatusUnauthorized {
+			return processors, common.ErrInvalidCredential
+		} else {
+			return processors, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return processors, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &processors)
+	if err != nil {
+		return processors, fmt.Errorf("Error Unmarshalling DL380 Processors Collection struct - " + err.Error())
+	}
+
+	return processors, nil
 }

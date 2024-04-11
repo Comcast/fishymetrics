@@ -665,7 +665,13 @@ func (e *Exporter) exportDriveMetrics(body []byte) error {
 			state = BAD
 		}
 		(*drv)["driveStatus"].WithLabelValues(dm.Name, e.chassisSerialNumber, cap, dm.Id, dm.Model).Set(state)
+	} else if dm.Status.Health == "OK" {
+		state = OK
+		cap = strconv.Itoa(dm.CapacityBytes)
+	} else {
+		state = BAD
 	}
+	(*drv)["driveStatus"].WithLabelValues(dm.Name, e.chassisSerialNumber, cap, dm.Id, dm.Model).Set(state)
 
 	return nil
 }
