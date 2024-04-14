@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -68,9 +69,10 @@ var (
 	vaultAddr         = a.Flag("vault.addr", "Vault instance address to get chassis credentials from").Default("https://vault.com").Envar("VAULT_ADDRESS").String()
 	vaultRoleId       = a.Flag("vault.role-id", "Vault Role ID for AppRole").Default("").Envar("VAULT_ROLE_ID").String()
 	vaultSecretId     = a.Flag("vault.secret-id", "Vault Secret ID for AppRole").Default("").Envar("VAULT_SECRET_ID").String()
-	credProfiles      = common.CredentialProf(a.Flag("credential.profiles",
+	driveModExclude   = a.Flag("collector.drives.module-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
+	credProfiles      = common.CredentialProf(a.Flag("credentials.profiles",
 		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
-  --credential.profiles="
+  --credentials.profiles="
     profiles:
       - name: profile1
         mountPath: "kv2"
@@ -79,12 +81,13 @@ var (
         passwordField: "password"
       ...
   "
---credential.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'`))
+--credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'`))
 
 	log *zap.Logger
 
-	vault   *fishy_vault.Vault
-	counter int
+	vault    *fishy_vault.Vault
+	excludes = make(map[string]interface{})
+	counter  int
 )
 
 var wg = sync.WaitGroup{}
@@ -139,10 +142,8 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		exp, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
 	} else {
 		uri = "/redfish/v1"
-		exp, err = exporter.NewExporter(r.Context(), target, uri, credProf, moduleName)
+		exp, err = exporter.NewExporter(r.Context(), target, uri, credProf, moduleName, excludes)
 	}
-
-	http.NotFound(w, r)
 
 	if err != nil {
 		log.Error("failed to create chassis exporter", zap.Error(err), zap.Any("trace_id", r.Context().Value("traceID")))
@@ -175,6 +176,12 @@ func main() {
 	_, err = a.Parse(os.Args[1:])
 	if err != nil {
 		panic(fmt.Errorf("Error parsing argument flags - %s", err.Error()))
+	}
+
+	// populate excludes map
+	if *driveModExclude != "" {
+		driveModPattern := regexp.MustCompile(*driveModExclude)
+		excludes["drive"] = driveModPattern
 	}
 
 	// validate logFilePath exists and is a directory

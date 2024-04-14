@@ -16,57 +16,6 @@
 
 package oem
 
-import (
-	"bytes"
-	"encoding/json"
-)
-
-// /redfish/v1/Managers/XX/
-
-// Chassis contains the Model Number, Firmware, etc of the chassis
-type Chassis struct {
-	FirmwareVersion string `json:"FirmwareVersion"`
-	LinksUpper      struct {
-		ManagerForServers ServerManagerURLWrapper `json:"ManagerForServers"`
-	} `json:"Links"`
-	LinksLower struct {
-		ManagerForServers ServerManagerURLWrapper `json:"ManagerForServers"`
-	} `json:"links"`
-	Model       string `json:"Model"`
-	Description string `json:"Description"`
-}
-
-type ServerManagerURL struct {
-	ServerManagerURLSlice []string
-}
-
-type ServerManagerURLWrapper struct {
-	ServerManagerURL
-}
-
-func (w *ServerManagerURLWrapper) UnmarshalJSON(data []byte) error {
-	// because of a change in output betwen c220 firmware versions we need to account for this
-	if bytes.Compare([]byte("[{"), data[0:2]) == 0 {
-		var serMgrTmp []struct {
-			UrlLinks string `json:"@odata.id,omitempty"`
-			Urllinks string `json:"href,omitempty"`
-		}
-		err := json.Unmarshal(data, &serMgrTmp)
-		if len(serMgrTmp) > 0 {
-			s := make([]string, 0)
-			if serMgrTmp[0].UrlLinks != "" {
-				s = append(s, serMgrTmp[0].UrlLinks)
-			} else {
-				s = append(s, serMgrTmp[0].Urllinks)
-			}
-			w.ServerManagerURLSlice = s
-			return nil
-		}
-		return err
-	}
-	return json.Unmarshal(data, &w.ServerManagerURLSlice)
-}
-
 // Collection returns an array of the endpoints from the chassis pertaining to a resource type
 type Collection struct {
 	Members []struct {
@@ -82,48 +31,22 @@ type Status struct {
 	State        string `json:"State,omitempty"`
 }
 
-// /redfish/v1/Systems/XXXXX
-
-// ServerManager contains the BIOS version and Serial number of the chassis
-type ServerManager struct {
-	BiosVersion   string `json:"BiosVersion"`
-	SerialNumber  string `json:"SerialNumber"`
-	IloServerName string `json:"HostName"`
+// /redfish/v1/Chassis/XXXXX
+type Chassis struct {
+	Links ChassisEndpoints `json:"Links"`
 }
 
-// /redfish/v1/Chassis/CMC
-
-// Chassis contains the Model Number, Firmware, etc of the chassis
-type ChassisSerialNumber struct {
-	SerialNumber string `json:"SerialNumber"`
+type ChassisEndpoints struct {
+	Manager []Link `json:"ManagedBy"`
+	System  []Link `json:"ComputerSystems"`
+	Storage []Link `json:"Storage"`
+	Drives  []Link `json:"Drives"`
 }
 
-// /redfish/v1/Systems/1/ or /redfish/v1/Managers/1/
-type SystemMetrics struct {
+type Link struct {
+	URL string `json:"@odata.id"`
+}
+
+type ChassisStorageBattery struct {
 	Oem OemSys `json:"Oem"`
-}
-
-type OemSys struct {
-	Hpe HpeSys `json:"Hpe,omitempty"`
-	Hp  HpeSys `json:"Hp,omitempty"`
-}
-
-type HpeSys struct {
-	Battery     []StorageBattery `json:"Battery"`
-	IloSelfTest []IloSelfTest    `json:"iLOSelfTestResults"`
-}
-
-type StorageBattery struct {
-	Condition    string `json:"Condition"`
-	Index        int    `json:"Index"`
-	Model        string `json:"Model"`
-	Present      string `json:"Present"`
-	Name         string `json:"ProductName"`
-	SerialNumber string `json:"SerialNumber"`
-}
-
-type IloSelfTest struct {
-	Name   string `json:"SelfTestName"`
-	Status string `json:"Status"`
-	Notes  string `json:"Notes"`
 }

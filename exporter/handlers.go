@@ -22,29 +22,64 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/oem"
 )
 
+func handle(exp *Exporter, metricType ...string) []common.Handler {
+	var handlers []common.Handler
+
+	for _, m := range metricType {
+		if m == THERMAL {
+			handlers = append(handlers, exp.exportThermalMetrics)
+		} else if m == POWER {
+			handlers = append(handlers, exp.exportPowerMetrics)
+		} else if m == NVME {
+			handlers = append(handlers, exp.exportNVMeDriveMetrics)
+		} else if m == DISKDRIVE {
+			handlers = append(handlers, exp.exportPhysicalDriveMetrics)
+		} else if m == LOGICALDRIVE {
+			handlers = append(handlers, exp.exportLogicalDriveMetrics)
+		} else if m == STORAGE_CONTROLLER {
+			handlers = append(handlers, exp.exportStorageControllerMetrics)
+		} else if m == MEMORY {
+			handlers = append(handlers, exp.exportMemoryMetrics)
+		} else if m == MEMORY_SUMMARY {
+			handlers = append(handlers, exp.exportMemorySummaryMetrics)
+		} else if m == FIRMWARE {
+			handlers = append(handlers, exp.exportFirmwareMetrics)
+		} else if m == PROCESSOR {
+			handlers = append(handlers, exp.exportProcessorMetrics)
+		} else if m == STORAGEBATTERY {
+			handlers = append(handlers, exp.exportStorageBattery)
+		} else if m == ILOSELFTEST {
+			handlers = append(handlers, exp.exportIloSelfTest)
+		}
+	}
+
+	return handlers
+}
+
 // exportFirmwareMetrics collects the device metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportFirmwareMetrics(body []byte) error {
-	var chas oem.Chassis
+	var mgr oem.Manager
 	var dm = (*e.deviceMetrics)["deviceInfo"]
-	err := json.Unmarshal(body, &chas)
+	err := json.Unmarshal(body, &mgr)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling FirmwareMetrics - " + err.Error())
 	}
 
-	(*dm)["deviceInfo"].WithLabelValues(chas.Description, e.chassisSerialNumber, e.model, chas.FirmwareVersion, e.biosVersion).Set(1.0)
+	(*dm)["deviceInfo"].WithLabelValues(mgr.Description, e.chassisSerialNumber, e.model, mgr.FirmwareVersion, e.biosVersion).Set(1.0)
 
 	return nil
 }
 
 // exportPowerMetrics collects the power metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportPowerMetrics(body []byte) error {
-
 	var state float64
 	var pm oem.PowerMetrics
 	var pow = (*e.deviceMetrics)["powerMetrics"]
+	var bay int
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling PowerMetrics - " + err.Error())
@@ -70,7 +105,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				watts, _ = strconv.ParseFloat(pc.PowerMetrics.AverageConsumedWatts.(string), 32)
 			}
 		}
-		(*pow)["supplyTotalConsumed"].WithLabelValues(pc.MemberID, e.chassisSerialNumber, e.model).Set(watts)
+		(*pow)["supplyTotalConsumed"].WithLabelValues(pm.Url, e.chassisSerialNumber, e.model).Set(watts)
 	}
 
 	for _, pv := range pm.Voltages {
@@ -104,7 +139,14 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			case string:
 				watts, _ = strconv.ParseFloat(ps.LastPowerOutputWatts.(string), 32)
 			}
-			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.chassisSerialNumber, e.model, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(watts)
+
+			if ps.Oem.Hp.PowerSupplyStatus.State != "" {
+				bay = ps.Oem.Hp.BayNumber
+			} else if ps.Oem.Hpe.PowerSupplyStatus.State != "" {
+				bay = ps.Oem.Hpe.BayNumber
+			}
+
+			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.chassisSerialNumber, e.model, strings.TrimRight(ps.Manufacturer, " "), ps.SparePartNumber, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
 			if ps.Status.Health == "OK" {
 				state = OK
 			} else if ps.Status.Health == "" {
@@ -116,7 +158,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			state = BAD
 		}
 
-		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.chassisSerialNumber, e.model, ps.Manufacturer, ps.SparePartNumber, ps.SerialNumber, ps.PowerSupplyType, ps.Model).Set(state)
+		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.chassisSerialNumber, e.model, strings.TrimRight(ps.Manufacturer, " "), ps.SparePartNumber, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
 	}
 
 	return nil
@@ -131,6 +173,15 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling ThermalMetrics - " + err.Error())
+	}
+
+	if tm.Status.State == "Enabled" {
+		if tm.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
+		(*therm)["thermalSummary"].WithLabelValues(tm.Url, e.chassisSerialNumber, e.model).Set(state)
 	}
 
 	// Iterate through fans
@@ -265,11 +316,36 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	return nil
 }
 
+// exportStorageControllerMetrics collects the raid controller metrics in json format and sets the prometheus gauges
+func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
+
+	var state float64
+	var scm oem.StorageControllerMetrics
+	var drv = (*e.deviceMetrics)["storageCtrlMetrics"]
+	err := json.Unmarshal(body, &scm)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling StorageControllerMetrics - " + err.Error())
+	}
+
+	for _, sc := range scm.StorageController.StorageController {
+		if sc.Status.State == "Enabled" {
+			if sc.Status.Health == "OK" {
+				state = OK
+			} else {
+				state = BAD
+			}
+			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.chassisSerialNumber, e.model, sc.FirmwareVersion, sc.Model).Set(state)
+		}
+	}
+
+	return nil
+}
+
 // exportMemorySummaryMetrics collects the memory summary metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 
 	var state float64
-	var dlm oem.MemorySummaryMetrics
+	var dlm oem.System
 	var dlMemory = (*e.deviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &dlm)
 	if err != nil {
@@ -291,33 +367,55 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 func (e *Exporter) exportStorageBattery(body []byte) error {
 
 	var state float64
-	var sysm oem.SystemMetrics
+	var chasStorBatt oem.ChassisStorageBattery
 	var storBattery = (*e.deviceMetrics)["storBatteryMetrics"]
-	err := json.Unmarshal(body, &sysm)
+	err := json.Unmarshal(body, &chasStorBatt)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling Storage Battery Metrics - " + err.Error())
 	}
 
-	if fmt.Sprint(sysm.Oem.Hp.Battery) != "null" && len(sysm.Oem.Hp.Battery) > 0 {
-		for _, ssbat := range sysm.Oem.Hp.Battery {
+	if fmt.Sprint(chasStorBatt.Oem.Hp.Battery) != "null" && len(chasStorBatt.Oem.Hp.Battery) > 0 {
+		for _, ssbat := range chasStorBatt.Oem.Hp.Battery {
 			if ssbat.Present == "Yes" {
 				if ssbat.Condition == "Ok" {
 					state = OK
 				} else {
 					state = BAD
 				}
-				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, ssbat.Name, ssbat.Model, ssbat.SerialNumber).Set(state)
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
 			}
 		}
-	} else if fmt.Sprint(sysm.Oem.Hpe.Battery) != "null" && len(sysm.Oem.Hpe.Battery) > 0 {
-		for _, ssbat := range sysm.Oem.Hpe.Battery {
+	} else if fmt.Sprint(chasStorBatt.Oem.Hpe.Battery) != "null" && len(chasStorBatt.Oem.Hpe.Battery) > 0 {
+		for _, ssbat := range chasStorBatt.Oem.Hpe.Battery {
 			if ssbat.Present == "Yes" {
 				if ssbat.Condition == "Ok" {
 					state = OK
 				} else {
 					state = BAD
 				}
-				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, ssbat.Name, ssbat.Model, ssbat.SerialNumber).Set(state)
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
+			}
+		}
+	} else if len(chasStorBatt.Oem.Hpe.BatteryAlt) > 0 {
+		for _, ssbat := range chasStorBatt.Oem.Hpe.BatteryAlt {
+			if ssbat.Status.State == "Enabled" {
+				if ssbat.Status.Health == "OK" {
+					state = OK
+				} else {
+					state = BAD
+				}
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
+			}
+		}
+	} else if len(chasStorBatt.Oem.Hp.BatteryAlt) > 0 {
+		for _, ssbat := range chasStorBatt.Oem.Hp.BatteryAlt {
+			if ssbat.Status.State == "Enabled" {
+				if ssbat.Status.Health == "OK" {
+					state = OK
+				} else {
+					state = BAD
+				}
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
 			}
 		}
 	}
@@ -329,6 +427,7 @@ func (e *Exporter) exportStorageBattery(body []byte) error {
 func (e *Exporter) exportMemoryMetrics(body []byte) error {
 
 	var state float64
+	var memCap string
 	var mm oem.MemoryMetrics
 	var mem = (*e.deviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &mm)
@@ -336,8 +435,24 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling MemoryMetrics - " + err.Error())
 	}
 
-	if mm.Status != "" {
-		var memCap string
+	if mm.DIMMStatus != "" {
+		switch mm.SizeMB.(type) {
+		case string:
+			memCap = mm.SizeMB.(string)
+		case int:
+			memCap = strconv.Itoa(mm.SizeMB.(int))
+		case float64:
+			memCap = strconv.Itoa(int(mm.SizeMB.(float64)))
+		}
+
+		if mm.DIMMStatus == "GoodInUse" {
+			state = OK
+		} else {
+			state = BAD
+		}
+
+		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, e.model, memCap, strings.TrimRight(mm.Manufacturer, " "), strings.TrimRight(mm.PartNumber, " ")).Set(state)
+	} else if mm.Status != "" {
 		var status string
 
 		switch mm.CapacityMiB.(type) {
@@ -382,7 +497,7 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 				}
 			}
 		}
-		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, e.model, memCap, mm.Manufacturer, strings.TrimRight(mm.PartNumber, " "), mm.SerialNumber).Set(state)
+		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, e.model, memCap, strings.TrimRight(mm.Manufacturer, " "), strings.TrimRight(mm.PartNumber, " ")).Set(state)
 	}
 
 	return nil
@@ -422,7 +537,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 func (e *Exporter) exportIloSelfTest(body []byte) error {
 
 	var state float64
-	var sysm oem.SystemMetrics
+	var sysm oem.ChassisStorageBattery
 	var iloSelfTst = (*e.deviceMetrics)["iloSelfTestMetrics"]
 	err := json.Unmarshal(body, &sysm)
 	if err != nil {

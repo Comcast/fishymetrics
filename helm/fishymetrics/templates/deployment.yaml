@@ -48,9 +48,12 @@ spec:
           ports:
             - containerPort: {{ .Values.exporter.port }}
               name: exporter
-          {{- if .Values.credentials }}
           args:
-            - --credential.profiles={{ toJson .Values.credentials }}
+          {{- if .Values.credentials }}
+            - --credentials.profiles={{ toJson .Values.credentials }}
+          {{- end }}
+          {{- if .Values.collectors.drives.modules-exclude }}
+            - --collectors.drives.modules-exclude={{ .Values.collectors.drives.modules-exclude }}
           {{- end }}
           env:
             - name: BMC_USERNAME
@@ -74,6 +77,10 @@ spec:
                   key: vault-secret-id
             - name: EXPORTER_PORT
               value: {{ .Values.exporter.port | quote }}
+            {{- if .Values.collectors.drives.modules-exclude }}
+            - name: COLLECTOR_DRIVES_MODULE_EXCLUDE
+              value: {{ .Values.collectors.drives.modules-exclude }}
+            {{- end }}
             {{- if .Values.vector.enabled }}
             - name: LOG_METHOD
               value: "vector"

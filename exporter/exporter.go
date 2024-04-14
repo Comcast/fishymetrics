@@ -20,11 +20,11 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +47,8 @@ const (
 	DISKDRIVE = "DiskDriveMetrics"
 	// LOGICALDRIVE represents the Logical drive metric endpoint
 	LOGICALDRIVE = "LogicalDriveMetrics"
+	// STORAGE_CONTROLLER represents the MRAID metric endpoints
+	STORAGE_CONTROLLER = "StorageControllerMetrics"
 	// MEMORY represents the memory metric endpoints
 	MEMORY = "MemoryMetrics"
 	// MEMORY_SUMMARY represents the memory metric endpoints
@@ -85,16 +87,44 @@ type Exporter struct {
 	deviceMetrics       *map[string]*metrics
 }
 
+type SystemEndpoints struct {
+	storageController []string
+	drives            []string
+	systems           []string
+	manager           string
+}
+
+type DriveEndpoints struct {
+	logicalDriveURLs  []string
+	physicalDriveURLs []string
+}
+
+type Excludes map[string]interface{}
+
+type Plugin interface {
+	apply(*Exporter) error
+}
+
+type pluginFunc func(*Exporter) error
+
+func (f pluginFunc) apply(exp *Exporter) error {
+	err := f(exp)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // NewExporter returns an initialized Exporter for a redfish API capable device.
-func NewExporter(ctx context.Context, target, uri, profile, model string) (*Exporter, error) {
+func NewExporter(ctx context.Context, target, uri, profile, model string, excludes Excludes, plugins ...Plugin) (*Exporter, error) {
 	var fqdn *url.URL
 	var tasks []*pool.Task
 	var exp = Exporter{
 		ctx:           ctx,
 		credProfile:   profile,
 		deviceMetrics: NewDeviceMetrics(),
+		model:         model,
 	}
-	var urls []string
 
 	log = zap.L()
 
@@ -145,11 +175,9 @@ func NewExporter(ctx context.Context, target, uri, profile, model string) (*Expo
 		return &exp, nil
 	}
 
-	urls = append(urls, fqdn.String()+uri+"/Managers/1/") //* */
-	// chassis system endpoint to use for memory, processor, bios version scrapes
-	sysEndpoint, err := getChassisEndpoint(fqdn.String()+uri+"/Managers/1/", target, retryClient)
+	chassisEndpoints, err := getChassisUrls(fqdn.String()+uri+"/Chassis/", target, retryClient)
 	if err != nil {
-		log.Error("error when getting chassis endpoint from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		log.Error("error when getting chassis url from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		if errors.Is(err, common.ErrInvalidCredential) {
 			common.IgnoredDevices[exp.host] = common.IgnoredDevice{
 				Name:              exp.host,
@@ -166,193 +194,128 @@ func NewExporter(ctx context.Context, target, uri, profile, model string) (*Expo
 		return nil, err
 	}
 
-	urls = append(urls, fqdn.String()+sysEndpoint) //* */
-	resp, err := getSystemsMetadata(fqdn.String()+sysEndpoint, target, retryClient)
+	// thermal and power metrics are obtained from all chassis endpoints
+	for _, chasUrl := range chassisEndpoints {
+		tasks = append(tasks,
+			pool.NewTask(common.Fetch(fqdn.String()+chasUrl+"Thermal/", target, profile, retryClient), handle(&exp, THERMAL)),
+			pool.NewTask(common.Fetch(fqdn.String()+chasUrl+"Power/", target, profile, retryClient), handle(&exp, POWER)))
+	}
+
+	// ignore /redfish/v1/Chassis/CMC/ endpoint from here on out except for cisco c220
+	// TODO: handle cases where there are multiple non CMC chassis endpoints
+	var chasUrlFinal string
+	if len(chassisEndpoints) > 1 {
+		for _, member := range chassisEndpoints {
+			if !strings.Contains(member, "/CMC/") {
+				chasUrlFinal = member
+				break
+			}
+		}
+	} else {
+		chasUrlFinal = chassisEndpoints[0]
+	}
+
+	// chassis endpoint to use for obtaining url endpoints for storage controller, NVMe drive metrics as well as the starting
+	// point for the systems and manager endpoints
+	sysEndpoints, err := getSystemEndpoints(fqdn.String()+chasUrlFinal, target, retryClient, excludes)
+	if err != nil {
+		log.Error("error when getting chassis endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
+	// call /redfish/v1/Systems/XXXXX/ for BIOS, Serial number
+	sysResp, err := getSystemsMetadata(fqdn.String()+sysEndpoints.systems[0], target, retryClient)
 	if err != nil {
 		log.Error("error when getting BIOS version from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
-	exp.biosVersion = resp.BiosVersion
-	exp.chassisSerialNumber = resp.SerialNumber
+	exp.biosVersion = sysResp.BiosVersion
+	exp.chassisSerialNumber = sysResp.SerialNumber
 
-	// vars for drive parsing
-	var (
-		initialURL        = "/Systems/1/SmartStorage/ArrayControllers/"
-		url               = initialURL
-		chassisUrl        = "/Chassis/1/"
-		logicalDriveURLs  []string
-		physicalDriveURLs []string
-		nvmeDriveURLs     []string
-	)
+	// call /redfish/v1/Systems/XXXXX/ for memory summary and smart storage batteries
+	// TODO: do not assume 1 systems endpoint
+	tasks = append(tasks,
+		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoints.systems[0], target, profile, retryClient),
+			handle(&exp, MEMORY_SUMMARY, STORAGEBATTERY)))
 
-	urls = append(urls, fqdn.String()+uri+url) //* */
-	// PARSING DRIVE ENDPOINTS
-	// Get initial JSON return of /redfish/v1/Systems/1/SmartStorage/ArrayControllers/ set to output
-	driveResp, err := getDriveEndpoint(fqdn.String()+uri+url, target, retryClient)
-	if err != nil {
-		log.Error("api call "+fqdn.String()+uri+url+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		if errors.Is(err, common.ErrInvalidCredential) {
-			common.IgnoredDevices[exp.host] = common.IgnoredDevice{
-				Name:              exp.host,
-				Endpoint:          "https://" + exp.host + "/redfish/v1/Chassis/",
-				Module:            model,
-				CredentialProfile: exp.credProfile,
-			}
-			log.Info("added host "+exp.host+" to ignored list", zap.Any("trace_id", exp.ctx.Value("traceID")))
-			var upMetric = (*exp.deviceMetrics)["up"]
-			(*upMetric)["up"].WithLabelValues().Set(float64(2))
+	// check /redfish/v1/Chassis/XXXXX/ for smart storage batteries incase it is not in the systems endpoint
+	tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+chasUrlFinal, target, profile, retryClient), handle(&exp, STORAGEBATTERY)))
 
-			return &exp, nil
-		}
-		return nil, err
+	// check for SmartStorage endpoint from either Hp or Hpe
+	var ss string
+	if sysResp.Oem.Hpe.Links.SmartStorage.URL != "" {
+		ss = appendSlash(sysResp.Oem.Hpe.Links.SmartStorage.URL) + "ArrayControllers/"
+	} else if sysResp.Oem.Hp.Links.SmartStorage.URL != "" {
+		ss = appendSlash(sysResp.Oem.Hp.Links.SmartStorage.URL) + "ArrayControllers/"
 	}
 
-	// Loop through Members to get ArrayController URLs
-	for _, member := range driveResp.Members {
-		// for each ArrayController URL, get the JSON object
-		// /redfish/v1/Systems/1/SmartStorage/ArrayControllers/X/
-		arrayCtrlResp, err := getDriveEndpoint(fqdn.String()+member.URL, target, retryClient)
+	// skip if SmartStorage URL is not present
+	var driveEndpointsResp DriveEndpoints
+	if ss != "" {
+		driveEndpointsResp, err = getAllDriveEndpoints(ctx, fqdn.String(), fqdn.String()+ss, target, retryClient)
 		if err != nil {
-			log.Error("api call "+fqdn.String()+member.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			log.Error("error when getting drive endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
 		}
-
-		// If LogicalDrives is present, parse logical drive endpoint until all urls are found
-		if arrayCtrlResp.LinksUpper.LogicalDrives.URL != "" {
-			logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksUpper.LogicalDrives.URL, target, retryClient)
-			if err != nil {
-				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksUpper.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-				return nil, err
-			}
-
-			// loop through each Member in the "LogicalDrive" field
-			for _, member := range logicalDriveOutput.Members {
-				// append each URL in the Members array to the logicalDriveURLs array.
-				logicalDriveURLs = append(logicalDriveURLs, member.URL)
-			}
-		}
-
-		// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
-		if arrayCtrlResp.LinksUpper.PhysicalDrives.URL != "" {
-			physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksUpper.PhysicalDrives.URL, target, retryClient)
-			if err != nil {
-				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksUpper.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-				return nil, err
-			}
-
-			for _, member := range physicalDriveOutput.Members {
-				physicalDriveURLs = append(physicalDriveURLs, member.URL)
-			}
-		}
-
-		// If LogicalDrives is present, parse logical drive endpoint until all urls are found
-		if arrayCtrlResp.LinksLower.LogicalDrives.URL != "" {
-			logicalDriveOutput, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksLower.LogicalDrives.URL, target, retryClient)
-			if err != nil {
-				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksLower.LogicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-				return nil, err
-			}
-
-			// loop through each Member in the "LogicalDrive" field
-			for _, member := range logicalDriveOutput.Members {
-				// append each URL in the Members array to the logicalDriveURLs array.
-				logicalDriveURLs = append(logicalDriveURLs, member.URL)
-			}
-		}
-
-		// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
-		if arrayCtrlResp.LinksLower.PhysicalDrives.URL != "" {
-			physicalDriveOutput, err := getDriveEndpoint(fqdn.String()+arrayCtrlResp.LinksLower.PhysicalDrives.URL, target, retryClient)
-			if err != nil {
-				log.Error("api call "+fqdn.String()+arrayCtrlResp.LinksLower.PhysicalDrives.URL+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-				return nil, err
-			}
-
-			for _, member := range physicalDriveOutput.Members {
-				physicalDriveURLs = append(physicalDriveURLs, member.URL)
-			}
-		}
-	}
-
-	urls = append(urls, fqdn.String()+uri+chassisUrl) //* */
-	// parse to find NVME drives
-	chassisOutput, err := getDriveEndpoint(fqdn.String()+uri+chassisUrl, target, retryClient)
-	if err != nil {
-		log.Error("api call "+fqdn.String()+uri+chassisUrl+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil, err
-	}
-
-	// parse through "Links" to find "Drives" array
-	// loop through drives array and append each odata.id url to nvmeDriveURLs list
-	for _, drive := range chassisOutput.LinksUpper.Drives {
-		nvmeDriveURLs = append(nvmeDriveURLs, drive.URL)
 	}
 
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
-	for _, url := range logicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, LOGICALDRIVE, target, profile, retryClient)))
+	for _, url := range driveEndpointsResp.logicalDriveURLs {
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, target, profile, retryClient), handle(&exp, LOGICALDRIVE)))
 	}
 
-	for _, url := range physicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, DISKDRIVE, target, profile, retryClient)))
+	for _, url := range driveEndpointsResp.physicalDriveURLs {
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, target, profile, retryClient), handle(&exp, DISKDRIVE)))
 	}
 
-	for _, url := range nvmeDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, NVME, target, profile, retryClient)))
+	for _, url := range sysEndpoints.drives {
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, target, profile, retryClient), handle(&exp, NVME)))
 	}
 
-	urls = append(urls, fqdn.String()+sysEndpoint+"Memory/") //* */
+	// storage controller
+	for _, url := range sysEndpoints.storageController {
+		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, target, profile, retryClient), handle(&exp, STORAGE_CONTROLLER)))
+	}
+
 	// DIMM endpoints array
-	dimms, err := getDIMMEndpoints(fqdn.String()+sysEndpoint+"Memory/", target, retryClient)
+	dimms, err := getDIMMEndpoints(fqdn.String()+sysEndpoints.systems[0]+"Memory/", target, retryClient)
 	if err != nil {
 		log.Error("error when getting DIMM endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
 
-	urls = append(urls, fqdn.String()+uri+"/Managers/1") //* */
-	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Managers/1", FIRMWARE, target, profile, retryClient)))
-
-	urls = append(urls, fqdn.String()+uri+"/Chassis/1/Thermal/") //* */
-	urls = append(urls, fqdn.String()+uri+"/Chassis/1/Power/")   //* */
-	urls = append(urls, fqdn.String()+uri+"/Systems/1/")         //* */
-	// Additional tasks for pool to perform
-	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Thermal/", THERMAL, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Chassis/1/Power/", POWER, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", MEMORY_SUMMARY, target, profile, retryClient)))
-
 	// DIMMs
 	for _, dimm := range dimms.Members {
-		urls = append(urls, fqdn.String()+dimm.URL) //* */
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, MEMORY, target, profile, retryClient)))
+			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, target, profile, retryClient), handle(&exp, MEMORY)))
 	}
 
-	urls = append(urls, fqdn.String()+uri+"/Systems/1/")  //* */
-	urls = append(urls, fqdn.String()+uri+"/Managers/1/") //* */
+	// call /redfish/v1/Managers/XXX/ for firmware version and ilo self test metrics
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Systems/1/", STORAGEBATTERY, target, profile, retryClient)),
-		pool.NewTask(common.Fetch(fqdn.String()+uri+"/Managers/1/", ILOSELFTEST, target, profile, retryClient)))
+		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoints.manager, target, profile, retryClient),
+			handle(&exp, FIRMWARE, ILOSELFTEST)))
 
-	urls = append(urls, fqdn.String()+uri+"/Systems/1/Processors/") //* */
-	processors, err := getProcessorEndpoints(fqdn.String()+uri+"/Systems/1/Processors/", target, retryClient)
+	// CPU processor metrics
+	processors, err := getProcessorEndpoints(fqdn.String()+sysEndpoints.systems[0]+"Processors/", target, retryClient)
 	if err != nil {
 		log.Error("error when getting Processors endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
 
 	for _, processor := range processors.Members {
-		urls = append(urls, fqdn.String()+processor.URL) //* */
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+processor.URL, PROCESSOR, target, profile, retryClient)))
+			pool.NewTask(common.Fetch(fqdn.String()+processor.URL, target, profile, retryClient), handle(&exp, PROCESSOR)))
+	}
+
+	// check for any plugins, this feature allows one to collect any remaining component data not present inside the redfish API
+	for _, plug := range plugins {
+		err := plug.apply(&exp)
+		if err != nil {
+			return &exp, err
+		}
 	}
 
 	exp.pool = pool.NewPool(tasks, 1)
-
-	for _, url := range urls {
-		fmt.Printf("%v\n", url)
-	}
 
 	return &exp, nil
 }
@@ -430,37 +393,16 @@ func (e *Exporter) scrape() {
 			}
 			var upMetric = (*e.deviceMetrics)["up"]
 			(*upMetric)["up"].WithLabelValues().Set(float64(deviceState))
-			log.Error("error from "+e.model, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error calling redfish api from "+e.model, zap.Error(task.Err), zap.Any("trace_id", e.ctx.Value("traceID")))
 			return
 		}
 
-		switch task.MetricType {
-		case FIRMWARE:
-			err = e.exportFirmwareMetrics(task.Body)
-		case THERMAL:
-			err = e.exportThermalMetrics(task.Body)
-		case POWER:
-			err = e.exportPowerMetrics(task.Body)
-		case NVME:
-			err = e.exportNVMeDriveMetrics(task.Body)
-		case DISKDRIVE:
-			err = e.exportPhysicalDriveMetrics(task.Body)
-		case LOGICALDRIVE:
-			err = e.exportLogicalDriveMetrics(task.Body)
-		case MEMORY:
-			err = e.exportMemoryMetrics(task.Body)
-		case MEMORY_SUMMARY:
-			err = e.exportMemorySummaryMetrics(task.Body)
-		case PROCESSOR:
-			err = e.exportProcessorMetrics(task.Body)
-		case STORAGEBATTERY:
-			err = e.exportStorageBattery(task.Body)
-		case ILOSELFTEST:
-			err = e.exportIloSelfTest(task.Body)
+		for _, handler := range task.MetricHandlers {
+			err = handler(task.Body)
 		}
 
 		if err != nil {
-			log.Error("error exporting metrics - from "+e.model, zap.Error(err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error exporting metrics - from "+e.model, zap.Error(err), zap.Any("trace_id", e.ctx.Value("traceID")))
 			continue
 		}
 		scrapeChan <- 1

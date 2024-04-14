@@ -19,19 +19,23 @@ vault:
   roleId: ""
   secretId: ""
 
+collectors: {}
+# drives:
+#   modules-exclude: "(FlexUtil|SBMezz1|IOEMezz1)"
+
 credentials: {}
-  # profiles:
-  #   - name: profile1
-  #     mountPath: "kv2"
-  #     path: "path/to/secret"
-  #     userField: "user"
-  #     passwordField: "password"
-  #   - name: profile2
-  #     mountPath: "kv1"
-  #     path: "path/to/secret"
-  #     secretName: "secret1"
-  #     userName: "admin"
-  #     passwordField: "value"
+# profiles:
+#   - name: profile1
+#     mountPath: "kv2"
+#     path: "path/to/secret"
+#     userField: "user"
+#     passwordField: "password"
+#   - name: profile2
+#     mountPath: "kv1"
+#     path: "path/to/secret"
+#     secretName: "secret1"
+#     userName: "admin"
+#     passwordField: "value"
 
 vector:
   enabled: false
@@ -50,7 +54,8 @@ vector:
     endpoint: ""
     indexName: ""
 
-  resources: {}
+  resources:
+    {}
     # limits:
     #  cpu: 100m
     #  memory: 128Mi
@@ -58,7 +63,8 @@ vector:
     #  cpu: 100m
     #  memory: 128Mi
 
-resources: {}
+resources:
+  {}
   # limits:
   #  cpu: 100m
   #  memory: 128Mi
@@ -73,21 +79,23 @@ horizontalPodAutoscaler:
   maxReplicas: 1
   targetMemoryUtilizationPercentage: 80
 
-
 ingress:
   enabled: false
   hosts:
     - chart-example.local
-  annotations: {}
+  annotations:
+    {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
-  tls: []
+  tls:
+    []
     # Secrets must be manually created in the namespace.
     # - secretName: chart-example-tls
     #   hosts:
     #   - chart-example.local
 
-affinity: {}
+affinity:
+  {}
   # nodeAffinity:
   #   requiredDuringSchedulingIgnoredDuringExecution:
   #     nodeSelectorTerms:
@@ -95,10 +103,12 @@ affinity: {}
   #       - key: node-role.kubernetes.io/master
   #         operator: Exists
 
-nodeSelector: {}
+nodeSelector:
+  {}
   # node-role.kubernetes.io/master: "true"
 
-tolerations: []
+tolerations:
+  []
   # - key: "node-role.kubernetes.io/master"
   #   operator: "Exists"
   #   effect: "NoSchedule"

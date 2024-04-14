@@ -87,7 +87,6 @@ type PowerSupply struct {
 	Oem                  OemPower     `json:"Oem,omitempty"`
 	PowerCapacityWatts   int          `json:"PowerCapacityWatts,omitempty"`
 	PowerSupplyType      string       `json:"PowerSupplyType"`
-	SerialNumber         string       `json:"SerialNumber"`
 	SparePartNumber      string       `json:"SparePartNumber"`
 	Status               Status       `json:"Status"`
 }

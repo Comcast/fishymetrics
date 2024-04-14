@@ -17,76 +17,139 @@
 package exporter
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/oem"
 	"github.com/hashicorp/go-retryablehttp"
+	"go.uber.org/zap"
 )
 
-func getChassisEndpoint(url, host string, client *retryablehttp.Client) (string, error) {
-	var chas oem.Chassis
-	var urlFinal string
+func getChassisUrls(url, host string, client *retryablehttp.Client) ([]string, error) {
+	var coll oem.Collection
+	var urls []string
 	req := common.BuildRequest(url, host)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return urls, err
 	}
 	defer resp.Body.Close()
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		if resp.StatusCode == http.StatusUnauthorized {
-			return "", common.ErrInvalidCredential
+			return urls, common.ErrInvalidCredential
 		} else {
-			return "", fmt.Errorf("HTTP status %d", resp.StatusCode)
+			return urls, fmt.Errorf("HTTP status %d", resp.StatusCode)
 		}
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("Error reading Response Body - " + err.Error())
+		return urls, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
 
-	err = json.Unmarshal(body, &chas)
+	err = json.Unmarshal(body, &coll)
 	if err != nil {
-		return "", fmt.Errorf("Error Unmarshalling Chassis struct - " + err.Error())
+		return urls, fmt.Errorf("Error Unmarshalling Chassis struct - " + err.Error())
 	}
 
-	if len(chas.Links.ManagerForServers.ServerManagerURLSlice) > 0 {
-		urlFinal = chas.Links.ManagerForServers.ServerManagerURLSlice[0]
+	for _, member := range coll.Members {
+		urls = append(urls, appendSlash(member.URL))
 	}
 
-	return urlFinal, nil
+	return urls, nil
 }
 
-func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.ServerManager, error) {
-	var sm oem.ServerManager
+func getSystemEndpoints(url, host string, client *retryablehttp.Client, excludes Excludes) (SystemEndpoints, error) {
+	var chas oem.Chassis
+	var sysEnd SystemEndpoints
 	req := common.BuildRequest(url, host)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return sm, err
+		return sysEnd, err
 	}
 	defer resp.Body.Close()
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		return sm, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusUnauthorized {
+			return sysEnd, common.ErrInvalidCredential
+		} else {
+			return sysEnd, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return sm, fmt.Errorf("Error reading Response Body - " + err.Error())
+		return sysEnd, fmt.Errorf("Error reading Response Body - " + err.Error())
 	}
 
-	err = json.Unmarshal(body, &sm)
+	err = json.Unmarshal(body, &chas)
 	if err != nil {
-		return sm, fmt.Errorf("Error Unmarshalling ServerManager struct - " + err.Error())
+		return sysEnd, fmt.Errorf("Error Unmarshalling Chassis struct - " + err.Error())
 	}
 
-	return sm, nil
+	// parse through Links to get the System Endpoints
+	if len(chas.Links.Manager) > 0 {
+		sysEnd.manager = appendSlash(chas.Links.Manager[0].URL)
+	}
+
+	if len(chas.Links.System) > 0 {
+		sysEnd.systems = append(sysEnd.systems, appendSlash(chas.Links.System[0].URL))
+	}
+
+	if len(chas.Links.Storage) > 0 {
+		for _, storage := range chas.Links.Storage {
+			sysEnd.storageController = append(sysEnd.storageController, appendSlash(storage.URL))
+		}
+	}
+
+	if len(chas.Links.Drives) > 0 {
+		for _, drive := range chas.Links.Drives {
+			// this list can potentially be large and cause scrapes to take a long time please
+			// see the '--collector.drives.module-exclude' config in the README for more information
+			if reg, ok := excludes["drive"]; ok {
+				if !reg.(*regexp.Regexp).MatchString(drive.URL) {
+					sysEnd.drives = append(sysEnd.drives, appendSlash(drive.URL))
+				}
+			} else {
+				sysEnd.drives = append(sysEnd.drives, appendSlash(drive.URL))
+			}
+		}
+	}
+
+	return sysEnd, nil
+}
+
+func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.System, error) {
+	var sys oem.System
+	req := common.BuildRequest(url, host)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return sys, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		return sys, fmt.Errorf("HTTP status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return sys, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &sys)
+	if err != nil {
+		return sys, fmt.Errorf("Error Unmarshalling ServerManager struct - " + err.Error())
+	}
+
+	return sys, nil
 }
 
 func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
@@ -177,6 +240,86 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 	return drive, nil
 }
 
+func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, client *retryablehttp.Client) (DriveEndpoints, error) {
+	var driveEndpoints DriveEndpoints
+
+	// Get initial JSON return of /redfish/v1/Systems/XXXX/SmartStorage/ArrayControllers/ set to output
+	driveResp, err := getDriveEndpoint(initialUrl, host, client)
+	if err != nil {
+		log.Error("api call "+initialUrl+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return driveEndpoints, err
+	}
+
+	// Loop through Members to get ArrayController URLs
+	for _, member := range driveResp.Members {
+		// for each ArrayController URL, get the JSON object
+		// /redfish/v1/Systems/XXXX/SmartStorage/ArrayControllers/X/
+		arrayCtrlResp, err := getDriveEndpoint(fqdn+member.URL, host, client)
+		if err != nil {
+			log.Error("api call "+fqdn+member.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return driveEndpoints, err
+		}
+
+		// If LogicalDrives is present, parse logical drive endpoint until all urls are found
+		if arrayCtrlResp.LinksUpper.LogicalDrives.URL != "" {
+			logicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksUpper.LogicalDrives.URL, host, client)
+			if err != nil {
+				log.Error("api call "+fqdn+arrayCtrlResp.LinksUpper.LogicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return driveEndpoints, err
+			}
+
+			// loop through each Member in the "LogicalDrive" field
+			for _, member := range logicalDriveOutput.Members {
+				// append each URL in the Members array to the logicalDriveURLs array.
+				driveEndpoints.logicalDriveURLs = append(driveEndpoints.logicalDriveURLs, appendSlash(member.URL))
+			}
+		}
+
+		// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
+		if arrayCtrlResp.LinksUpper.PhysicalDrives.URL != "" {
+			physicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksUpper.PhysicalDrives.URL, host, client)
+			if err != nil {
+				log.Error("api call "+fqdn+arrayCtrlResp.LinksUpper.PhysicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return driveEndpoints, err
+			}
+
+			for _, member := range physicalDriveOutput.Members {
+				driveEndpoints.physicalDriveURLs = append(driveEndpoints.physicalDriveURLs, appendSlash(member.URL))
+			}
+		}
+
+		// If LogicalDrives is present, parse logical drive endpoint until all urls are found
+		if arrayCtrlResp.LinksLower.LogicalDrives.URL != "" {
+			logicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksLower.LogicalDrives.URL, host, client)
+			if err != nil {
+				log.Error("api call "+fqdn+arrayCtrlResp.LinksLower.LogicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return driveEndpoints, err
+			}
+
+			// loop through each Member in the "LogicalDrive" field
+			for _, member := range logicalDriveOutput.Members {
+				// append each URL in the Members array to the logicalDriveURLs array.
+				driveEndpoints.logicalDriveURLs = append(driveEndpoints.logicalDriveURLs, appendSlash(member.URL))
+			}
+		}
+
+		// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
+		if arrayCtrlResp.LinksLower.PhysicalDrives.URL != "" {
+			physicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksLower.PhysicalDrives.URL, host, client)
+			if err != nil {
+				log.Error("api call "+fqdn+arrayCtrlResp.LinksLower.PhysicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return driveEndpoints, err
+			}
+
+			for _, member := range physicalDriveOutput.Members {
+				driveEndpoints.physicalDriveURLs = append(driveEndpoints.physicalDriveURLs, appendSlash(member.URL))
+			}
+		}
+	}
+
+	return driveEndpoints, nil
+}
+
 func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
 	var processors oem.Collection
 	var resp *http.Response
@@ -219,4 +362,12 @@ func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.
 	}
 
 	return processors, nil
+}
+
+// appendSlash appends a slash to the end of a URL if it does not already have one
+func appendSlash(url string) string {
+	if url[len(url)-1] != '/' {
+		return url + "/"
+	}
+	return url
 }

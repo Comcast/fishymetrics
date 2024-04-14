@@ -14,18 +14,4 @@
  * limitations under the License.
  */
 
-package oem
-
-// /redfish/v1/Systems/XXXXX/Memory/DIMM_X1
-
-// MemoryMetrics is the top level json object for a Memory DIMMs metadata
-type MemoryMetrics struct {
-	Name             string      `json:"Name"`
-	CapacityMiB      interface{} `json:"CapacityMiB"`
-	SizeMB           interface{} `json:"SizeMB"`
-	Manufacturer     string      `json:"Manufacturer"`
-	MemoryDeviceType string      `json:"MemoryDeviceType"`
-	PartNumber       string      `json:"PartNumber"`
-	Status           interface{} `json:"Status"`
-	DIMMStatus       string      `json:"DIMMStatus"`
-}
+package nuova
