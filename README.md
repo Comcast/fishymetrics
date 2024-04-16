@@ -120,18 +120,19 @@ curl http://localhost:9533/metrics
 To test a scrape of a host's redfish API, you can curl `fishymetrics`
 
 ```bash
-curl 'http://localhost:9533/scrape?model=<module-name>&target=1.2.3.4'
+curl 'http://localhost:9533/scrape?model=<model-name>&target=1.2.3.4'
 ```
 
 If you have a credential profile configured you can add the extra URL query parameter
 
 ```bash
-curl 'http://localhost:9533/scrape?model=<module-name>&target=1.2.3.4&credential_profile=<profile-name>'
+curl 'http://localhost:9533/scrape?model=<model-name>&target=1.2.3.4&credential_profile=<profile-name>'
 ```
 
 There is plugin support which is passed a comma separated list of strings
+
 ```bash
-curl 'http://localhost:9533/scrape?model=<module-name>&target=1.2.3.4&plugins=example1,example2'
+curl 'http://localhost:9533/scrape?model=<model-name>&target=1.2.3.4&plugins=example1,example2'
 ```
 
 ### Docker
