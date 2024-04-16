@@ -50,8 +50,8 @@ func NewDeviceMetrics() *map[string]*metrics {
 		PowerMetrics = &metrics{
 			"voltageOutput":       newServerMetric("redfish_power_voltage_output", "Power voltage output in watts", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
 			"voltageStatus":       newServerMetric("redfish_power_voltage_status", "Current power voltage status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
-			"supplyOutput":        newServerMetric("redfish_power_supply_output", "Power supply output in watts", nil, []string{"name", "chassisSerialNumber", "chassisModel", "manufacturer", "partNumber", "powerSupplyType", "bayNumber", "model"}),
-			"supplyStatus":        newServerMetric("redfish_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel", "manufacturer", "partNumber", "powerSupplyType", "bayNumber", "model"}),
+			"supplyOutput":        newServerMetric("redfish_power_supply_output", "Power supply output in watts", nil, []string{"name", "chassisSerialNumber", "chassisModel", "manufacturer", "serialNumber", "firmwareVersion", "powerSupplyType", "bayNumber", "model"}),
+			"supplyStatus":        newServerMetric("redfish_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel", "manufacturer", "serialNumber", "firmwareVersion", "powerSupplyType", "bayNumber", "model"}),
 			"supplyTotalConsumed": newServerMetric("redfish_power_supply_total_consumed", "Total output of all power supplies in watts", nil, []string{"memberId", "chassisSerialNumber", "chassisModel"}),
 		}
 

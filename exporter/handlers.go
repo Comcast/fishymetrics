@@ -148,7 +148,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				bay = ps.Oem.Hpe.BayNumber
 			}
 
-			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SparePartNumber, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
+			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
 			if ps.Status.Health == "OK" {
 				state = OK
 			} else if ps.Status.Health == "" {
@@ -160,7 +160,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			state = BAD
 		}
 
-		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SparePartNumber, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
+		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
 	}
 
 	return nil
@@ -261,8 +261,10 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		} else {
 			state = BAD
 		}
+	} else if dlphysical.Status.Health == "OK" {
+		state = OK
 	} else {
-		state = DISABLED
+		state = BAD
 	}
 
 	if dlphysical.Location != "" {

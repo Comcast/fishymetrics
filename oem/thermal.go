@@ -30,7 +30,7 @@ type ThermalMetrics struct {
 
 // Fan is the json object for a fan module
 type Fan struct {
-	MemberID       string      `json:"MemberId"`
+	MemberID       interface{} `json:"MemberId"`
 	Name           string      `json:"Name"`
 	FanName        string      `json:"FanName"`
 	Reading        interface{} `json:"Reading"`
@@ -41,7 +41,7 @@ type Fan struct {
 
 // Temperature is the json object for a temperature sensor module
 type Temperature struct {
-	MemberID               string      `json:"MemberId"`
+	MemberID               interface{} `json:"MemberId"`
 	Name                   string      `json:"Name"`
 	PhysicalContext        string      `json:"PhysicalContext"`
 	ReadingCelsius         interface{} `json:"ReadingCelsius"`
