@@ -110,16 +110,6 @@ type Plugin interface {
 	Apply(*Exporter) error
 }
 
-type pluginFunc func(*Exporter) error
-
-func (f pluginFunc) apply(exp *Exporter) error {
-	err := f(exp)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // NewExporter returns an initialized Exporter for a redfish API capable device.
 func NewExporter(ctx context.Context, target, uri, profile, model string, excludes Excludes, plugins ...Plugin) (*Exporter, error) {
 	var fqdn *url.URL
