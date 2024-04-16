@@ -15,3 +15,34 @@
  */
 
 package nuova
+
+import (
+	"encoding/xml"
+	"fmt"
+)
+
+// exportXMLDriveMetrics collects the drive metrics from the /nuova endpoint in xml format
+// and sets the prometheus gauges
+func (n *NuovaPlugin) exportXMLDriveMetrics(body []byte) error {
+
+	var state float64
+	var dm XMLDriveMetrics
+	var drv = (*n.DeviceMetrics)["diskDriveMetrics"]
+	err := xml.Unmarshal(body, &dm)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling XMLDriveMetrics - " + err.Error())
+	}
+
+	for _, drive := range dm.OutConfigs.Drives {
+		if drive.Presence == "equipped" {
+			if drive.Operability == "operable" {
+				state = OK
+			} else {
+				state = BAD
+			}
+			(*drv)["driveStatus"].WithLabelValues(drive.Name, n.ChassisSerialNumber, n.Model, drive.Id, "", "", "").Set(state)
+		}
+	}
+
+	return nil
+}

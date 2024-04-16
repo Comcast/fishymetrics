@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -38,6 +39,7 @@ import (
 	"github.com/comcast/fishymetrics/exporter/moonshot"
 	"github.com/comcast/fishymetrics/logger"
 	"github.com/comcast/fishymetrics/middleware/muxprom"
+	"github.com/comcast/fishymetrics/plugins/nuova"
 	fishy_vault "github.com/comcast/fishymetrics/vault"
 	"go.uber.org/zap"
 
@@ -59,6 +61,7 @@ var (
 	password          = a.Flag("password", "BMC static password").Default("").Envar("BMC_PASSWORD").String()
 	bmcTimeout        = a.Flag("timeout", "BMC scrape timeout").Default("15s").Envar("BMC_TIMEOUT").Duration()
 	bmcScheme         = a.Flag("scheme", "BMC Scheme to use").Default("https").Envar("BMC_SCHEME").String()
+	logLevel          = a.Flag("log.level", "log level verbosity").PlaceHolder("[debug|info|warn|error]").Default("info").Envar("LOG_LEVEL").String()
 	logMethod         = a.Flag("log.method", "alternative method for logging in addition to stdout").PlaceHolder("[file|vector]").Default("").Envar("LOG_METHOD").String()
 	logFilePath       = a.Flag("log.file-path", "directory path where log files are written if log-method is file").Default("/var/log/fishymetrics").Envar("LOG_FILE_PATH").String()
 	logFileMaxSize    = a.Flag("log.file-max-size", "max file size in megabytes if log-method is file").Default("256").Envar("LOG_FILE_MAX_SIZE").Int()
@@ -105,17 +108,34 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: deprecate module query param in favor of model
 	moduleName := query.Get("module")
-	if len(query["module"]) != 1 || moduleName == "" {
-		log.Error("'module' parameter not set correctly", zap.String("module", moduleName), zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
-		http.Error(w, "'module' parameter not set correctly", http.StatusBadRequest)
-		return
+	model := query.Get("model")
+	if model == "" {
+		model = moduleName
 	}
 
-	// this optional query param is used to tell us which credential profile to use when retrieving that hosts username and password
+	// optional query param is used to tell us which credential profile to use when retrieving that hosts username and password
 	credProf := query.Get("credential_profile")
 
-	log.Info("started scrape", zap.String("module", moduleName), zap.String("target", target), zap.String("credential_profile", credProf), zap.Any("trace_id", r.Context().Value("traceID")))
+	// optional query param for external plugins which executes non redfish API calls to the device.
+	// this is a comma separated list of strings
+	plugins := strings.Split(query.Get("plugins"), ",")
+	var plugs []exporter.Plugin
+	for _, p := range plugins {
+		if p == "nuova" {
+			plugs = append(plugs, &nuova.NuovaPlugin{})
+			log.Debug("nuova plugin added", zap.Any("trace_id", r.Context().Value("traceID")))
+		}
+	}
+
+	// TODO: deprecate module log entry
+	log.Info("started scrape",
+		zap.String("module", model),
+		zap.String("model", model),
+		zap.String("target", target),
+		zap.String("credential_profile", credProf),
+		zap.Any("trace_id", r.Context().Value("traceID")))
 
 	// check if vault is configured
 	if vault != nil {
@@ -137,12 +157,12 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	registry := prometheus.NewRegistry()
 
-	if moduleName == "moonshot" {
+	if model == "moonshot" {
 		uri = "/rest/v1/chassis/1"
 		exp, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
 	} else {
 		uri = "/redfish/v1"
-		exp, err = exporter.NewExporter(r.Context(), target, uri, credProf, moduleName, excludes)
+		exp, err = exporter.NewExporter(r.Context(), target, uri, credProf, model, excludes, plugs...)
 	}
 
 	if err != nil {
@@ -197,6 +217,7 @@ func main() {
 
 	// init logger config
 	logConfig := logger.LoggerConfig{
+		LogLevel:  *logLevel,
 		LogMethod: *logMethod,
 		LogFile: logger.LogFile{
 			Path:       *logFilePath,

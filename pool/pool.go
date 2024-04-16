@@ -76,6 +76,10 @@ func (p *Pool) Run() {
 	p.wg.Wait()
 }
 
+func (p *Pool) AddTask(task *Task) {
+	p.Tasks = append(p.Tasks, task)
+}
+
 // The work loop for any single goroutine.
 func (p *Pool) work() {
 	for task := range p.tasksChan {

@@ -229,7 +229,7 @@ func Test_Exporter(t *testing.T) {
 
 			prometheus.MustRegister(exporter)
 
-			metric := (*exporter.(*Exporter).deviceMetrics)[test.metricRef1]
+			metric := (*exporter.(*Exporter).DeviceMetrics)[test.metricRef1]
 			m := (*metric)[test.metricRef2]
 
 			assert.Empty(testutil.CollectAndCompare(m, strings.NewReader(test.expected), test.metricName))
@@ -1101,15 +1101,13 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
 
 	assert := assert.New(t)
 
-	metrx := NewDeviceMetrics()
-
 	exporter = &Exporter{
 		ctx:                 context.Background(),
 		host:                "fishymetrics.com",
-		model:               "model a",
+		Model:               "model a",
 		biosVersion:         "U99 v0.00 (xx/xx/xxxx)",
-		chassisSerialNumber: "SN98765",
-		deviceMetrics:       metrx,
+		ChassisSerialNumber: "SN98765",
+		DeviceMetrics:       NewDeviceMetrics(),
 	}
 
 	prometheus.MustRegister(exporter)
@@ -1431,7 +1429,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// clear metric before each test
-			metric := (*exporter.(*Exporter).deviceMetrics)[test.metricRef1]
+			metric := (*exporter.(*Exporter).DeviceMetrics)[test.metricRef1]
 			m := (*metric)[test.metricRef2]
 			m.Reset()
 

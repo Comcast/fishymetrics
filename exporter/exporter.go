@@ -47,6 +47,8 @@ const (
 	DISKDRIVE = "DiskDriveMetrics"
 	// LOGICALDRIVE represents the Logical drive metric endpoint
 	LOGICALDRIVE = "LogicalDriveMetrics"
+	// UNKNOWN_DRIVE is placeholder for unknown drive types
+	UNKNOWN_DRIVE = "UnknownDriveMetrics"
 	// STORAGE_CONTROLLER represents the MRAID metric endpoints
 	STORAGE_CONTROLLER = "StorageControllerMetrics"
 	// MEMORY represents the memory metric endpoints
@@ -76,15 +78,18 @@ var (
 // Exporter collects chassis manager stats from the given URI and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	ctx                 context.Context
-	mutex               sync.RWMutex
-	pool                *pool.Pool
-	host                string
-	model               string
-	credProfile         string
-	biosVersion         string
-	chassisSerialNumber string
-	deviceMetrics       *map[string]*metrics
+	ctx         context.Context
+	mutex       sync.RWMutex
+	pool        *pool.Pool
+	client      *retryablehttp.Client
+	host        string
+	url         string
+	credProfile string
+	biosVersion string
+
+	ChassisSerialNumber string
+	DeviceMetrics       *map[string]*metrics
+	Model               string
 }
 
 type SystemEndpoints struct {
@@ -102,17 +107,7 @@ type DriveEndpoints struct {
 type Excludes map[string]interface{}
 
 type Plugin interface {
-	apply(*Exporter) error
-}
-
-type pluginFunc func(*Exporter) error
-
-func (f pluginFunc) apply(exp *Exporter) error {
-	err := f(exp)
-	if err != nil {
-		return err
-	}
-	return nil
+	Apply(*Exporter) error
 }
 
 // NewExporter returns an initialized Exporter for a redfish API capable device.
@@ -122,8 +117,8 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	var exp = Exporter{
 		ctx:           ctx,
 		credProfile:   profile,
-		deviceMetrics: NewDeviceMetrics(),
-		model:         model,
+		DeviceMetrics: NewDeviceMetrics(),
+		Model:         model,
 	}
 
 	log = zap.L()
@@ -158,6 +153,8 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		}
 	}
 
+	exp.client = retryClient
+
 	// Check that the target passed in has http:// or https:// prefixed
 	fqdn, err := url.ParseRequestURI(target)
 	if err != nil {
@@ -166,16 +163,17 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 			Host:   target,
 		}
 	}
-	exp.host = fqdn.String()
+	exp.host = fqdn.Hostname()
+	exp.url = fqdn.String()
 
 	// check if host is on the ignored list, if so we immediately return
 	if _, ok := common.IgnoredDevices[exp.host]; ok {
-		var upMetric = (*exp.deviceMetrics)["up"]
+		var upMetric = (*exp.DeviceMetrics)["up"]
 		(*upMetric)["up"].WithLabelValues().Set(float64(2))
 		return &exp, nil
 	}
 
-	chassisEndpoints, err := getChassisUrls(fqdn.String()+uri+"/Chassis/", target, retryClient)
+	chassisEndpoints, err := getChassisUrls(exp.url+uri+"/Chassis/", target, retryClient)
 	if err != nil {
 		log.Error("error when getting chassis url from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		if errors.Is(err, common.ErrInvalidCredential) {
@@ -186,7 +184,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 				CredentialProfile: exp.credProfile,
 			}
 			log.Info("added host "+exp.host+" to ignored list", zap.Any("trace_id", exp.ctx.Value("traceID")))
-			var upMetric = (*exp.deviceMetrics)["up"]
+			var upMetric = (*exp.DeviceMetrics)["up"]
 			(*upMetric)["up"].WithLabelValues().Set(float64(2))
 
 			return &exp, nil
@@ -197,8 +195,8 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	// thermal and power metrics are obtained from all chassis endpoints
 	for _, chasUrl := range chassisEndpoints {
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+chasUrl+"Thermal/", target, profile, retryClient), handle(&exp, THERMAL)),
-			pool.NewTask(common.Fetch(fqdn.String()+chasUrl+"Power/", target, profile, retryClient), handle(&exp, POWER)))
+			pool.NewTask(common.Fetch(exp.url+chasUrl+"Thermal/", target, profile, retryClient), handle(&exp, THERMAL)),
+			pool.NewTask(common.Fetch(exp.url+chasUrl+"Power/", target, profile, retryClient), handle(&exp, POWER)))
 	}
 
 	// ignore /redfish/v1/Chassis/CMC/ endpoint from here on out except for cisco c220
@@ -217,29 +215,29 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	// chassis endpoint to use for obtaining url endpoints for storage controller, NVMe drive metrics as well as the starting
 	// point for the systems and manager endpoints
-	sysEndpoints, err := getSystemEndpoints(fqdn.String()+chasUrlFinal, target, retryClient, excludes)
+	sysEndpoints, err := getSystemEndpoints(exp.url+chasUrlFinal, target, retryClient, excludes)
 	if err != nil {
 		log.Error("error when getting chassis endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
 
 	// call /redfish/v1/Systems/XXXXX/ for BIOS, Serial number
-	sysResp, err := getSystemsMetadata(fqdn.String()+sysEndpoints.systems[0], target, retryClient)
+	sysResp, err := getSystemsMetadata(exp.url+sysEndpoints.systems[0], target, retryClient)
 	if err != nil {
 		log.Error("error when getting BIOS version from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
 	exp.biosVersion = sysResp.BiosVersion
-	exp.chassisSerialNumber = sysResp.SerialNumber
+	exp.ChassisSerialNumber = sysResp.SerialNumber
 
 	// call /redfish/v1/Systems/XXXXX/ for memory summary and smart storage batteries
 	// TODO: do not assume 1 systems endpoint
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoints.systems[0], target, profile, retryClient),
+		pool.NewTask(common.Fetch(exp.url+sysEndpoints.systems[0], target, profile, retryClient),
 			handle(&exp, MEMORY_SUMMARY, STORAGEBATTERY)))
 
 	// check /redfish/v1/Chassis/XXXXX/ for smart storage batteries incase it is not in the systems endpoint
-	tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+chasUrlFinal, target, profile, retryClient), handle(&exp, STORAGEBATTERY)))
+	tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+chasUrlFinal, target, profile, retryClient), handle(&exp, STORAGEBATTERY)))
 
 	// check for SmartStorage endpoint from either Hp or Hpe
 	var ss string
@@ -252,7 +250,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	// skip if SmartStorage URL is not present
 	var driveEndpointsResp DriveEndpoints
 	if ss != "" {
-		driveEndpointsResp, err = getAllDriveEndpoints(ctx, fqdn.String(), fqdn.String()+ss, target, retryClient)
+		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient)
 		if err != nil {
 			log.Error("error when getting drive endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
@@ -261,24 +259,25 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
 	for _, url := range driveEndpointsResp.logicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, target, profile, retryClient), handle(&exp, LOGICALDRIVE)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), handle(&exp, LOGICALDRIVE)))
 	}
 
 	for _, url := range driveEndpointsResp.physicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, target, profile, retryClient), handle(&exp, DISKDRIVE)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), handle(&exp, DISKDRIVE)))
 	}
 
+	// drives from this list could either be NVMe or physical SAS/SATA
 	for _, url := range sysEndpoints.drives {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, target, profile, retryClient), handle(&exp, NVME)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), handle(&exp, UNKNOWN_DRIVE)))
 	}
 
 	// storage controller
 	for _, url := range sysEndpoints.storageController {
-		tasks = append(tasks, pool.NewTask(common.Fetch(fqdn.String()+url, target, profile, retryClient), handle(&exp, STORAGE_CONTROLLER)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), handle(&exp, STORAGE_CONTROLLER)))
 	}
 
 	// DIMM endpoints array
-	dimms, err := getDIMMEndpoints(fqdn.String()+sysEndpoints.systems[0]+"Memory/", target, retryClient)
+	dimms, err := getDIMMEndpoints(exp.url+sysEndpoints.systems[0]+"Memory/", target, retryClient)
 	if err != nil {
 		log.Error("error when getting DIMM endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
@@ -287,16 +286,16 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	// DIMMs
 	for _, dimm := range dimms.Members {
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+dimm.URL, target, profile, retryClient), handle(&exp, MEMORY)))
+			pool.NewTask(common.Fetch(exp.url+dimm.URL, target, profile, retryClient), handle(&exp, MEMORY)))
 	}
 
 	// call /redfish/v1/Managers/XXX/ for firmware version and ilo self test metrics
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(fqdn.String()+sysEndpoints.manager, target, profile, retryClient),
+		pool.NewTask(common.Fetch(exp.url+sysEndpoints.manager, target, profile, retryClient),
 			handle(&exp, FIRMWARE, ILOSELFTEST)))
 
 	// CPU processor metrics
-	processors, err := getProcessorEndpoints(fqdn.String()+sysEndpoints.systems[0]+"Processors/", target, retryClient)
+	processors, err := getProcessorEndpoints(exp.url+sysEndpoints.systems[0]+"Processors/", target, retryClient)
 	if err != nil {
 		log.Error("error when getting Processors endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
@@ -304,18 +303,20 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	for _, processor := range processors.Members {
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(fqdn.String()+processor.URL, target, profile, retryClient), handle(&exp, PROCESSOR)))
+			pool.NewTask(common.Fetch(exp.url+processor.URL, target, profile, retryClient), handle(&exp, PROCESSOR)))
 	}
 
-	// check for any plugins, this feature allows one to collect any remaining component data not present inside the redfish API
-	for _, plug := range plugins {
-		err := plug.apply(&exp)
+	exp.pool = pool.NewPool(tasks, 1)
+
+	// check for any plugins, this feature allows one to collect any remaining component data not present inside
+	// the redfish API.
+	// Please see docs/plugins.md for more information.
+	for _, plugin := range plugins {
+		err := plugin.Apply(&exp)
 		if err != nil {
 			return &exp, err
 		}
 	}
-
-	exp.pool = pool.NewPool(tasks, 1)
 
 	return &exp, nil
 }
@@ -323,7 +324,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 // Describe describes all the metrics ever exported by the fishymetrics exporter. It
 // implements prometheus.Collector.
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	for _, m := range *e.deviceMetrics {
+	for _, m := range *e.DeviceMetrics {
 		for _, n := range *m {
 			n.Describe(ch)
 		}
@@ -342,7 +343,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	if _, ok := common.IgnoredDevices[e.host]; !ok {
 		e.scrape()
 	} else {
-		var upMetric = (*e.deviceMetrics)["up"]
+		var upMetric = (*e.DeviceMetrics)["up"]
 		(*upMetric)["up"].WithLabelValues().Set(float64(2))
 	}
 
@@ -350,7 +351,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (e *Exporter) resetMetrics() {
-	for _, m := range *e.deviceMetrics {
+	for _, m := range *e.DeviceMetrics {
 		for _, n := range *m {
 			n.Reset()
 		}
@@ -358,7 +359,7 @@ func (e *Exporter) resetMetrics() {
 }
 
 func (e *Exporter) collectMetrics(metrics chan<- prometheus.Metric) {
-	for _, m := range *e.deviceMetrics {
+	for _, m := range *e.DeviceMetrics {
 		for _, n := range *m {
 			n.Collect(metrics)
 		}
@@ -383,7 +384,7 @@ func (e *Exporter) scrape() {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis/",
-					Module:            e.model,
+					Module:            e.Model,
 					CredentialProfile: e.credProfile,
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))
@@ -391,9 +392,9 @@ func (e *Exporter) scrape() {
 			} else {
 				deviceState = 0
 			}
-			var upMetric = (*e.deviceMetrics)["up"]
+			var upMetric = (*e.DeviceMetrics)["up"]
 			(*upMetric)["up"].WithLabelValues().Set(float64(deviceState))
-			log.Error("error calling redfish api from "+e.model, zap.Error(task.Err), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error calling redfish api from "+e.Model, zap.Error(task.Err), zap.Any("trace_id", e.ctx.Value("traceID")))
 			return
 		}
 
@@ -402,7 +403,7 @@ func (e *Exporter) scrape() {
 		}
 
 		if err != nil {
-			log.Error("error exporting metrics - from "+e.model, zap.Error(err), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error exporting metrics - from "+e.Model, zap.Error(err), zap.Any("trace_id", e.ctx.Value("traceID")))
 			continue
 		}
 		scrapeChan <- 1
@@ -415,7 +416,27 @@ func (e *Exporter) scrape() {
 		state &= result
 	}
 
-	var upMetric = (*e.deviceMetrics)["up"]
+	var upMetric = (*e.DeviceMetrics)["up"]
 	(*upMetric)["up"].WithLabelValues().Set(float64(state))
 
+}
+
+func (e *Exporter) GetContext() context.Context {
+	return e.ctx
+}
+
+func (e *Exporter) GetHost() string {
+	return e.host
+}
+
+func (e *Exporter) GetUrl() string {
+	return e.url
+}
+
+func (e *Exporter) GetPool() *pool.Pool {
+	return e.pool
+}
+
+func (e *Exporter) GetClient() *retryablehttp.Client {
+	return e.client
 }

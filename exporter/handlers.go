@@ -40,6 +40,8 @@ func handle(exp *Exporter, metricType ...string) []common.Handler {
 			handlers = append(handlers, exp.exportPhysicalDriveMetrics)
 		} else if m == LOGICALDRIVE {
 			handlers = append(handlers, exp.exportLogicalDriveMetrics)
+		} else if m == UNKNOWN_DRIVE {
+			handlers = append(handlers, exp.exportUnknownDriveMetrics)
 		} else if m == STORAGE_CONTROLLER {
 			handlers = append(handlers, exp.exportStorageControllerMetrics)
 		} else if m == MEMORY {
@@ -63,13 +65,13 @@ func handle(exp *Exporter, metricType ...string) []common.Handler {
 // exportFirmwareMetrics collects the device metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 	var mgr oem.Manager
-	var dm = (*e.deviceMetrics)["deviceInfo"]
+	var dm = (*e.DeviceMetrics)["deviceInfo"]
 	err := json.Unmarshal(body, &mgr)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling FirmwareMetrics - " + err.Error())
 	}
 
-	(*dm)["deviceInfo"].WithLabelValues(mgr.Description, e.chassisSerialNumber, e.model, mgr.FirmwareVersion, e.biosVersion).Set(1.0)
+	(*dm)["deviceInfo"].WithLabelValues(mgr.Description, e.ChassisSerialNumber, e.Model, mgr.FirmwareVersion, e.biosVersion).Set(1.0)
 
 	return nil
 }
@@ -78,7 +80,7 @@ func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 func (e *Exporter) exportPowerMetrics(body []byte) error {
 	var state float64
 	var pm oem.PowerMetrics
-	var pow = (*e.deviceMetrics)["powerMetrics"]
+	var pow = (*e.DeviceMetrics)["powerMetrics"]
 	var bay int
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
@@ -105,7 +107,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				watts, _ = strconv.ParseFloat(pc.PowerMetrics.AverageConsumedWatts.(string), 32)
 			}
 		}
-		(*pow)["supplyTotalConsumed"].WithLabelValues(pm.Url, e.chassisSerialNumber, e.model).Set(watts)
+		(*pow)["supplyTotalConsumed"].WithLabelValues(pm.Url, e.ChassisSerialNumber, e.Model).Set(watts)
 	}
 
 	for _, pv := range pm.Voltages {
@@ -117,7 +119,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			case string:
 				volts, _ = strconv.ParseFloat(pv.ReadingVolts.(string), 32)
 			}
-			(*pow)["voltageOutput"].WithLabelValues(pv.Name, e.chassisSerialNumber, e.model).Set(volts)
+			(*pow)["voltageOutput"].WithLabelValues(pv.Name, e.ChassisSerialNumber, e.Model).Set(volts)
 			if pv.Status.Health == "OK" {
 				state = OK
 			} else {
@@ -127,7 +129,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			state = BAD
 		}
 
-		(*pow)["voltageStatus"].WithLabelValues(pv.Name, e.chassisSerialNumber, e.model).Set(state)
+		(*pow)["voltageStatus"].WithLabelValues(pv.Name, e.ChassisSerialNumber, e.Model).Set(state)
 	}
 
 	for _, ps := range pm.PowerSupplies {
@@ -146,7 +148,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				bay = ps.Oem.Hpe.BayNumber
 			}
 
-			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.chassisSerialNumber, e.model, strings.TrimRight(ps.Manufacturer, " "), ps.SparePartNumber, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
+			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SparePartNumber, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
 			if ps.Status.Health == "OK" {
 				state = OK
 			} else if ps.Status.Health == "" {
@@ -158,7 +160,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			state = BAD
 		}
 
-		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.chassisSerialNumber, e.model, strings.TrimRight(ps.Manufacturer, " "), ps.SparePartNumber, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
+		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SparePartNumber, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
 	}
 
 	return nil
@@ -169,7 +171,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 
 	var state float64
 	var tm oem.ThermalMetrics
-	var therm = (*e.deviceMetrics)["thermalMetrics"]
+	var therm = (*e.DeviceMetrics)["thermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling ThermalMetrics - " + err.Error())
@@ -181,7 +183,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 		} else {
 			state = BAD
 		}
-		(*therm)["thermalSummary"].WithLabelValues(tm.Url, e.chassisSerialNumber, e.model).Set(state)
+		(*therm)["thermalSummary"].WithLabelValues(tm.Url, e.ChassisSerialNumber, e.Model).Set(state)
 	}
 
 	// Iterate through fans
@@ -197,9 +199,9 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 			}
 
 			if fan.FanName != "" {
-				(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.chassisSerialNumber, e.model).Set(float64(fan.CurrentReading))
+				(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.ChassisSerialNumber, e.Model).Set(float64(fan.CurrentReading))
 			} else {
-				(*therm)["fanSpeed"].WithLabelValues(fan.Name, e.chassisSerialNumber, e.model).Set(fanSpeed)
+				(*therm)["fanSpeed"].WithLabelValues(fan.Name, e.ChassisSerialNumber, e.Model).Set(fanSpeed)
 			}
 			if fan.Status.Health == "OK" {
 				state = OK
@@ -207,9 +209,9 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 				state = BAD
 			}
 			if fan.FanName != "" {
-				(*therm)["fanStatus"].WithLabelValues(fan.FanName, e.chassisSerialNumber, e.model).Set(state)
+				(*therm)["fanStatus"].WithLabelValues(fan.FanName, e.ChassisSerialNumber, e.Model).Set(state)
 			} else {
-				(*therm)["fanStatus"].WithLabelValues(fan.Name, e.chassisSerialNumber, e.model).Set(state)
+				(*therm)["fanStatus"].WithLabelValues(fan.Name, e.ChassisSerialNumber, e.Model).Set(state)
 			}
 		}
 	}
@@ -227,13 +229,13 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 			case float64:
 				celsTemp = sensor.ReadingCelsius.(float64)
 			}
-			(*therm)["sensorTemperature"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.chassisSerialNumber, e.model).Set(celsTemp)
+			(*therm)["sensorTemperature"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.ChassisSerialNumber, e.Model).Set(celsTemp)
 			if sensor.Status.Health == "OK" {
 				state = OK
 			} else {
 				state = BAD
 			}
-			(*therm)["sensorStatus"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.chassisSerialNumber, e.model).Set(state)
+			(*therm)["sensorStatus"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.ChassisSerialNumber, e.Model).Set(state)
 		}
 	}
 
@@ -245,7 +247,9 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 
 	var state float64
 	var dlphysical oem.DiskDriveMetrics
-	var dlphysicaldrive = (*e.deviceMetrics)["diskDriveMetrics"]
+	var dlphysicaldrive = (*e.DeviceMetrics)["diskDriveMetrics"]
+	var loc string
+	var cap int
 	err := json.Unmarshal(body, &dlphysical)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - " + err.Error())
@@ -261,9 +265,22 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
+	if dlphysical.Location != "" {
+		loc = dlphysical.Location
+	} else if dlphysical.PhysicalLocation.PartLocation.ServiceLabel != "" {
+		loc = dlphysical.PhysicalLocation.PartLocation.ServiceLabel
+	}
+
+	if dlphysical.CapacityMiB != 0 {
+		cap = dlphysical.CapacityMiB
+	} else if dlphysical.CapacityBytes != 0 {
+		// convert to MiB
+		cap = ((dlphysical.CapacityBytes / 1024) / 1024)
+	}
+
 	// Physical drives need to have a unique identifier like location so as to not overwrite data
 	// physical drives can have the same ID, but belong to a different ArrayController, therefore need more than just the ID as a unique identifier.
-	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, e.chassisSerialNumber, e.model, dlphysical.Id, dlphysical.Location, dlphysical.SerialNumber).Set(state)
+	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, e.ChassisSerialNumber, e.Model, dlphysical.Id, loc, dlphysical.SerialNumber, strconv.Itoa(cap)).Set(state)
 	return nil
 }
 
@@ -271,7 +288,7 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	var state float64
 	var dllogical oem.LogicalDriveMetrics
-	var dllogicaldrive = (*e.deviceMetrics)["logicalDriveMetrics"]
+	var dllogicaldrive = (*e.DeviceMetrics)["logicalDriveMetrics"]
 	err := json.Unmarshal(body, &dllogical)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling LogicalDriveMetrics - " + err.Error())
@@ -287,7 +304,7 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, e.chassisSerialNumber, e.model, dllogical.LogicalDriveName, dllogical.VolumeUniqueIdentifier, dllogical.Raid).Set(state)
+	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, e.ChassisSerialNumber, e.Model, dllogical.LogicalDriveName, dllogical.VolumeUniqueIdentifier, dllogical.Raid).Set(state)
 	return nil
 }
 
@@ -295,7 +312,7 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	var state float64
 	var dlnvme oem.NVMeDriveMetrics
-	var dlnvmedrive = (*e.deviceMetrics)["nvmeMetrics"]
+	var dlnvmedrive = (*e.DeviceMetrics)["nvmeMetrics"]
 	err := json.Unmarshal(body, &dlnvme)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling NVMeDriveMetrics - " + err.Error())
@@ -312,7 +329,31 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(e.chassisSerialNumber, e.model, dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel).Set(state)
+	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(e.ChassisSerialNumber, e.Model, dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel).Set(state)
+	return nil
+}
+
+// exportUnknownDriveMetrics figured out what protocol the drive is using and then determines which handler to use for metrics collection
+func (e *Exporter) exportUnknownDriveMetrics(body []byte) error {
+
+	var protocol oem.DriveProtocol
+	err := json.Unmarshal(body, &protocol)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling for drive protocol - " + err.Error())
+	}
+
+	if protocol.Protocol == "NVMe" {
+		err = e.exportNVMeDriveMetrics(body)
+		if err != nil {
+			return fmt.Errorf("Error Unmarshalling NVMeDriveMetrics - " + err.Error())
+		}
+	} else if protocol.Protocol != "" {
+		err = e.exportPhysicalDriveMetrics(body)
+		if err != nil {
+			return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - " + err.Error())
+		}
+	}
+
 	return nil
 }
 
@@ -321,7 +362,7 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 
 	var state float64
 	var scm oem.StorageControllerMetrics
-	var drv = (*e.deviceMetrics)["storageCtrlMetrics"]
+	var drv = (*e.DeviceMetrics)["storageCtrlMetrics"]
 	err := json.Unmarshal(body, &scm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling StorageControllerMetrics - " + err.Error())
@@ -334,7 +375,7 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 			} else {
 				state = BAD
 			}
-			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.chassisSerialNumber, e.model, sc.FirmwareVersion, sc.Model).Set(state)
+			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, sc.FirmwareVersion, sc.Model).Set(state)
 		}
 	}
 
@@ -346,7 +387,7 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 
 	var state float64
 	var dlm oem.System
-	var dlMemory = (*e.deviceMetrics)["memoryMetrics"]
+	var dlMemory = (*e.DeviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &dlm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling MemorySummaryMetrics - " + err.Error())
@@ -358,7 +399,7 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 		state = BAD
 	}
 
-	(*dlMemory)["memoryStatus"].WithLabelValues(e.chassisSerialNumber, e.model, strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
+	(*dlMemory)["memoryStatus"].WithLabelValues(e.ChassisSerialNumber, e.Model, strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
 
 	return nil
 }
@@ -368,7 +409,7 @@ func (e *Exporter) exportStorageBattery(body []byte) error {
 
 	var state float64
 	var chasStorBatt oem.ChassisStorageBattery
-	var storBattery = (*e.deviceMetrics)["storBatteryMetrics"]
+	var storBattery = (*e.DeviceMetrics)["storBatteryMetrics"]
 	err := json.Unmarshal(body, &chasStorBatt)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling Storage Battery Metrics - " + err.Error())
@@ -382,7 +423,7 @@ func (e *Exporter) exportStorageBattery(body []byte) error {
 				} else {
 					state = BAD
 				}
-				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.ChassisSerialNumber, e.Model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
 			}
 		}
 	} else if fmt.Sprint(chasStorBatt.Oem.Hpe.Battery) != "null" && len(chasStorBatt.Oem.Hpe.Battery) > 0 {
@@ -393,7 +434,7 @@ func (e *Exporter) exportStorageBattery(body []byte) error {
 				} else {
 					state = BAD
 				}
-				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.ChassisSerialNumber, e.Model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
 			}
 		}
 	} else if len(chasStorBatt.Oem.Hpe.BatteryAlt) > 0 {
@@ -404,7 +445,7 @@ func (e *Exporter) exportStorageBattery(body []byte) error {
 				} else {
 					state = BAD
 				}
-				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.ChassisSerialNumber, e.Model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
 			}
 		}
 	} else if len(chasStorBatt.Oem.Hp.BatteryAlt) > 0 {
@@ -415,7 +456,7 @@ func (e *Exporter) exportStorageBattery(body []byte) error {
 				} else {
 					state = BAD
 				}
-				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.chassisSerialNumber, e.model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
+				(*storBattery)["storageBatteryStatus"].WithLabelValues(strconv.Itoa(ssbat.Index), e.ChassisSerialNumber, e.Model, strings.TrimRight(ssbat.Name, " "), ssbat.Model).Set(state)
 			}
 		}
 	}
@@ -429,7 +470,7 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	var state float64
 	var memCap string
 	var mm oem.MemoryMetrics
-	var mem = (*e.deviceMetrics)["memoryMetrics"]
+	var mem = (*e.DeviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &mm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling MemoryMetrics - " + err.Error())
@@ -451,7 +492,7 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 			state = BAD
 		}
 
-		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, e.model, memCap, strings.TrimRight(mm.Manufacturer, " "), strings.TrimRight(mm.PartNumber, " ")).Set(state)
+		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.ChassisSerialNumber, e.Model, memCap, strings.TrimRight(mm.Manufacturer, " "), strings.TrimRight(mm.PartNumber, " ")).Set(state)
 	} else if mm.Status != "" {
 		var status string
 
@@ -497,7 +538,7 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 				}
 			}
 		}
-		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.chassisSerialNumber, e.model, memCap, strings.TrimRight(mm.Manufacturer, " "), strings.TrimRight(mm.PartNumber, " ")).Set(state)
+		(*mem)["memoryDimmStatus"].WithLabelValues(mm.Name, e.ChassisSerialNumber, e.Model, memCap, strings.TrimRight(mm.Manufacturer, " "), strings.TrimRight(mm.PartNumber, " ")).Set(state)
 	}
 
 	return nil
@@ -509,7 +550,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	var state float64
 	var totCores string
 	var pm oem.ProcessorMetrics
-	var proc = (*e.deviceMetrics)["processorMetrics"]
+	var proc = (*e.DeviceMetrics)["processorMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling ProcessorMetrics - " + err.Error())
@@ -528,7 +569,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	} else {
 		state = BAD
 	}
-	(*proc)["processorStatus"].WithLabelValues(pm.Id, e.chassisSerialNumber, e.model, pm.Socket, pm.Model, totCores).Set(state)
+	(*proc)["processorStatus"].WithLabelValues(pm.Id, e.ChassisSerialNumber, e.Model, pm.Socket, pm.Model, totCores).Set(state)
 
 	return nil
 }
@@ -538,7 +579,7 @@ func (e *Exporter) exportIloSelfTest(body []byte) error {
 
 	var state float64
 	var sysm oem.ChassisStorageBattery
-	var iloSelfTst = (*e.deviceMetrics)["iloSelfTestMetrics"]
+	var iloSelfTst = (*e.DeviceMetrics)["iloSelfTestMetrics"]
 	err := json.Unmarshal(body, &sysm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling iLO Self Test Metrics - " + err.Error())
@@ -552,7 +593,7 @@ func (e *Exporter) exportIloSelfTest(body []byte) error {
 				} else {
 					state = BAD
 				}
-				(*iloSelfTst)["iloSelfTestStatus"].WithLabelValues(ilost.Name, e.chassisSerialNumber, e.model).Set(state)
+				(*iloSelfTst)["iloSelfTestStatus"].WithLabelValues(ilost.Name, e.ChassisSerialNumber, e.Model).Set(state)
 			}
 		}
 	} else if fmt.Sprint(sysm.Oem.Hpe.IloSelfTest) != "null" && len(sysm.Oem.Hpe.IloSelfTest) > 0 {
@@ -563,7 +604,7 @@ func (e *Exporter) exportIloSelfTest(body []byte) error {
 				} else {
 					state = BAD
 				}
-				(*iloSelfTst)["iloSelfTestStatus"].WithLabelValues(ilost.Name, e.chassisSerialNumber, e.model).Set(state)
+				(*iloSelfTst)["iloSelfTestStatus"].WithLabelValues(ilost.Name, e.ChassisSerialNumber, e.Model).Set(state)
 			}
 		}
 	}

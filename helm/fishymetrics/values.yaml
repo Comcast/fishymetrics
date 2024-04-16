@@ -8,6 +8,14 @@ replicas: 1
 exporter:
   port: "9533"
 
+log:
+  level: "info"
+  method: ""
+  filePath: "/var/log/fishymetrics"
+  fileMaxSize: 256
+  fileMaxBackups: 1
+  fileMaxAge: 1
+
 bmc:
   username: ""
   password: ""
@@ -21,7 +29,7 @@ vault:
 
 collectors: {}
 # drives:
-#   modules-exclude: "(FlexUtil|SBMezz1|IOEMezz1)"
+#   modulesExclude: "(FlexUtil|SBMezz[0-9]+|IOEMezz[0-9]+)"
 
 credentials: {}
 # profiles:
