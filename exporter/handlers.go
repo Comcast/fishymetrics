@@ -159,6 +159,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 		} else {
 			state = BAD
 		}
+
 		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
 	}
 
@@ -264,19 +265,6 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		state = OK
 	} else {
 		state = BAD
-	}
-
-	if dlphysical.Location != "" {
-		loc = dlphysical.Location
-	} else if dlphysical.PhysicalLocation.PartLocation.ServiceLabel != "" {
-		loc = dlphysical.PhysicalLocation.PartLocation.ServiceLabel
-	}
-
-	if dlphysical.CapacityMiB != 0 {
-		cap = dlphysical.CapacityMiB
-	} else if dlphysical.CapacityBytes != 0 {
-		// convert to MiB
-		cap = ((dlphysical.CapacityBytes / 1024) / 1024)
 	}
 
 	if dlphysical.Location != "" {
