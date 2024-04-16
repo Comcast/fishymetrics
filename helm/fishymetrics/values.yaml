@@ -1,6 +1,6 @@
 image:
   repo: comcast/fishymetrics
-  tag: 0.8.0
+  tag: 0.12.0
   pullPolicy: IfNotPresent
 
 replicas: 1
@@ -62,23 +62,21 @@ vector:
     endpoint: ""
     indexName: ""
 
-  resources:
-    {}
-    # limits:
-    #  cpu: 100m
-    #  memory: 128Mi
-    # requests:
-    #  cpu: 100m
-    #  memory: 128Mi
-
-resources:
-  {}
+  resources: {}
   # limits:
   #  cpu: 100m
   #  memory: 128Mi
   # requests:
   #  cpu: 100m
   #  memory: 128Mi
+
+resources: {}
+# limits:
+#  cpu: 100m
+#  memory: 128Mi
+# requests:
+#  cpu: 100m
+#  memory: 128Mi
 
 horizontalPodAutoscaler:
   enabled: false
@@ -91,32 +89,27 @@ ingress:
   enabled: false
   hosts:
     - chart-example.local
-  annotations:
-    {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
-  tls:
-    []
-    # Secrets must be manually created in the namespace.
-    # - secretName: chart-example-tls
-    #   hosts:
-    #   - chart-example.local
+  annotations: {}
+  # kubernetes.io/ingress.class: nginx
+  # kubernetes.io/tls-acme: "true"
+  tls: []
+  # Secrets must be manually created in the namespace.
+  # - secretName: chart-example-tls
+  #   hosts:
+  #   - chart-example.local
 
-affinity:
-  {}
-  # nodeAffinity:
-  #   requiredDuringSchedulingIgnoredDuringExecution:
-  #     nodeSelectorTerms:
-  #     - matchExpressions:
-  #       - key: node-role.kubernetes.io/master
-  #         operator: Exists
+affinity: {}
+# nodeAffinity:
+#   requiredDuringSchedulingIgnoredDuringExecution:
+#     nodeSelectorTerms:
+#     - matchExpressions:
+#       - key: node-role.kubernetes.io/master
+#         operator: Exists
 
-nodeSelector:
-  {}
-  # node-role.kubernetes.io/master: "true"
+nodeSelector: {}
+# node-role.kubernetes.io/master: "true"
 
-tolerations:
-  []
-  # - key: "node-role.kubernetes.io/master"
-  #   operator: "Exists"
-  #   effect: "NoSchedule"
+tolerations: []
+# - key: "node-role.kubernetes.io/master"
+#   operator: "Exists"
+#   effect: "NoSchedule"
