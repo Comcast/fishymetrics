@@ -3,7 +3,7 @@
 This is a simple server that scrapes a baremetal chassis' managers stats using the redfish API and
 exports them via HTTP for Prometheus consumption.
 
-This app can support any chassis that has the redfish API available. If one needs to query any non-redfish API calls this app can be extended to support that. Please see the [`plugins`]() documentation for more information.
+This app can support any chassis that has the redfish API available. If one needs to query any non-redfish API calls this app can be extended to support that. Please see the [`plugins`](https://github.com/Comcast/fishymetrics/tree/main/docs/plugins.md) documentation for more information.
 
 ## Getting Started
 
