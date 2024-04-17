@@ -30,6 +30,7 @@ import (
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	"github.com/comcast/fishymetrics/oem"
 	"github.com/comcast/fishymetrics/pool"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/prometheus/client_golang/prometheus"
@@ -96,7 +97,8 @@ type SystemEndpoints struct {
 	storageController []string
 	drives            []string
 	systems           []string
-	manager           string
+	power             []string
+	thermal           []string
 }
 
 type DriveEndpoints struct {
@@ -173,7 +175,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		return &exp, nil
 	}
 
-	chassisEndpoints, err := getChassisUrls(exp.url+uri+"/Chassis/", target, retryClient)
+	chassisEndpoints, err := getMemberUrls(exp.url+uri+"/Chassis/", target, retryClient)
 	if err != nil {
 		log.Error("error when getting chassis url from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		if errors.Is(err, common.ErrInvalidCredential) {
@@ -192,52 +194,76 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		return nil, err
 	}
 
-	// thermal and power metrics are obtained from all chassis endpoints
-	for _, chasUrl := range chassisEndpoints {
-		tasks = append(tasks,
-			pool.NewTask(common.Fetch(exp.url+chasUrl+"Thermal/", target, profile, retryClient), handle(&exp, THERMAL)),
-			pool.NewTask(common.Fetch(exp.url+chasUrl+"Power/", target, profile, retryClient), handle(&exp, POWER)))
+	mgrEndpoints, err := getMemberUrls(exp.url+uri+"/Managers/", target, retryClient)
+	if err != nil {
+		log.Error("error when getting manager endpoint from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
 	}
 
-	// ignore /redfish/v1/Chassis/CMC/ endpoint from here on out except for cisco c220
-	// TODO: handle cases where there are multiple non CMC chassis endpoints
-	var chasUrlFinal string
-	if len(chassisEndpoints) > 1 {
-		for _, member := range chassisEndpoints {
-			if !strings.Contains(member, "/CMC/") {
-				chasUrlFinal = member
+	var mgrEndpointFinal string
+	if len(mgrEndpoints) > 1 {
+		for _, member := range mgrEndpoints {
+			if !strings.Contains(member, "CIMC") {
+				mgrEndpointFinal = member
 				break
 			}
 		}
+	} else if len(mgrEndpoints) > 0 {
+		mgrEndpointFinal = mgrEndpoints[0]
 	} else {
-		chasUrlFinal = chassisEndpoints[0]
+		return nil, errors.New("no manager endpoint found")
+	}
+
+	// prepend the base url with the chassis url
+	var chasUrlsFinal []string
+	for _, chasUrl := range chassisEndpoints {
+		chasUrlsFinal = append(chasUrlsFinal, exp.url+chasUrl)
 	}
 
 	// chassis endpoint to use for obtaining url endpoints for storage controller, NVMe drive metrics as well as the starting
 	// point for the systems and manager endpoints
-	sysEndpoints, err := getSystemEndpoints(exp.url+chasUrlFinal, target, retryClient, excludes)
+	sysEndpoints, err := getSystemEndpoints(chasUrlsFinal, target, retryClient, excludes)
 	if err != nil {
 		log.Error("error when getting chassis endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
 
-	// call /redfish/v1/Systems/XXXXX/ for BIOS, Serial number
-	sysResp, err := getSystemsMetadata(exp.url+sysEndpoints.systems[0], target, retryClient)
-	if err != nil {
-		log.Error("error when getting BIOS version from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil, err
+	// check /redfish/v1/Systems/XXXXX/ exists so we don't panic
+	var sysResp oem.System
+	var dimms, processors oem.Collection
+	if len(sysEndpoints.systems) > 0 {
+		// call /redfish/v1/Systems/XXXXX/ for BIOS, Serial number
+		sysResp, err = getSystemsMetadata(exp.url+sysEndpoints.systems[0], target, retryClient)
+		if err != nil {
+			log.Error("error when getting BIOS version from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
+		}
+		exp.biosVersion = sysResp.BiosVersion
+		exp.ChassisSerialNumber = sysResp.SerialNumber
+
+		// call /redfish/v1/Systems/XXXXX/ for memory summary and smart storage batteries
+		// TODO: do not assume 1 systems endpoint
+		tasks = append(tasks,
+			pool.NewTask(common.Fetch(exp.url+sysEndpoints.systems[0], target, profile, retryClient),
+				exp.url+sysEndpoints.systems[0],
+				handle(&exp, MEMORY_SUMMARY, STORAGEBATTERY)))
+
+		// DIMM endpoints array
+		dimms, err = getDIMMEndpoints(exp.url+sysEndpoints.systems[0]+"Memory/", target, retryClient)
+		if err != nil {
+			log.Error("error when getting DIMM endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
+		}
+
+		// CPU processor metrics
+		processors, err = getProcessorEndpoints(exp.url+sysEndpoints.systems[0]+"Processors/", target, retryClient)
+		if err != nil {
+			log.Error("error when getting Processors endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
+		}
+	} else {
+		return nil, errors.New("no systems endpoint found")
 	}
-	exp.biosVersion = sysResp.BiosVersion
-	exp.ChassisSerialNumber = sysResp.SerialNumber
-
-	// call /redfish/v1/Systems/XXXXX/ for memory summary and smart storage batteries
-	// TODO: do not assume 1 systems endpoint
-	tasks = append(tasks,
-		pool.NewTask(common.Fetch(exp.url+sysEndpoints.systems[0], target, profile, retryClient),
-			handle(&exp, MEMORY_SUMMARY, STORAGEBATTERY)))
-
-	// check /redfish/v1/Chassis/XXXXX/ for smart storage batteries incase it is not in the systems endpoint
-	tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+chasUrlFinal, target, profile, retryClient), handle(&exp, STORAGEBATTERY)))
 
 	// check for SmartStorage endpoint from either Hp or Hpe
 	var ss string
@@ -259,51 +285,48 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
 	for _, url := range driveEndpointsResp.logicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), handle(&exp, LOGICALDRIVE)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, LOGICALDRIVE)))
 	}
 
 	for _, url := range driveEndpointsResp.physicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), handle(&exp, DISKDRIVE)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, DISKDRIVE)))
 	}
 
 	// drives from this list could either be NVMe or physical SAS/SATA
 	for _, url := range sysEndpoints.drives {
-		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), handle(&exp, UNKNOWN_DRIVE)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, UNKNOWN_DRIVE)))
 	}
 
 	// storage controller
 	for _, url := range sysEndpoints.storageController {
-		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), handle(&exp, STORAGE_CONTROLLER)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, STORAGE_CONTROLLER)))
 	}
 
-	// DIMM endpoints array
-	dimms, err := getDIMMEndpoints(exp.url+sysEndpoints.systems[0]+"Memory/", target, retryClient)
-	if err != nil {
-		log.Error("error when getting DIMM endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil, err
+	// power
+	for _, url := range sysEndpoints.power {
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, POWER)))
+	}
+
+	// thermal
+	for _, url := range sysEndpoints.thermal {
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, THERMAL)))
 	}
 
 	// DIMMs
 	for _, dimm := range dimms.Members {
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(exp.url+dimm.URL, target, profile, retryClient), handle(&exp, MEMORY)))
+			pool.NewTask(common.Fetch(exp.url+dimm.URL, target, profile, retryClient), exp.url+dimm.URL, handle(&exp, MEMORY)))
 	}
 
 	// call /redfish/v1/Managers/XXX/ for firmware version and ilo self test metrics
 	tasks = append(tasks,
-		pool.NewTask(common.Fetch(exp.url+sysEndpoints.manager, target, profile, retryClient),
+		pool.NewTask(common.Fetch(exp.url+mgrEndpointFinal, target, profile, retryClient),
+			exp.url+mgrEndpointFinal,
 			handle(&exp, FIRMWARE, ILOSELFTEST)))
-
-	// CPU processor metrics
-	processors, err := getProcessorEndpoints(exp.url+sysEndpoints.systems[0]+"Processors/", target, retryClient)
-	if err != nil {
-		log.Error("error when getting Processors endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil, err
-	}
 
 	for _, processor := range processors.Members {
 		tasks = append(tasks,
-			pool.NewTask(common.Fetch(exp.url+processor.URL, target, profile, retryClient), handle(&exp, PROCESSOR)))
+			pool.NewTask(common.Fetch(exp.url+processor.URL, target, profile, retryClient), exp.url+processor.URL, handle(&exp, PROCESSOR)))
 	}
 
 	exp.pool = pool.NewPool(tasks, 1)
@@ -394,7 +417,7 @@ func (e *Exporter) scrape() {
 			}
 			var upMetric = (*e.DeviceMetrics)["up"]
 			(*upMetric)["up"].WithLabelValues().Set(float64(deviceState))
-			log.Error("error calling redfish api from "+e.Model, zap.Error(task.Err), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error calling redfish api from "+e.Model, zap.Error(task.Err), zap.String("url", task.URL), zap.Any("trace_id", e.ctx.Value("traceID")))
 			return
 		}
 
@@ -403,7 +426,7 @@ func (e *Exporter) scrape() {
 		}
 
 		if err != nil {
-			log.Error("error exporting metrics - from "+e.Model, zap.Error(err), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error exporting metrics - from "+e.Model, zap.Error(err), zap.String("url", task.URL), zap.Any("trace_id", e.ctx.Value("traceID")))
 			continue
 		}
 		scrapeChan <- 1

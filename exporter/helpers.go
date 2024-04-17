@@ -31,7 +31,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func getChassisUrls(url, host string, client *retryablehttp.Client) ([]string, error) {
+func getMemberUrls(url, host string, client *retryablehttp.Client) ([]string, error) {
 	var coll oem.Collection
 	var urls []string
 	req := common.BuildRequest(url, host)
@@ -66,59 +66,84 @@ func getChassisUrls(url, host string, client *retryablehttp.Client) ([]string, e
 	return urls, nil
 }
 
-func getSystemEndpoints(url, host string, client *retryablehttp.Client, excludes Excludes) (SystemEndpoints, error) {
+func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp.Client, excludes Excludes) (SystemEndpoints, error) {
 	var chas oem.Chassis
 	var sysEnd SystemEndpoints
-	req := common.BuildRequest(url, host)
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return sysEnd, err
-	}
-	defer resp.Body.Close()
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusUnauthorized {
-			return sysEnd, common.ErrInvalidCredential
-		} else {
-			return sysEnd, fmt.Errorf("HTTP status %d", resp.StatusCode)
+	for _, url := range chassisUrls {
+		req := common.BuildRequest(url, host)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return sysEnd, err
 		}
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return sysEnd, fmt.Errorf("Error reading Response Body - " + err.Error())
-	}
-
-	err = json.Unmarshal(body, &chas)
-	if err != nil {
-		return sysEnd, fmt.Errorf("Error Unmarshalling Chassis struct - " + err.Error())
-	}
-
-	// parse through Links to get the System Endpoints
-	if len(chas.Links.Manager) > 0 {
-		sysEnd.manager = appendSlash(chas.Links.Manager[0].URL)
-	}
-
-	if len(chas.Links.System) > 0 {
-		sysEnd.systems = append(sysEnd.systems, appendSlash(chas.Links.System[0].URL))
-	}
-
-	if len(chas.Links.Storage) > 0 {
-		for _, storage := range chas.Links.Storage {
-			sysEnd.storageController = append(sysEnd.storageController, appendSlash(storage.URL))
-		}
-	}
-
-	if len(chas.Links.Drives) > 0 {
-		for _, drive := range chas.Links.Drives {
-			// this list can potentially be large and cause scrapes to take a long time please
-			// see the '--collector.drives.module-exclude' config in the README for more information
-			if reg, ok := excludes["drive"]; ok {
-				if !reg.(*regexp.Regexp).MatchString(drive.URL) {
-					sysEnd.drives = append(sysEnd.drives, appendSlash(drive.URL))
-				}
+		defer resp.Body.Close()
+		if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+			if resp.StatusCode == http.StatusUnauthorized {
+				return sysEnd, common.ErrInvalidCredential
 			} else {
-				sysEnd.drives = append(sysEnd.drives, appendSlash(drive.URL))
+				return sysEnd, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return sysEnd, fmt.Errorf("Error reading Response Body - " + err.Error())
+		}
+
+		err = json.Unmarshal(body, &chas)
+		if err != nil {
+			return sysEnd, fmt.Errorf("Error Unmarshalling Chassis struct - " + err.Error())
+		}
+
+		// parse through Links to get the System Endpoints for each Chassis and only use unique URLs
+		if len(chas.Links.System) > 0 {
+			for _, sys := range chas.Links.System {
+				if checkUnique(sysEnd.systems, sys.URL) {
+					sysEnd.systems = append(sysEnd.systems, appendSlash(sys.URL))
+				}
+			}
+		}
+
+		if len(chas.Links.Power) > 0 {
+			for _, power := range chas.Links.Power {
+				if checkUnique(sysEnd.power, power.URL) {
+					sysEnd.power = append(sysEnd.power, appendSlash(power.URL))
+				}
+			}
+		}
+
+		if len(chas.Links.Thermal) > 0 {
+			for _, thermal := range chas.Links.Thermal {
+				if checkUnique(sysEnd.thermal, thermal.URL) {
+					sysEnd.thermal = append(sysEnd.thermal, appendSlash(thermal.URL))
+				}
+			}
+		}
+
+		if len(chas.Links.Storage) > 0 {
+			for _, storage := range chas.Links.Storage {
+				if checkUnique(sysEnd.storageController, storage.URL) {
+					sysEnd.storageController = append(sysEnd.storageController, appendSlash(storage.URL))
+				}
+			}
+		}
+
+		if len(chas.Links.Drives) > 0 {
+			for _, drive := range chas.Links.Drives {
+				// this list can potentially be large and cause scrapes to take a long time please
+				// see the '--collector.drives.module-exclude' config in the README for more information
+				if reg, ok := excludes["drive"]; ok {
+					if !reg.(*regexp.Regexp).MatchString(drive.URL) {
+						if checkUnique(sysEnd.drives, drive.URL) {
+							sysEnd.drives = append(sysEnd.drives, appendSlash(drive.URL))
+						}
+					}
+				} else {
+					if checkUnique(sysEnd.drives, drive.URL) {
+						sysEnd.drives = append(sysEnd.drives, appendSlash(drive.URL))
+					}
+				}
 			}
 		}
 	}
@@ -370,4 +395,13 @@ func appendSlash(url string) string {
 		return url + "/"
 	}
 	return url
+}
+
+func checkUnique(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return false
+		}
+	}
+	return true
 }

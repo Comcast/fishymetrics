@@ -37,10 +37,11 @@ type Chassis struct {
 }
 
 type ChassisEndpoints struct {
-	Manager []Link `json:"ManagedBy"`
 	System  []Link `json:"ComputerSystems"`
 	Storage []Link `json:"Storage"`
 	Drives  []Link `json:"Drives"`
+	Power   []Link `json:"PoweredBy"`
+	Thermal []Link `json:"CooledBy"`
 }
 
 type Link struct {

@@ -31,6 +31,7 @@ type Task struct {
 
 	Body           []byte
 	MetricHandlers []common.Handler
+	URL            string
 
 	f func() ([]byte, error)
 }
@@ -52,8 +53,8 @@ type MoonshotTask struct {
 
 // NewTask initializes a new task based on a given work
 // function.
-func NewTask(f func() ([]byte, error), handlers []common.Handler) *Task {
-	return &Task{MetricHandlers: handlers, f: f}
+func NewTask(f func() ([]byte, error), url string, handlers []common.Handler) *Task {
+	return &Task{MetricHandlers: handlers, URL: url, f: f}
 }
 
 // NewMoonshotTask initializes a new task based on a given

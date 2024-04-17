@@ -59,7 +59,7 @@ func (n *NuovaPlugin) Apply(e *exporter.Exporter) error {
 			n.DeviceMetrics = e.DeviceMetrics
 			n.Model = e.Model
 			handlers = append(handlers, n.exportXMLDriveMetrics)
-			e.GetPool().AddTask(pool.NewTask(FetchXML(e.GetUrl()+"/nuova", DRIVE_XML, e.GetHost(), e.GetClient()), handlers))
+			e.GetPool().AddTask(pool.NewTask(FetchXML(e.GetUrl()+"/nuova", DRIVE_XML, e.GetHost(), e.GetClient()), e.GetUrl()+"/nuova", handlers))
 		}
 	}
 	return nil
