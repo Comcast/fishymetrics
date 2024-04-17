@@ -53,7 +53,7 @@ const (
 	GoodDiskDriveExpected = `
         # HELP redfish_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
         # TYPE redfish_disk_drive_status gauge
-        redfish_disk_drive_status{chassisModel="model a",chassisSerialNumber="SN98765",id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
+        redfish_disk_drive_status{capacityMiB="915715",chassisModel="model a",chassisSerialNumber="SN98765",id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
 	`
 	GoodNvmeDriveExpected = `
         # HELP redfish_nvme_drive_status Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED
@@ -128,22 +128,22 @@ const (
 	GoodPowerSupplyOutputOemHpeExpected = `
         # HELP redfish_power_supply_output Power supply output in watts
         # TYPE redfish_power_supply_output gauge
-        redfish_power_supply_output{bayNumber="1",chassisModel="model a",chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC"} 91
+        redfish_power_supply_output{bayNumber="1",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 91
 	`
 	GoodPowerSupplyStatusOemHpeExpected = `
         # HELP redfish_power_supply_status Current power supply status 1 = OK, 0 = BAD
         # TYPE redfish_power_supply_status gauge
-        redfish_power_supply_status{bayNumber="1",chassisModel="model a",chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC"} 1
+        redfish_power_supply_status{bayNumber="1",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 1
 	`
 	GoodPowerSupplyOutputOemHpExpected = `
         # HELP redfish_power_supply_output Power supply output in watts
         # TYPE redfish_power_supply_output gauge
-        redfish_power_supply_output{bayNumber="2",chassisModel="model a",chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC"} 91
+        redfish_power_supply_output{bayNumber="2",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 91
 	`
 	GoodPowerSupplyStatusOemHpExpected = `
         # HELP redfish_power_supply_status Current power supply status 1 = OK, 0 = BAD
         # TYPE redfish_power_supply_status gauge
-        redfish_power_supply_status{bayNumber="2",chassisModel="model a",chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC"} 1
+        redfish_power_supply_status{bayNumber="2",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 1
 	`
 	GoodPowerSupplyTotalConsumedExpected = `
         # HELP redfish_power_supply_total_consumed Total output of all power supplies in watts
@@ -859,7 +859,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
   			"PowerSupplies": [
   			  {
   			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
-  			    "FirmwareVersion": "2.04",
+  			    "FirmwareVersion": "x.xx",
   			    "LastPowerOutputWatts": 91,
   			    "LineInputVoltage": 206,
   			    "LineInputVoltageType": "ACHighLine",
@@ -882,6 +882,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
   			    },
   			    "PowerCapacityWatts": 800,
   			    "PowerSupplyType": "AC",
+                "SerialNumber": "999999",
   			    "SparePartNumber": "part number",
   			    "Status": {
   			      "Health": "OK",
@@ -910,7 +911,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
   			"PowerSupplies": [
   			  {
   			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
-  			    "FirmwareVersion": "2.04",
+  			    "FirmwareVersion": "x.xx",
   			    "LastPowerOutputWatts": 91,
   			    "LineInputVoltage": 206,
   			    "LineInputVoltageType": "ACHighLine",
@@ -933,6 +934,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
   			    },
   			    "PowerCapacityWatts": 800,
   			    "PowerSupplyType": "AC",
+                "SerialNumber": "999999",
   			    "SparePartNumber": "part number",
   			    "Status": {
   			      "Health": "OK",
@@ -961,7 +963,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
   			"PowerSupplies": [
   			  {
   			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
-  			    "FirmwareVersion": "2.04",
+  			    "FirmwareVersion": "x.xx",
   			    "LastPowerOutputWatts": 91,
   			    "LineInputVoltage": 206,
   			    "LineInputVoltageType": "ACHighLine",
@@ -984,6 +986,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
   			    },
   			    "PowerCapacityWatts": 800,
   			    "PowerSupplyType": "AC",
+                "SerialNumber": "999999",
   			    "SparePartNumber": "part number",
   			    "Status": {
   			      "Health": "OK",
@@ -1012,7 +1015,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
   			"PowerSupplies": [
   			  {
   			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
-  			    "FirmwareVersion": "2.04",
+  			    "FirmwareVersion": "x.xx",
   			    "LastPowerOutputWatts": 91,
   			    "LineInputVoltage": 206,
   			    "LineInputVoltageType": "ACHighLine",
@@ -1035,6 +1038,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
   			    },
   			    "PowerCapacityWatts": 800,
   			    "PowerSupplyType": "AC",
+                "SerialNumber": "999999",
   			    "SparePartNumber": "part number",
   			    "Status": {
   			      "Health": "OK",
