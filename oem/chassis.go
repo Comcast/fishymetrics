@@ -33,7 +33,9 @@ type Status struct {
 
 // /redfish/v1/Chassis/XXXXX
 type Chassis struct {
-	Links ChassisEndpoints `json:"Links"`
+	Links      ChassisEndpoints `json:"Links"`
+	PowerAlt   Link             `json:"Power"`
+	ThermalAlt Link             `json:"Thermal"`
 }
 
 type ChassisEndpoints struct {

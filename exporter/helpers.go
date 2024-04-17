@@ -148,6 +148,15 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 		}
 	}
 
+	// check last resort places for power and thermal endpoints if none were found
+	if len(sysEnd.power) == 0 && chas.PowerAlt.URL != "" {
+		sysEnd.power = append(sysEnd.power, appendSlash(chas.PowerAlt.URL))
+	}
+
+	if len(sysEnd.thermal) == 0 && chas.ThermalAlt.URL != "" {
+		sysEnd.thermal = append(sysEnd.thermal, appendSlash(chas.ThermalAlt.URL))
+	}
+
 	return sysEnd, nil
 }
 
