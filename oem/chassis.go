@@ -33,12 +33,13 @@ type Status struct {
 
 // /redfish/v1/Chassis/XXXXX
 type Chassis struct {
-	Links      ChassisEndpoints `json:"Links"`
-	PowerAlt   Link             `json:"Power"`
-	ThermalAlt Link             `json:"Thermal"`
+	Links      ChassisEndpointsUpper `json:"Links"`
+	LinksLower ChassisEndpointsLower `json:"links"`
+	PowerAlt   Link                  `json:"Power"`
+	ThermalAlt Link                  `json:"Thermal"`
 }
 
-type ChassisEndpoints struct {
+type ChassisEndpointsUpper struct {
 	System  []Link `json:"ComputerSystems"`
 	Storage []Link `json:"Storage"`
 	Drives  []Link `json:"Drives"`
@@ -46,10 +47,22 @@ type ChassisEndpoints struct {
 	Thermal []Link `json:"CooledBy"`
 }
 
-type Link struct {
-	URL string `json:"@odata.id"`
+type ChassisEndpointsLower struct {
+	System  []HRef `json:"ComputerSystems"`
+	Storage []HRef `json:"Storage"`
+	Drives  []HRef `json:"Drives"`
+	Power   []HRef `json:"PoweredBy"`
+	Thermal []HRef `json:"CooledBy"`
 }
 
 type ChassisStorageBattery struct {
 	Oem OemSys `json:"Oem"`
+}
+
+type HRef struct {
+	URL string `json:"href"`
+}
+
+type Link struct {
+	URL string `json:"@odata.id"`
 }

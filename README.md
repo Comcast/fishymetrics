@@ -39,10 +39,10 @@ Flags:
       --vault.secret-id=""      Vault Secret ID for AppRole
       --collector.drives.module-exclude=""
                                 regex of drive module(s) to exclude from the scrape
-      --credential.profiles=CREDENTIAL.PROFILES
+      --credentials.profiles=CREDENTIALS.PROFILES
                                 profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
 
-                                  --credential.profiles="
+                                  --credentials.profiles="
                                     profiles:
                                       - name: profile1
                                         mountPath: "kv2"
@@ -52,7 +52,7 @@ Flags:
                                       ...
                                   "
 
-                                --credential.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'
+                                --credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'
 ```
 
 Or set the following ENV Variables:

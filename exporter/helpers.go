@@ -97,52 +97,92 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 		}
 
 		// parse through Links to get the System Endpoints for each Chassis and only use unique URLs
-		if len(chas.Links.System) > 0 {
-			for _, sys := range chas.Links.System {
-				if checkUnique(sysEnd.systems, sys.URL) {
-					sysEnd.systems = append(sysEnd.systems, appendSlash(sys.URL))
-				}
+		for _, sys := range chas.Links.System {
+			url := appendSlash(sys.URL)
+			if checkUnique(sysEnd.systems, url) {
+				sysEnd.systems = append(sysEnd.systems, url)
 			}
 		}
 
-		if len(chas.Links.Power) > 0 {
-			for _, power := range chas.Links.Power {
-				if checkUnique(sysEnd.power, power.URL) {
-					sysEnd.power = append(sysEnd.power, appendSlash(power.URL))
-				}
+		for _, sys := range chas.LinksLower.System {
+			url := appendSlash(sys.URL)
+			if checkUnique(sysEnd.systems, url) {
+				sysEnd.systems = append(sysEnd.systems, url)
 			}
 		}
 
-		if len(chas.Links.Thermal) > 0 {
-			for _, thermal := range chas.Links.Thermal {
-				if checkUnique(sysEnd.thermal, thermal.URL) {
-					sysEnd.thermal = append(sysEnd.thermal, appendSlash(thermal.URL))
-				}
+		for _, power := range chas.Links.Power {
+			url := appendSlash(power.URL)
+			if checkUnique(sysEnd.power, url) {
+				sysEnd.power = append(sysEnd.power, url)
 			}
 		}
 
-		if len(chas.Links.Storage) > 0 {
-			for _, storage := range chas.Links.Storage {
-				if checkUnique(sysEnd.storageController, storage.URL) {
-					sysEnd.storageController = append(sysEnd.storageController, appendSlash(storage.URL))
-				}
+		for _, power := range chas.LinksLower.Power {
+			url := appendSlash(power.URL)
+			if checkUnique(sysEnd.power, url) {
+				sysEnd.power = append(sysEnd.power, url)
 			}
 		}
 
-		if len(chas.Links.Drives) > 0 {
-			for _, drive := range chas.Links.Drives {
-				// this list can potentially be large and cause scrapes to take a long time please
-				// see the '--collector.drives.module-exclude' config in the README for more information
-				if reg, ok := excludes["drive"]; ok {
-					if !reg.(*regexp.Regexp).MatchString(drive.URL) {
-						if checkUnique(sysEnd.drives, drive.URL) {
-							sysEnd.drives = append(sysEnd.drives, appendSlash(drive.URL))
-						}
+		for _, thermal := range chas.Links.Thermal {
+			url := appendSlash(thermal.URL)
+			if checkUnique(sysEnd.thermal, url) {
+				sysEnd.thermal = append(sysEnd.thermal, url)
+			}
+		}
+
+		for _, thermal := range chas.LinksLower.Thermal {
+			url := appendSlash(thermal.URL)
+			if checkUnique(sysEnd.thermal, url) {
+				sysEnd.thermal = append(sysEnd.thermal, url)
+			}
+		}
+
+		for _, storage := range chas.Links.Storage {
+			url := appendSlash(storage.URL)
+			if checkUnique(sysEnd.storageController, url) {
+				sysEnd.storageController = append(sysEnd.storageController, url)
+			}
+		}
+
+		for _, storage := range chas.LinksLower.Storage {
+			url := appendSlash(storage.URL)
+			if checkUnique(sysEnd.storageController, url) {
+				sysEnd.storageController = append(sysEnd.storageController, url)
+			}
+		}
+
+		for _, drive := range chas.Links.Drives {
+			url := appendSlash(drive.URL)
+			// this list can potentially be large and cause scrapes to take a long time please
+			// see the '--collector.drives.module-exclude' config in the README for more information
+			if reg, ok := excludes["drive"]; ok {
+				if !reg.(*regexp.Regexp).MatchString(url) {
+					if checkUnique(sysEnd.drives, url) {
+						sysEnd.drives = append(sysEnd.drives, url)
 					}
-				} else {
-					if checkUnique(sysEnd.drives, drive.URL) {
-						sysEnd.drives = append(sysEnd.drives, appendSlash(drive.URL))
+				}
+			} else {
+				if checkUnique(sysEnd.drives, url) {
+					sysEnd.drives = append(sysEnd.drives, url)
+				}
+			}
+		}
+
+		for _, drive := range chas.LinksLower.Drives {
+			url := appendSlash(drive.URL)
+			// this list can potentially be large and cause scrapes to take a long time please
+			// see the '--collector.drives.module-exclude' config in the README for more information
+			if reg, ok := excludes["drive"]; ok {
+				if !reg.(*regexp.Regexp).MatchString(url) {
+					if checkUnique(sysEnd.drives, url) {
+						sysEnd.drives = append(sysEnd.drives, url)
 					}
+				}
+			} else {
+				if checkUnique(sysEnd.drives, url) {
+					sysEnd.drives = append(sysEnd.drives, url)
 				}
 			}
 		}

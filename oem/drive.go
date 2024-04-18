@@ -84,23 +84,15 @@ type Members struct {
 }
 
 type LinksUpper struct {
-	Drives         []URL `json:"Drives,omitempty"`
-	LogicalDrives  URL   `json:"LogicalDrives,omitempty"`
-	PhysicalDrives URL   `json:"PhysicalDrives,omitempty"`
+	Drives         []Link `json:"Drives,omitempty"`
+	LogicalDrives  Link   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives Link   `json:"PhysicalDrives,omitempty"`
 }
 
 type LinksLower struct {
 	Drives         []HRef `json:"Drives,omitempty"`
 	LogicalDrives  HRef   `json:"LogicalDrives,omitempty"`
 	PhysicalDrives HRef   `json:"PhysicalDrives,omitempty"`
-}
-
-type HRef struct {
-	URL string `json:"href"`
-}
-
-type URL struct {
-	URL string `json:"@odata.id"`
 }
 
 // PhysicalLocation

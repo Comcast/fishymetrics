@@ -194,11 +194,15 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		return nil, err
 	}
 
+	log.Debug("chassis endpoints response", zap.Strings("chassis_endpoints", chassisEndpoints), zap.Any("trace_id", ctx.Value("traceID")))
+
 	mgrEndpoints, err := getMemberUrls(exp.url+uri+"/Managers/", target, retryClient)
 	if err != nil {
 		log.Error("error when getting manager endpoint from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
+
+	log.Debug("manager endpoints response", zap.Strings("mgr_endpoints", mgrEndpoints), zap.Any("trace_id", ctx.Value("traceID")))
 
 	var mgrEndpointFinal string
 	if len(mgrEndpoints) > 1 {
@@ -214,11 +218,15 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		return nil, errors.New("no manager endpoint found")
 	}
 
+	log.Debug("mgr endpoint final decision", zap.String("mgr_endpoint_final", mgrEndpointFinal), zap.Any("trace_id", ctx.Value("traceID")))
+
 	// prepend the base url with the chassis url
 	var chasUrlsFinal []string
 	for _, chasUrl := range chassisEndpoints {
 		chasUrlsFinal = append(chasUrlsFinal, exp.url+chasUrl)
 	}
+
+	log.Debug("chassis urls final", zap.Strings("chassis_urls_final", chasUrlsFinal), zap.Any("trace_id", ctx.Value("traceID")))
 
 	// chassis endpoint to use for obtaining url endpoints for storage controller, NVMe drive metrics as well as the starting
 	// point for the systems and manager endpoints
@@ -227,6 +235,13 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		log.Error("error when getting chassis endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
+
+	log.Debug("systems endpoints response", zap.Strings("systems_endpoints", sysEndpoints.systems),
+		zap.Strings("storage_ctrl_endpoints", sysEndpoints.storageController),
+		zap.Strings("drives_endpoints", sysEndpoints.drives),
+		zap.Strings("power_endpoints", sysEndpoints.power),
+		zap.Strings("thermal_endpoints", sysEndpoints.thermal),
+		zap.Any("trace_id", ctx.Value("traceID")))
 
 	// check /redfish/v1/Systems/XXXXX/ exists so we don't panic
 	var sysResp oem.System
@@ -282,6 +297,10 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 			return nil, err
 		}
 	}
+
+	log.Debug("drive endpoints resposne", zap.Strings("logical_drive_endpoints", driveEndpointsResp.logicalDriveURLs),
+		zap.Strings("physical_drive_endpoints", driveEndpointsResp.physicalDriveURLs),
+		zap.Any("trace_id", ctx.Value("traceID")))
 
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
 	for _, url := range driveEndpointsResp.logicalDriveURLs {
