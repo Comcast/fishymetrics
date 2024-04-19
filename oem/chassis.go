@@ -69,13 +69,13 @@ func (w *LinksWrapper) UnmarshalJSON(data []byte) error {
 		}
 		err := json.Unmarshal(data, &linksTmp)
 		if len(linksTmp) > 0 {
-			s := make([]string, 0)
-			if linksTmp[0].URL != "" {
-				s = append(s, linksTmp[0].URL)
-			} else {
-				s = append(s, linksTmp[0].HRef)
+			for _, l := range linksTmp {
+				if l.URL != "" {
+					w.LinksURLSlice = append(w.LinksURLSlice, l.URL)
+				} else {
+					w.LinksURLSlice = append(w.LinksURLSlice, l.HRef)
+				}
 			}
-			w.LinksURLSlice = s
 			return nil
 		}
 		return err
