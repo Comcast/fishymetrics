@@ -16,7 +16,18 @@ docker:
 	--build-arg VERSION=${REPO_VERSION} \
 	--build-arg REPO_REV=${REPO_REV} \
 	--build-arg DATE=${BUILD_DATE} \
+	--target bin \
 	-t comcast/fishymetrics:${REPO_VERSION} \
+	.
+
+docker-src:
+	docker build \
+	--build-arg VERSION=${REPO_VERSION} \
+	--build-arg REPO_REV=${REPO_REV} \
+	--build-arg DATE=${BUILD_DATE} \
+	--target src \
+	-t comcast/fishymetrics-src:${REPO_VERSION} \
+	-t comcast/fishymetrics-src:latest \
 	.
 
 test:
