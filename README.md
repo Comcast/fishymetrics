@@ -82,7 +82,7 @@ Since some hosts can contain many dozens of drives, this can cause a scrape to t
 Example:
 
 ```bash
---collector.drives.module-exclude="(FlexUtil|SBMezz[0-9]+|IOEMezz[0-9]+)"
+--collector.drives.module-exclude="(?i)(FlexUtil|(SBMezz|IOEMezz)[0-9]+)"
 ```
 
 | Collector | Scope  | Include Flag | Exclude Flag   |
@@ -214,3 +214,32 @@ make docker
 ```
 make test
 ```
+
+## License
+
+dependency source code can be found in the `sources.tgz` file in the root of the `comcast/fishymetrics-src` docker image. To extract the source code, run the following commands:
+
+```bash
+export TMP_CONTAINER="$(docker create comcast/fishymetrics-src:latest)"
+docker export $TMP_CONTAINER | tar -x sources.tgz
+docker rm $TMP_CONTAINER
+tar -xzf sources.tgz
+```
+
+dependency licenses for each package:
+
+| package                                       | license                       |
+| --------------------------------------------- | ----------------------------- |
+| `github.com/google/uuid`                      | `BSD-3-Clause license`        |
+| `github.com/gorilla/mux`                      | `BSD-3-Clause license`        |
+| `github.com/hashicorp/go-hclog`               | `MIT license`                 |
+| `github.com/hashicorp/go-retryablehttp`       | `Mozilla Public License v2.0` |
+| `github.com/hashicorp/vault/api`              | `Mozilla Public License v2.0` |
+| `github.com/hashicorp/vault/api/auth/approle` | `Mozilla Public License v2.0` |
+| `github.com/hashicorp/vault/sdk`              | `Mozilla Public License v2.0` |
+| `github.com/prometheus/client_golang`         | `Apache-2.0 license`          |
+| `github.com/stretchr/testify`                 | `MIT license`                 |
+| `go.uber.org/zap`                             | `MIT license`                 |
+| `gopkg.in/alecthomas/kingpin.v2`              | `MIT license`                 |
+| `gopkg.in/natefinch/lumberjack.v2`            | `MIT license`                 |
+| `gopkg.in/yaml.v3`                            | `Apache-2.0 license`          |
