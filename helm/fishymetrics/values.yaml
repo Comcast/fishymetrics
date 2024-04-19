@@ -29,7 +29,7 @@ vault:
 
 collectors: {}
 # drives:
-#   modulesExclude: "(FlexUtil|SBMezz[0-9]+|IOEMezz[0-9]+)"
+#   modulesExclude: "(?i)(FlexUtil|(SBMezz|IOEMezz)[0-9]+)"
 
 credentials: {}
 # profiles:
