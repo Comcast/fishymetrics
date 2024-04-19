@@ -286,6 +286,10 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		ss = appendSlash(sysResp.Oem.Hpe.Links.SmartStorage.URL) + "ArrayControllers/"
 	} else if sysResp.Oem.Hp.Links.SmartStorage.URL != "" {
 		ss = appendSlash(sysResp.Oem.Hp.Links.SmartStorage.URL) + "ArrayControllers/"
+	} else if sysResp.Oem.Hpe.LinksLower.SmartStorage.URL != "" {
+		ss = appendSlash(sysResp.Oem.Hpe.LinksLower.SmartStorage.URL) + "ArrayControllers/"
+	} else if sysResp.Oem.Hp.LinksLower.SmartStorage.URL != "" {
+		ss = appendSlash(sysResp.Oem.Hp.LinksLower.SmartStorage.URL) + "ArrayControllers/"
 	}
 
 	// skip if SmartStorage URL is not present
@@ -298,7 +302,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		}
 	}
 
-	log.Debug("drive endpoints resposne", zap.Strings("logical_drive_endpoints", driveEndpointsResp.logicalDriveURLs),
+	log.Debug("drive endpoints response", zap.Strings("logical_drive_endpoints", driveEndpointsResp.logicalDriveURLs),
 		zap.Strings("physical_drive_endpoints", driveEndpointsResp.physicalDriveURLs),
 		zap.Any("trace_id", ctx.Value("traceID")))
 

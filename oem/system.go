@@ -37,11 +37,16 @@ type HpeSys struct {
 	Battery     []StorageBattery      `json:"Battery"`
 	BatteryAlt  []SmartStorageBattery `json:"SmartStorageBattery"`
 	IloSelfTest []IloSelfTest         `json:"iLOSelfTestResults"`
-	Links       SystemEndpoints       `json:"Links"`
+	Links       SystemLinksUpper      `json:"Links"`
+	LinksLower  SystemLinksLower      `json:"links"`
 }
 
-type SystemEndpoints struct {
+type SystemLinksUpper struct {
 	SmartStorage Link `json:"SmartStorage"`
+}
+
+type SystemLinksLower struct {
+	SmartStorage HRef `json:"SmartStorage"`
 }
 
 type SmartStorageBattery struct {

@@ -16,6 +16,11 @@
 
 package oem
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
 // Collection returns an array of the endpoints from the chassis pertaining to a resource type
 type Collection struct {
 	Members []struct {
@@ -33,26 +38,49 @@ type Status struct {
 
 // /redfish/v1/Chassis/XXXXX
 type Chassis struct {
-	Links      ChassisEndpointsUpper `json:"Links"`
-	LinksLower ChassisEndpointsLower `json:"links"`
-	PowerAlt   Link                  `json:"Power"`
-	ThermalAlt Link                  `json:"Thermal"`
+	Links      ChassisLinks `json:"Links"`
+	LinksLower ChassisLinks `json:"links"`
+	PowerAlt   Link         `json:"Power"`
+	ThermalAlt Link         `json:"Thermal"`
 }
 
-type ChassisEndpointsUpper struct {
-	System  []Link `json:"ComputerSystems"`
-	Storage []Link `json:"Storage"`
-	Drives  []Link `json:"Drives"`
-	Power   []Link `json:"PoweredBy"`
-	Thermal []Link `json:"CooledBy"`
+type ChassisLinks struct {
+	System  LinksWrapper `json:"ComputerSystems"`
+	Storage LinksWrapper `json:"Storage"`
+	Drives  LinksWrapper `json:"Drives"`
+	Power   LinksWrapper `json:"PoweredBy"`
+	Thermal LinksWrapper `json:"CooledBy"`
 }
 
-type ChassisEndpointsLower struct {
-	System  []HRef `json:"ComputerSystems"`
-	Storage []HRef `json:"Storage"`
-	Drives  []HRef `json:"Drives"`
-	Power   []HRef `json:"PoweredBy"`
-	Thermal []HRef `json:"CooledBy"`
+type LinksURL struct {
+	LinksURLSlice []string
+}
+
+type LinksWrapper struct {
+	LinksURL
+}
+
+func (w *LinksWrapper) UnmarshalJSON(data []byte) error {
+	// because of a change in output between firmware versions we need to account for this
+	if bytes.Compare([]byte("[{"), data[0:2]) == 0 {
+		var linksTmp []struct {
+			URL  string `json:"@odata.id,omitempty"`
+			HRef string `json:"href,omitempty"`
+		}
+		err := json.Unmarshal(data, &linksTmp)
+		if len(linksTmp) > 0 {
+			s := make([]string, 0)
+			if linksTmp[0].URL != "" {
+				s = append(s, linksTmp[0].URL)
+			} else {
+				s = append(s, linksTmp[0].HRef)
+			}
+			w.LinksURLSlice = s
+			return nil
+		}
+		return err
+	}
+	return json.Unmarshal(data, &w.LinksURLSlice)
 }
 
 type ChassisStorageBattery struct {
