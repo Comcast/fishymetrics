@@ -16,6 +16,10 @@
 
 package main
 
+type indexAppData struct {
+	Hostname string
+}
+
 const postPayload string = "`{\"host\": \"${host}\"}`"
 
 const indexTmpl string = `<html>
@@ -53,18 +57,7 @@ const indexTmpl string = `<html>
     </div>
     <form action="scrape">
       <label>Target:</label> <input type="text" name="target" placeholder="ip or fdqn"><br>
-      <label for="module">Module:</label>
-      <select id="module" name="module">
-        <option vaule="moonshot">moonshot</option>
-        <option vaule="dl380">dl380</option>
-        <option vaule="dl360">dl360</option>
-        <option vaule="dl560">dl560</option>
-        <option vaule="dl20">dl20</option>
-        <option vaule="xl420">xl420</option>
-        <option vaule="c220">c220</option>
-        <option vaule="s3260m4">s3260m4</option>
-        <option vaule="s3260m5">s3260m5</option>
-      </select><br>
+      <label>Module:</label> <input type="text" name="module" placeholder="chassis model i.e. dl360"><br>
       <input type="submit" value="Submit">
     </form>
   </body>

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2024 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,24 +26,20 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/comcast/fishymetrics/buildinfo"
-	"github.com/comcast/fishymetrics/cisco/c220"
-	"github.com/comcast/fishymetrics/cisco/s3260m4"
-	"github.com/comcast/fishymetrics/cisco/s3260m5"
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
-	"github.com/comcast/fishymetrics/hpe/dl20"
-	"github.com/comcast/fishymetrics/hpe/dl360"
-	"github.com/comcast/fishymetrics/hpe/dl380"
-	"github.com/comcast/fishymetrics/hpe/dl560"
-	"github.com/comcast/fishymetrics/hpe/moonshot"
-	"github.com/comcast/fishymetrics/hpe/xl420"
+	"github.com/comcast/fishymetrics/exporter"
+	"github.com/comcast/fishymetrics/exporter/moonshot"
 	"github.com/comcast/fishymetrics/logger"
 	"github.com/comcast/fishymetrics/middleware/muxprom"
+	"github.com/comcast/fishymetrics/plugins/nuova"
 	fishy_vault "github.com/comcast/fishymetrics/vault"
 	"go.uber.org/zap"
 
@@ -65,6 +61,7 @@ var (
 	password          = a.Flag("password", "BMC static password").Default("").Envar("BMC_PASSWORD").String()
 	bmcTimeout        = a.Flag("timeout", "BMC scrape timeout").Default("15s").Envar("BMC_TIMEOUT").Duration()
 	bmcScheme         = a.Flag("scheme", "BMC Scheme to use").Default("https").Envar("BMC_SCHEME").String()
+	logLevel          = a.Flag("log.level", "log level verbosity").PlaceHolder("[debug|info|warn|error]").Default("info").Envar("LOG_LEVEL").String()
 	logMethod         = a.Flag("log.method", "alternative method for logging in addition to stdout").PlaceHolder("[file|vector]").Default("").Envar("LOG_METHOD").String()
 	logFilePath       = a.Flag("log.file-path", "directory path where log files are written if log-method is file").Default("/var/log/fishymetrics").Envar("LOG_FILE_PATH").String()
 	logFileMaxSize    = a.Flag("log.file-max-size", "max file size in megabytes if log-method is file").Default("256").Envar("LOG_FILE_MAX_SIZE").Int()
@@ -75,9 +72,10 @@ var (
 	vaultAddr         = a.Flag("vault.addr", "Vault instance address to get chassis credentials from").Default("https://vault.com").Envar("VAULT_ADDRESS").String()
 	vaultRoleId       = a.Flag("vault.role-id", "Vault Role ID for AppRole").Default("").Envar("VAULT_ROLE_ID").String()
 	vaultSecretId     = a.Flag("vault.secret-id", "Vault Secret ID for AppRole").Default("").Envar("VAULT_SECRET_ID").String()
-	credProfiles      = common.CredentialProf(a.Flag("credential.profiles",
+	driveModExclude   = a.Flag("collector.drives.module-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
+	credProfiles      = common.CredentialProf(a.Flag("credentials.profiles",
 		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
-  --credential.profiles="
+  --credentials.profiles="
     profiles:
       - name: profile1
         mountPath: "kv2"
@@ -86,12 +84,13 @@ var (
         passwordField: "password"
       ...
   "
---credential.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'`))
+--credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'`))
 
 	log *zap.Logger
 
-	vault   *fishy_vault.Vault
-	counter int
+	vault    *fishy_vault.Vault
+	excludes = make(map[string]interface{})
+	counter  int
 )
 
 var wg = sync.WaitGroup{}
@@ -99,7 +98,7 @@ var wg = sync.WaitGroup{}
 func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	var uri string
-	var exporter prometheus.Collector
+	var exp prometheus.Collector
 	var err error
 
 	target := query.Get("target")
@@ -109,17 +108,34 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: deprecate module query param in favor of model
 	moduleName := query.Get("module")
-	if len(query["module"]) != 1 || moduleName == "" {
-		log.Error("'module' parameter not set correctly", zap.String("module", moduleName), zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
-		http.Error(w, "'module' parameter not set correctly", http.StatusBadRequest)
-		return
+	model := query.Get("model")
+	if model == "" {
+		model = moduleName
 	}
 
-	// this optional query param is used to tell us which credential profile to use when retrieving that hosts username and password
+	// optional query param is used to tell us which credential profile to use when retrieving that hosts username and password
 	credProf := query.Get("credential_profile")
 
-	log.Info("started scrape", zap.String("module", moduleName), zap.String("target", target), zap.String("credential_profile", credProf), zap.Any("trace_id", r.Context().Value("traceID")))
+	// optional query param for external plugins which executes non redfish API calls to the device.
+	// this is a comma separated list of strings
+	plugins := strings.Split(query.Get("plugins"), ",")
+	var plugs []exporter.Plugin
+	for _, p := range plugins {
+		if p == "nuova" {
+			plugs = append(plugs, &nuova.NuovaPlugin{})
+			log.Debug("nuova plugin added", zap.Any("trace_id", r.Context().Value("traceID")))
+		}
+	}
+
+	// TODO: deprecate module log entry
+	log.Info("started scrape",
+		zap.String("module", model),
+		zap.String("model", model),
+		zap.String("target", target),
+		zap.String("credential_profile", credProf),
+		zap.Any("trace_id", r.Context().Value("traceID")))
 
 	// check if vault is configured
 	if vault != nil {
@@ -141,35 +157,12 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	registry := prometheus.NewRegistry()
 
-	if moduleName == "moonshot" {
+	if model == "moonshot" {
 		uri = "/rest/v1/chassis/1"
+		exp, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
 	} else {
 		uri = "/redfish/v1"
-	}
-
-	switch moduleName {
-	case "moonshot":
-		exporter, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
-	case "dl380":
-		exporter, err = dl380.NewExporter(r.Context(), target, uri, credProf)
-	case "dl360":
-		exporter, err = dl360.NewExporter(r.Context(), target, uri, credProf)
-	case "dl560":
-		exporter, err = dl560.NewExporter(r.Context(), target, uri, credProf)
-	case "dl20":
-		exporter, err = dl20.NewExporter(r.Context(), target, uri, credProf)
-	case "xl420":
-		exporter, err = xl420.NewExporter(r.Context(), target, uri, credProf)
-	case "c220":
-		exporter, err = c220.NewExporter(r.Context(), target, uri, credProf)
-	case "s3260m4":
-		exporter, err = s3260m4.NewExporter(r.Context(), target, uri, credProf)
-	case "s3260m5":
-		exporter, err = s3260m5.NewExporter(r.Context(), target, uri, credProf)
-	default:
-		log.Error("'module' parameter does not match available options", zap.String("module", moduleName), zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
-		http.Error(w, "'module' parameter does not match available options: [moonshot, dl360, dl380, dl560, dl20, xl420, c220, s3260m4, s3260m5]", http.StatusBadRequest)
-		return
+		exp, err = exporter.NewExporter(r.Context(), target, uri, credProf, model, excludes, plugs...)
 	}
 
 	if err != nil {
@@ -178,7 +171,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	registry.MustRegister(exporter)
+	registry.MustRegister(exp)
 	// Delegate http serving to Prometheus client library, which will call collector.Collect.
 	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 	h.ServeHTTP(w, r)
@@ -205,6 +198,12 @@ func main() {
 		panic(fmt.Errorf("Error parsing argument flags - %s", err.Error()))
 	}
 
+	// populate excludes map
+	if *driveModExclude != "" {
+		driveModPattern := regexp.MustCompile(*driveModExclude)
+		excludes["drive"] = driveModPattern
+	}
+
 	// validate logFilePath exists and is a directory
 	if *logMethod == "file" {
 		fd, err := os.Stat(*logFilePath)
@@ -218,6 +217,7 @@ func main() {
 
 	// init logger config
 	logConfig := logger.LoggerConfig{
+		LogLevel:  *logLevel,
 		LogMethod: *logMethod,
 		LogFile: logger.LogFile{
 			Path:       *logFilePath,

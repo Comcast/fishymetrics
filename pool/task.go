@@ -16,7 +16,11 @@
 
 package pool
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/comcast/fishymetrics/common"
+)
 
 // Task encapsulates a work item that should go in a work pool
 type Task struct {
@@ -25,10 +29,11 @@ type Task struct {
 	// for the pool that holds it.
 	Err error
 
-	Body       []byte
-	MetricType string
+	Body           []byte
+	MetricHandlers []common.Handler
+	URL            string
 
-	f func() ([]byte, string, error)
+	f func() ([]byte, error)
 }
 
 // MoonshotTask encapsulates a work item that should go in a
@@ -48,8 +53,8 @@ type MoonshotTask struct {
 
 // NewTask initializes a new task based on a given work
 // function.
-func NewTask(f func() ([]byte, string, error)) *Task {
-	return &Task{f: f}
+func NewTask(f func() ([]byte, error), url string, handlers []common.Handler) *Task {
+	return &Task{MetricHandlers: handlers, URL: url, f: f}
 }
 
 // NewMoonshotTask initializes a new task based on a given
@@ -61,7 +66,7 @@ func NewMoonshotTask(f func() ([]byte, string, string, error)) *MoonshotTask {
 // Run runs a Task and does appropriate accounting via a
 // given sync.WorkGroup.
 func (t *Task) Run(wg *sync.WaitGroup) {
-	t.Body, t.MetricType, t.Err = t.f()
+	t.Body, t.Err = t.f()
 	wg.Done()
 }
 

@@ -19,7 +19,6 @@ package oem
 import (
 	"bytes"
 	"encoding/json"
-	"encoding/xml"
 )
 
 // /redfish/v1/Systems/WZPXXXXX/Storage/MRAID
@@ -84,33 +83,4 @@ type ExtendedInfo struct {
 	Message    string   `json:"Message"`
 	MessageArg []string `json:"MessageArgs"`
 	Severity   string   `json:"Severity"`
-}
-
-// /redfish/v1/Systems/WZPXXXXX/Storage/MRAID/Drives/X
-
-type DriveMetrics struct {
-	Id            string `json:"Id"`
-	Name          string `json:"Name"`
-	Model         string `json:"Model"`
-	CapacityBytes int    `json:"CapacityBytes"`
-	Status        Status `json:"Status"`
-}
-
-// XML class_id="StorageLocalDiskSlotEp"
-
-type XMLDriveMetrics struct {
-	XMLName    xml.Name   `xml:"configResolveClass"`
-	OutConfigs OutConfigs `xml:"outConfigs"`
-}
-
-type OutConfigs struct {
-	XMLName xml.Name                 `xml:"outConfigs"`
-	Drives  []StorageLocalDiskSlotEp `xml:"storageLocalDiskSlotEp"`
-}
-
-type StorageLocalDiskSlotEp struct {
-	Id          string `xml:"id,attr"`
-	Name        string `xml:"dn,attr"`
-	Operability string `xml:"operability,attr"`
-	Presence    string `xml:"presence,attr"`
 }

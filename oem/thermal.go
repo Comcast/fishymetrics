@@ -23,7 +23,7 @@ type ThermalMetrics struct {
 	ID           string        `json:"Id"`
 	Fans         []Fan         `json:"Fans"`
 	Name         string        `json:"Name"`
-	Status       Status        `json:"Status"`
+	Status       Status        `json:"Status,omitempty"`
 	Temperatures []Temperature `json:"Temperatures"`
 	Url          string        `json:"@odata.id"`
 }

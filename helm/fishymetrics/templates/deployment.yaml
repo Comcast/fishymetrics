@@ -48,9 +48,12 @@ spec:
           ports:
             - containerPort: {{ .Values.exporter.port }}
               name: exporter
-          {{- if .Values.credentials }}
           args:
-            - --credential.profiles={{ toJson .Values.credentials }}
+          {{- if .Values.credentials }}
+            - --credentials.profiles={{ toJson .Values.credentials }}
+          {{- end }}
+          {{- if .Values.collectors.drives.modules-exclude }}
+            - --collectors.drives.modules-exclude={{ .Values.collectors.drives.modulesExclude }}
           {{- end }}
           env:
             - name: BMC_USERNAME
@@ -74,9 +77,23 @@ spec:
                   key: vault-secret-id
             - name: EXPORTER_PORT
               value: {{ .Values.exporter.port | quote }}
+            {{- if .Values.collectors.drives.modules-exclude }}
+            - name: COLLECTOR_DRIVES_MODULE_EXCLUDE
+              value: {{ .Values.collectors.drives.modules-exclude }}
+            {{- end }}
             {{- if .Values.vector.enabled }}
+            - name: LOG_LEVEL
+              value: {{ .Values.log.level }}
             - name: LOG_METHOD
-              value: "vector"
+              value: {{ .Values.log.method }}
+            - name: LOG_FILE_PATH
+              value: {{ .Values.log.filePath }}
+            - name: LOG_FILE_MAX_SIZE
+              value: {{ .Values.log.fileMaxSize }}
+            - name: LOG_FILE_MAX_BACKUPS
+              value: {{ .Values.log.fileMaxBackups }}
+            - name: LOG_FILE_MAX_AGE
+              value: {{ .Values.log.fileMaxAge }}
             - name: VECTOR_ENDPOINT
               value: {{ .Values.vector.endpoint }}
             {{- end }}

@@ -18,6 +18,10 @@ package oem
 
 // /redfish/v1/Systems/X/SmartStorage/ArrayControllers/
 
+type DriveProtocol struct {
+	Protocol string `json:"Protocol"`
+}
+
 // NVME's
 // /redfish/v1/chassis/X/
 type NVMeDriveMetrics struct {
@@ -52,15 +56,17 @@ type LogicalDriveMetrics struct {
 // Disk Drives
 // /redfish/v1/Systems/X/SmartStorage/ArrayControllers/X/DiskDrives/X/
 type DiskDriveMetrics struct {
-	Id            string `json:"Id"`
-	CapacityMiB   int    `json:"CapacityMiB"`
-	Description   string `json:"Description"`
-	InterfaceType string `json:"InterfaceType"`
-	Name          string `json:"Name"`
-	Model         string `json:"Model"`
-	Status        Status `json:"Status"`
-	Location      string `json:"Location"`
-	SerialNumber  string `json:"SerialNumber"`
+	Id               string           `json:"Id"`
+	CapacityMiB      int              `json:"CapacityMiB"`
+	CapacityBytes    int              `json:"CapacityBytes"`
+	Description      string           `json:"Description"`
+	InterfaceType    string           `json:"InterfaceType"`
+	Name             string           `json:"Name"`
+	Model            string           `json:"Model"`
+	Status           Status           `json:"Status"`
+	Location         string           `json:"Location"`
+	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
+	SerialNumber     string           `json:"SerialNumber"`
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
@@ -78,23 +84,15 @@ type Members struct {
 }
 
 type LinksUpper struct {
-	Drives         []URL `json:"Drives,omitempty"`
-	LogicalDrives  URL   `json:"LogicalDrives,omitempty"`
-	PhysicalDrives URL   `json:"PhysicalDrives,omitempty"`
+	Drives         []Link `json:"Drives,omitempty"`
+	LogicalDrives  Link   `json:"LogicalDrives,omitempty"`
+	PhysicalDrives Link   `json:"PhysicalDrives,omitempty"`
 }
 
 type LinksLower struct {
 	Drives         []HRef `json:"Drives,omitempty"`
 	LogicalDrives  HRef   `json:"LogicalDrives,omitempty"`
 	PhysicalDrives HRef   `json:"PhysicalDrives,omitempty"`
-}
-
-type HRef struct {
-	URL string `json:"href"`
-}
-
-type URL struct {
-	URL string `json:"@odata.id"`
 }
 
 // PhysicalLocation

@@ -14,6 +14,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Add ability to send logs directly to elasticsearch endpoints [#10](https://github.com/Comcast/fishymetrics/issues/10)
 - Add HPE Proliant DL560 Gen9 support [#23](https://github.com/Comcast/fishymetrics/issues/23)
 - Add HPE Proliant XL420 Support [#33](https://github.com/Comcast/fishymetrics/issues/33)
+- consolidate exporters into a single generic exporter [#52](https://github.com/Comcast/fishymetrics/issues/52)
 
 ## Fixed
 

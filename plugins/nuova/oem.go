@@ -14,18 +14,25 @@
  * limitations under the License.
  */
 
-package oem
+package nuova
 
-// /redfish/v1/Systems/XXXXX/Memory/DIMM_X1
+import "encoding/xml"
 
-// MemoryMetrics is the top level json object for a Memory DIMMs metadata
-type MemoryMetrics struct {
-	Name             string      `json:"Name"`
-	CapacityMiB      interface{} `json:"CapacityMiB"`
-	SizeMB           interface{} `json:"SizeMB"`
-	Manufacturer     string      `json:"Manufacturer"`
-	MemoryDeviceType string      `json:"MemoryDeviceType"`
-	PartNumber       string      `json:"PartNumber"`
-	Status           interface{} `json:"Status"`
-	DIMMStatus       string      `json:"DIMMStatus"`
+// XML class_id="StorageLocalDiskSlotEp"
+
+type XMLDriveMetrics struct {
+	XMLName    xml.Name   `xml:"configResolveClass"`
+	OutConfigs OutConfigs `xml:"outConfigs"`
+}
+
+type OutConfigs struct {
+	XMLName xml.Name                 `xml:"outConfigs"`
+	Drives  []StorageLocalDiskSlotEp `xml:"storageLocalDiskSlotEp"`
+}
+
+type StorageLocalDiskSlotEp struct {
+	Id          string `xml:"id,attr"`
+	Name        string `xml:"dn,attr"`
+	Operability string `xml:"operability,attr"`
+	Presence    string `xml:"presence,attr"`
 }

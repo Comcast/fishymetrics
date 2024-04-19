@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package dl360
+package exporter
 
 import (
 	"context"
@@ -31,104 +31,124 @@ import (
 
 const (
 	up2Expected = `
-		 # HELP up was the last scrape of fishymetrics successful.
-		 # TYPE up gauge
-		 up 2
+        # HELP up was the last scrape of fishymetrics successful.
+        # TYPE up gauge
+        up 2
 	`
 	GoodDeviceInfoExpected = `
-         # HELP device_info Current snapshot of device firmware information
-         # TYPE device_info gauge
-         device_info{biosVersion="U99 v0.00 (xx/xx/xxxx)",chassisSerialNumber="SN98765",firmwareVersion="iLO 5 v2.65",model="DL360",name="test hostname"} 1
+        # HELP redfish_device_info Current snapshot of device firmware information
+        # TYPE redfish_device_info gauge
+        redfish_device_info{biosVersion="U99 v0.00 (xx/xx/xxxx)",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="iLO 5 v2.65",name="test description"} 1
 	`
 	GoodCPUStatusExpected = `
-	     # HELP dl360_cpu_status Current cpu status 1 = OK, 0 = BAD
-         # TYPE dl360_cpu_status gauge
-         dl360_cpu_status{chassisSerialNumber="SN98765",id="1",model="cpu model",socket="Proc 1",totalCores="99"} 1
+        # HELP redfish_cpu_status Current cpu status 1 = OK, 0 = BAD
+        # TYPE redfish_cpu_status gauge
+        redfish_cpu_status{chassisModel="model a",chassisSerialNumber="SN98765",id="1",model="cpu model",socket="Proc 1",totalCores="99"} 1
 	`
 	GoodLogicalDriveExpected = `
-		 # HELP dl360_logical_drive_status Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED
-		 # TYPE dl360_logical_drive_status gauge
-		 dl360_logical_drive_status{chassisSerialNumber="SN98765",logicaldrivename="TESTDRIVE NAME 1",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="ABCDEF12345"} 1
+        # HELP redfish_logical_drive_status Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED
+        # TYPE redfish_logical_drive_status gauge
+        redfish_logical_drive_status{chassisModel="model a",chassisSerialNumber="SN98765",logicaldrivename="TESTDRIVE NAME 1",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="ABCDEF12345"} 1
 	`
 	GoodDiskDriveExpected = `
-		 # HELP dl360_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
-		 # TYPE dl360_disk_drive_status gauge
-		 dl360_disk_drive_status{chassisSerialNumber="SN98765",id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
+        # HELP redfish_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
+        # TYPE redfish_disk_drive_status gauge
+        redfish_disk_drive_status{capacityMiB="915715",chassisModel="model a",chassisSerialNumber="SN98765",id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
 	`
 	GoodNvmeDriveExpected = `
-		 # HELP dl360_nvme_drive_status Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED
-		 # TYPE dl360_nvme_drive_status gauge
-		 dl360_nvme_drive_status{chassisSerialNumber="SN98765",id="DA000000",protocol="NVMe",serviceLabel="Box 3:Bay 7"} 1
+        # HELP redfish_nvme_drive_status Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED
+        # TYPE redfish_nvme_drive_status gauge
+        redfish_nvme_drive_status{chassisModel="model a",chassisSerialNumber="SN98765",id="DA000000",protocol="NVMe",serviceLabel="Box 3:Bay 7"} 1
+	`
+	GoodStorageControllerExpected = `
+        # HELP redfish_storage_controller_status Current storage controller status 1 = OK, 0 = BAD
+        # TYPE redfish_storage_controller_status gauge
+        redfish_storage_controller_status{chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xxx.xx-xxxx",model="raid model",name="SBMezz1"} 1
 	`
 	GoodILOSelfTestExpected = `
-	     # HELP dl360_ilo_selftest_status Current ilo selftest status 1 = OK, 0 = BAD
-         # TYPE dl360_ilo_selftest_status gauge
-         dl360_ilo_selftest_status{chassisSerialNumber="SN98765",name="EEPROM"} 1
+        # HELP redfish_ilo_selftest_status Current ilo selftest status 1 = OK, 0 = BAD
+        # TYPE redfish_ilo_selftest_status gauge
+        redfish_ilo_selftest_status{chassisModel="model a",chassisSerialNumber="SN98765",name="EEPROM"} 1
 	`
 	GoodStorageBatteryStatusExpected = `
-	     # HELP dl360_storage_battery_status Current storage battery status 1 = OK, 0 = BAD
-         # TYPE dl360_storage_battery_status gauge
-         dl360_storage_battery_status{chassisSerialNumber="SN98765",id="1",model="battery model",name="HPE Smart Storage Battery ",serialnumber="123456789"} 1
+        # HELP redfish_storage_battery_status Current storage battery status 1 = OK, 0 = BAD
+        # TYPE redfish_storage_battery_status gauge
+        redfish_storage_battery_status{chassisModel="model a",chassisSerialNumber="SN98765",id="1",model="battery model",name="HPE Smart Storage Battery"} 1
 	`
 	GoodMemoryDimmExpected = `
-         # HELP dl360_memory_dimm_status Current dimm status 1 = OK, 0 = BAD
-         # TYPE dl360_memory_dimm_status gauge
-         dl360_memory_dimm_status{capacityMiB="32768",chassisSerialNumber="SN98765",manufacturer="HPE",name="proc1dimm1",partNumber="part number",serialNumber="123456789"} 1
+        # HELP redfish_memory_dimm_status Current dimm status 1 = OK, 0 = BAD
+        # TYPE redfish_memory_dimm_status gauge
+        redfish_memory_dimm_status{capacityMiB="32768",chassisModel="model a",chassisSerialNumber="SN98765",manufacturer="HPE",name="proc1dimm1",partNumber="part number"} 1
 	`
 	GoodMemoryDimmExpectedG9 = `
-         # HELP dl360_memory_dimm_status Current dimm status 1 = OK, 0 = BAD
-         # TYPE dl360_memory_dimm_status gauge
-         dl360_memory_dimm_status{capacityMiB="32768",chassisSerialNumber="SN98765",manufacturer="HP",name="proc2dimm12",partNumber="part number",serialNumber=""} 1
+        # HELP redfish_memory_dimm_status Current dimm status 1 = OK, 0 = BAD
+        # TYPE redfish_memory_dimm_status gauge
+        redfish_memory_dimm_status{capacityMiB="32768",chassisModel="model a",chassisSerialNumber="SN98765",manufacturer="HP",name="proc2dimm12",partNumber="part number"} 1
 	`
 	GoodMemorySummaryExpected = `
-	     # HELP dl360_memory_status Current memory status 1 = OK, 0 = BAD
-         # TYPE dl360_memory_status gauge
-         dl360_memory_status{chassisSerialNumber="SN98765",totalSystemMemoryGiB="384"} 1
+        # HELP redfish_memory_status Current memory status 1 = OK, 0 = BAD
+        # TYPE redfish_memory_status gauge
+        redfish_memory_status{chassisModel="model a",chassisSerialNumber="SN98765",totalSystemMemoryGiB="384"} 1
+	`
+	GoodThermalSummaryExpected = `
+        # HELP redfish_thermal_summary_status Current sensor status 1 = OK, 0 = BAD
+        # TYPE redfish_thermal_summary_status gauge
+        redfish_thermal_summary_status{chassisModel="model a",chassisSerialNumber="SN98765",url="/redfish/v1/Chassis/1/Thermal/"} 1
 	`
 	GoodThermalFanSpeedExpected = `
-	     # HELP dl360_thermal_fan_speed Current fan speed in the unit of percentage, possible values are 0 - 100
-         # TYPE dl360_thermal_fan_speed gauge
-         dl360_thermal_fan_speed{chassisSerialNumber="SN98765",name="Fan 1"} 16
+        # HELP redfish_thermal_fan_speed Current fan speed in the unit of percentage, possible values are 0 - 100
+        # TYPE redfish_thermal_fan_speed gauge
+        redfish_thermal_fan_speed{chassisModel="model a",chassisSerialNumber="SN98765",name="Fan 1"} 16
 	`
 	GoodThermalFanStatusExpected = `
-	     # HELP dl360_thermal_fan_status Current fan status 1 = OK, 0 = BAD
-         # TYPE dl360_thermal_fan_status gauge
-         dl360_thermal_fan_status{chassisSerialNumber="SN98765",name="Fan 1"} 1
+        # HELP redfish_thermal_fan_status Current fan status 1 = OK, 0 = BAD
+        # TYPE redfish_thermal_fan_status gauge
+        redfish_thermal_fan_status{chassisModel="model a",chassisSerialNumber="SN98765",name="Fan 1"} 1
 	`
 	GoodThermalSensorStatusExpected = `
-	     # HELP dl360_thermal_sensor_status Current sensor status 1 = OK, 0 = BAD
-         # TYPE dl360_thermal_sensor_status gauge
-         dl360_thermal_sensor_status{chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 1
+        # HELP redfish_thermal_sensor_status Current sensor status 1 = OK, 0 = BAD
+        # TYPE redfish_thermal_sensor_status gauge
+        redfish_thermal_sensor_status{chassisModel="model a",chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 1
 	`
 	GoodThermalSensorTempExpected = `
-	     # HELP dl360_thermal_sensor_temperature Current sensor temperature reading in Celsius
-         # TYPE dl360_thermal_sensor_temperature gauge
-         dl360_thermal_sensor_temperature{chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 22
+        # HELP redfish_thermal_sensor_temperature Current sensor temperature reading in Celsius
+        # TYPE redfish_thermal_sensor_temperature gauge
+        redfish_thermal_sensor_temperature{chassisModel="model a",chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 22
 	`
 	GoodPowerVoltageOutputExpected = `
-	     # HELP dl360_power_voltage_output Power voltage output in watts
-         # TYPE dl360_power_voltage_output gauge
-         dl360_power_voltage_output{chassisSerialNumber="SN98765",name="PSU1_VOUT"} 12.2
+        # HELP redfish_power_voltage_output Power voltage output in watts
+        # TYPE redfish_power_voltage_output gauge
+        redfish_power_voltage_output{chassisModel="model a",chassisSerialNumber="SN98765",name="PSU1_VOUT"} 12.2
 	`
 	GoodPowerVoltageStatusExpected = `
-	     # HELP dl360_power_voltage_status Current power voltage status 1 = OK, 0 = BAD
-         # TYPE dl360_power_voltage_status gauge
-         dl360_power_voltage_status{chassisSerialNumber="SN98765",name="PSU1_VOUT"} 1
+        # HELP redfish_power_voltage_status Current power voltage status 1 = OK, 0 = BAD
+        # TYPE redfish_power_voltage_status gauge
+        redfish_power_voltage_status{chassisModel="model a",chassisSerialNumber="SN98765",name="PSU1_VOUT"} 1
 	`
-	GoodPowerSupplyOutputExpected = `
-	     # HELP dl360_power_supply_output Power supply output in watts
-         # TYPE dl360_power_supply_output gauge
-         dl360_power_supply_output{bayNumber="1",chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC",serialNumber="123456789"} 91
+	GoodPowerSupplyOutputOemHpeExpected = `
+        # HELP redfish_power_supply_output Power supply output in watts
+        # TYPE redfish_power_supply_output gauge
+        redfish_power_supply_output{bayNumber="1",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 91
 	`
-	GoodPowerSupplyStatusExpected = `
-	     # HELP dl360_power_supply_status Current power supply status 1 = OK, 0 = BAD
-         # TYPE dl360_power_supply_status gauge
-         dl360_power_supply_status{bayNumber="1",chassisSerialNumber="SN98765",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",partNumber="part number",powerSupplyType="AC",serialNumber="123456789"} 1
+	GoodPowerSupplyStatusOemHpeExpected = `
+        # HELP redfish_power_supply_status Current power supply status 1 = OK, 0 = BAD
+        # TYPE redfish_power_supply_status gauge
+        redfish_power_supply_status{bayNumber="1",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 1
+	`
+	GoodPowerSupplyOutputOemHpExpected = `
+        # HELP redfish_power_supply_output Power supply output in watts
+        # TYPE redfish_power_supply_output gauge
+        redfish_power_supply_output{bayNumber="2",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 91
+	`
+	GoodPowerSupplyStatusOemHpExpected = `
+        # HELP redfish_power_supply_status Current power supply status 1 = OK, 0 = BAD
+        # TYPE redfish_power_supply_status gauge
+        redfish_power_supply_status{bayNumber="2",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 1
 	`
 	GoodPowerSupplyTotalConsumedExpected = `
-	     # HELP dl360_power_supply_total_consumed Total output of all power supplies in watts
-         # TYPE dl360_power_supply_total_consumed gauge
-         dl360_power_supply_total_consumed{chassisSerialNumber="SN98765",memberId="0"} 206
+        # HELP redfish_power_supply_total_consumed Total output of all power supplies in watts
+        # TYPE redfish_power_supply_total_consumed gauge
+        redfish_power_supply_total_consumed{chassisModel="model a",chassisSerialNumber="SN98765",memberId="/redfish/v1/Chassis/1/Power"} 206
 	`
 )
 
@@ -154,9 +174,9 @@ func MustMarshal(v interface{}) []byte {
 	return b
 }
 
-func Test_DL360_Exporter(t *testing.T) {
+func Test_Exporter(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/redfish/v1/badcred/Managers/1/" {
+		if r.URL.Path == "/redfish/v1/badcred/Chassis/" {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write(MustMarshal(TestErrorResponse{
 				Error: TestError{
@@ -202,13 +222,14 @@ func Test_DL360_Exporter(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var exporter prometheus.Collector
 			var err error
-			exporter, err = NewExporter(ctx, server.URL, test.uri, "")
+			var mockExcludes = make(map[string]interface{})
+			exporter, err = NewExporter(ctx, server.URL, test.uri, "", "model a", mockExcludes)
 			assert.Nil(err)
 			assert.NotNil(exporter)
 
 			prometheus.MustRegister(exporter)
 
-			metric := (*exporter.(*Exporter).deviceMetrics)[test.metricRef1]
+			metric := (*exporter.(*Exporter).DeviceMetrics)[test.metricRef1]
 			m := (*metric)[test.metricRef2]
 
 			assert.Empty(testutil.CollectAndCompare(m, strings.NewReader(test.expected), test.metricName))
@@ -219,9 +240,9 @@ func Test_DL360_Exporter(t *testing.T) {
 	}
 }
 
-// Test_DL360_Upper_Lower_Links tests the uppercase and lowercase Links/links struct because of
+// Test_Exporter_Upper_Lower_Links tests the uppercase and lowercase Links/links struct because of
 // the different firmware versions of the redfish API
-func Test_DL360_Upper_Lower_Links(t *testing.T) {
+func Test_Exporter_Upper_Lower_Links(t *testing.T) {
 	// server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	// 	if r.URL.Path == "/redfish/v1/good/Systems/1/SmartStorage/ArrayControllers/" {
 	// 		w.WriteHeader(http.StatusOK)
@@ -413,12 +434,12 @@ func Test_DL360_Upper_Lower_Links(t *testing.T) {
 	// defer server.Close()
 }
 
-func Test_DL360_Metrics_Handling(t *testing.T) {
+func Test_Exporter_Metrics_Handling(t *testing.T) {
 
 	var GoodDeviceInfoResponse = []byte(`{
 			"Description": "test description",
   			"FirmwareVersion": "iLO 5 v2.65",
-  			"Model": "iLO 5"
+       	    "SerialNumber": "SN99999"
   		}`)
 	var GoodCPUStatusResponse = []byte(`{
   			"Id": "1",
@@ -487,6 +508,33 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			},
   			"Protocol": "NVMe"
 		}`)
+	var GoodStorageControllerResponse = []byte(`{
+  			"Name": "SBMezz1",
+       		"StorageControllers": [
+              {
+                "Name": "raid name",
+      		    "Status": {
+      	          "State": "Enabled",
+      	          "HealthRollup": "OK",
+      	          "Health": "OK"
+                },
+                "MemberId": "RAID",
+                "Manufacturer": "LSI Logic",
+                "FirmwareVersion": "x.xxx.xx-xxxx",
+                "SupportedControllerProtocols": [
+               	  "PCIe"
+                ],
+                "SerialNumber": "SN98765",
+                "Model": "raid model",
+                "SupportedDeviceProtocols": [
+               	  "SAS"
+       	        ],
+       	        "CacheSummary": {
+      	          "TotalCacheSizeMiB": 3087
+                }
+              }
+            ]
+  		}`)
 	var GoodILOSelfTestResponse = []byte(`{
   			"Oem": {
   			  "Hpe": {
@@ -513,7 +561,6 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			        "Model": "battery model",
   			        "Present": "Yes",
   			        "ProductName": "HPE Smart Storage Battery ",
-  			        "SerialNumber": "123456789",
   			        "Spare": "815983-001"
   			      }
   			    ]
@@ -526,20 +573,19 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			"MemoryDeviceType": "DDR4",
   			"Name": "proc1dimm1",
   			"PartNumber": "part number  ",
-  			"SerialNumber": "123456789",
   			"Status": {
   			  "Health": "OK",
   			  "State": "Enabled"
   			}
   		}`)
 	var GoodMemoryDimmResponseG9 = []byte(`{
-				"DIMMStatus": "GoodInUse",
-				"Name": "proc2dimm12",
-				"SizeMB": 32768,
-				"Manufacturer": "HP     ",
-				"PartNumber": "part number",
-				"DIMMType": "DDR4"
-			}`)
+			"DIMMStatus": "GoodInUse",
+			"Name": "proc2dimm12",
+			"SizeMB": 32768,
+			"Manufacturer": "HP     ",
+			"PartNumber": "part number",
+			"DIMMType": "DDR4"
+		}`)
 	var GoodMemorySummaryResponse = []byte(`{
   			"Id": "1",
   			"MemorySummary": {
@@ -549,6 +595,15 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			  "TotalSystemMemoryGiB": 384,
   			  "TotalSystemPersistentMemoryGiB": 0
   			}
+  		}`)
+	var GoodThermalSummaryResponse = []byte(`{
+  			"@odata.id": "/redfish/v1/Chassis/1/Thermal/",
+     		"Id": "Thermal",
+       		"Name": "Thermal",
+       		"Status": {
+           		"State": "Enabled",
+             	"Health": "OK"
+            }
   		}`)
 	var GoodThermalFanSpeedResponse = []byte(`{
 			"@odata.id": "/redfish/v1/Chassis/1/Thermal/",
@@ -784,7 +839,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			],
   			"Name": "Power"
   		}`)
-	var GoodPowerSupplyOutputResponse = []byte(`{
+	var GoodPowerSupplyOutputOemHpeResponse = []byte(`{
   			"Id": "Power",
   			"Name": "PowerMetrics",
   			"PowerControl": [
@@ -804,7 +859,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			"PowerSupplies": [
   			  {
   			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
-  			    "FirmwareVersion": "2.04",
+  			    "FirmwareVersion": "x.xx",
   			    "LastPowerOutputWatts": 91,
   			    "LineInputVoltage": 206,
   			    "LineInputVoltageType": "ACHighLine",
@@ -827,7 +882,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			    },
   			    "PowerCapacityWatts": 800,
   			    "PowerSupplyType": "AC",
-  			    "SerialNumber": "123456789",
+                "SerialNumber": "999999",
   			    "SparePartNumber": "part number",
   			    "Status": {
   			      "Health": "OK",
@@ -836,7 +891,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			  }
   			]
   		}`)
-	var GoodPowerSupplyStatusResponse = []byte(`{
+	var GoodPowerSupplyStatusOemHpeResponse = []byte(`{
   			"Id": "Power",
   			"Name": "PowerMetrics",
   			"PowerControl": [
@@ -856,7 +911,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			"PowerSupplies": [
   			  {
   			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
-  			    "FirmwareVersion": "2.04",
+  			    "FirmwareVersion": "x.xx",
   			    "LastPowerOutputWatts": 91,
   			    "LineInputVoltage": 206,
   			    "LineInputVoltageType": "ACHighLine",
@@ -879,7 +934,111 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			    },
   			    "PowerCapacityWatts": 800,
   			    "PowerSupplyType": "AC",
-  			    "SerialNumber": "123456789",
+                "SerialNumber": "999999",
+  			    "SparePartNumber": "part number",
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    }
+  			  }
+  			]
+  		}`)
+	var GoodPowerSupplyOutputOemHpResponse = []byte(`{
+  			"Id": "Power",
+  			"Name": "PowerMetrics",
+  			"PowerControl": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerControl/0",
+  			    "MemberId": "0",
+  			    "PowerCapacityWatts": 1600,
+  			    "PowerConsumedWatts": 206,
+  			    "PowerMetrics": {
+  			      "AverageConsumedWatts": 207,
+  			      "IntervalInMin": 20,
+  			      "MaxConsumedWatts": 282,
+  			      "MinConsumedWatts": 205
+  			    }
+  			  }
+  			],
+  			"PowerSupplies": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
+  			    "FirmwareVersion": "x.xx",
+  			    "LastPowerOutputWatts": 91,
+  			    "LineInputVoltage": 206,
+  			    "LineInputVoltageType": "ACHighLine",
+  			    "Manufacturer": "DELTA",
+  			    "MemberId": "0",
+  			    "Model": "psmodel",
+  			    "Name": "HpeServerPowerSupply",
+  			    "Oem": {
+  			      "Hp": {
+  			        "AveragePowerOutputWatts": 91,
+  			        "BayNumber": 2,
+  			        "HotplugCapable": true,
+  			        "MaxPowerOutputWatts": 93,
+  			        "Mismatched": false,
+  			        "PowerSupplyStatus": {
+  			          "State": "Ok"
+  			        },
+  			        "iPDUCapable": false
+  			      }
+  			    },
+  			    "PowerCapacityWatts": 800,
+  			    "PowerSupplyType": "AC",
+                "SerialNumber": "999999",
+  			    "SparePartNumber": "part number",
+  			    "Status": {
+  			      "Health": "OK",
+  			      "State": "Enabled"
+  			    }
+  			  }
+  			]
+  		}`)
+	var GoodPowerSupplyStatusOemHpResponse = []byte(`{
+  			"Id": "Power",
+  			"Name": "PowerMetrics",
+  			"PowerControl": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerControl/0",
+  			    "MemberId": "0",
+  			    "PowerCapacityWatts": 1600,
+  			    "PowerConsumedWatts": 206,
+  			    "PowerMetrics": {
+  			      "AverageConsumedWatts": 207,
+  			      "IntervalInMin": 20,
+  			      "MaxConsumedWatts": 282,
+  			      "MinConsumedWatts": 205
+  			    }
+  			  }
+  			],
+  			"PowerSupplies": [
+  			  {
+  			    "@odata.id": "/redfish/v1/Chassis/1/Power/#PowerSupplies/0",
+  			    "FirmwareVersion": "x.xx",
+  			    "LastPowerOutputWatts": 91,
+  			    "LineInputVoltage": 206,
+  			    "LineInputVoltageType": "ACHighLine",
+  			    "Manufacturer": "DELTA",
+  			    "MemberId": "0",
+  			    "Model": "psmodel",
+  			    "Name": "HpeServerPowerSupply",
+  			    "Oem": {
+  			      "Hp": {
+  			        "AveragePowerOutputWatts": 91,
+  			        "BayNumber": 2,
+  			        "HotplugCapable": true,
+  			        "MaxPowerOutputWatts": 93,
+  			        "Mismatched": false,
+  			        "PowerSupplyStatus": {
+  			          "State": "Ok"
+  			        },
+  			        "iPDUCapable": false
+  			      }
+  			    },
+  			    "PowerCapacityWatts": 800,
+  			    "PowerSupplyType": "AC",
+                "SerialNumber": "999999",
   			    "SparePartNumber": "part number",
   			    "Status": {
   			      "Health": "OK",
@@ -889,6 +1048,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
   			]
   		}`)
 	var GoodPowerSupplyTotalConsumedResponse = []byte(`{
+			"@odata.id": "/redfish/v1/Chassis/1/Power",
   			"Id": "Power",
   			"Name": "PowerMetrics",
   			"PowerControl": [
@@ -945,15 +1105,13 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 
 	assert := assert.New(t)
 
-	metrx := NewDeviceMetrics()
-
 	exporter = &Exporter{
 		ctx:                 context.Background(),
 		host:                "fishymetrics.com",
+		Model:               "model a",
 		biosVersion:         "U99 v0.00 (xx/xx/xxxx)",
-		chassisSerialNumber: "SN98765",
-		iloServerName:       "test hostname",
-		deviceMetrics:       metrx,
+		ChassisSerialNumber: "SN98765",
+		DeviceMetrics:       NewDeviceMetrics(),
 	}
 
 	prometheus.MustRegister(exporter)
@@ -992,6 +1150,14 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 
 	nvmeDevMetrics := func(exp *Exporter, payload []byte) error {
 		err := exp.exportNVMeDriveMetrics(payload)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	storCtrlMetrics := func(exp *Exporter, payload []byte) error {
+		err := exp.exportStorageControllerMetrics(payload)
 		if err != nil {
 			return err
 		}
@@ -1057,7 +1223,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 	}{
 		{
 			name:       "Good Device Info",
-			metricName: "device_info",
+			metricName: "redfish_device_info",
 			metricRef1: "deviceInfo",
 			metricRef2: "deviceInfo",
 			handleFunc: deviceInfoMetrics,
@@ -1066,7 +1232,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good CPU Status",
-			metricName: "dl360_cpu_status",
+			metricName: "redfish_cpu_status",
 			metricRef1: "processorMetrics",
 			metricRef2: "processorStatus",
 			handleFunc: processorMetrics,
@@ -1075,7 +1241,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Logical Drive",
-			metricName: "dl360_logical_drive_status",
+			metricName: "redfish_logical_drive_status",
 			metricRef1: "logicalDriveMetrics",
 			metricRef2: "raidStatus",
 			handleFunc: logicalDevMetrics,
@@ -1084,7 +1250,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Disk Drive",
-			metricName: "dl360_disk_drive_status",
+			metricName: "redfish_disk_drive_status",
 			metricRef1: "diskDriveMetrics",
 			metricRef2: "driveStatus",
 			handleFunc: physDevMetrics,
@@ -1093,7 +1259,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Nvme Drive",
-			metricName: "dl360_nvme_drive_status",
+			metricName: "redfish_nvme_drive_status",
 			metricRef1: "nvmeMetrics",
 			metricRef2: "nvmeDriveStatus",
 			handleFunc: nvmeDevMetrics,
@@ -1101,8 +1267,17 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 			expected:   GoodNvmeDriveExpected,
 		},
 		{
+			name:       "Good Storage Controller",
+			metricName: "redfish_storage_controller_status",
+			metricRef1: "storageCtrlMetrics",
+			metricRef2: "storageControllerStatus",
+			handleFunc: storCtrlMetrics,
+			response:   GoodStorageControllerResponse,
+			expected:   GoodStorageControllerExpected,
+		},
+		{
 			name:       "Good iLO Self Test",
-			metricName: "dl360_ilo_selftest_status",
+			metricName: "redfish_ilo_selftest_status",
 			metricRef1: "iloSelfTestMetrics",
 			metricRef2: "iloSelfTestStatus",
 			handleFunc: iloSelfTestMetrics,
@@ -1111,7 +1286,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Storage Battery Status",
-			metricName: "dl360_storage_battery_status",
+			metricName: "redfish_storage_battery_status",
 			metricRef1: "storBatteryMetrics",
 			metricRef2: "storageBatteryStatus",
 			handleFunc: storBatterytMetrics,
@@ -1120,7 +1295,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Memory DIMM Status",
-			metricName: "dl360_memory_dimm_status",
+			metricName: "redfish_memory_dimm_status",
 			metricRef1: "memoryMetrics",
 			metricRef2: "memoryDimmStatus",
 			handleFunc: memDimmMetrics,
@@ -1129,7 +1304,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Memory DIMM Status G9",
-			metricName: "dl360_memory_dimm_status",
+			metricName: "redfish_memory_dimm_status",
 			metricRef1: "memoryMetrics",
 			metricRef2: "memoryDimmStatus",
 			handleFunc: memDimmMetrics,
@@ -1138,7 +1313,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Memory Summary Status",
-			metricName: "dl360_memory_status",
+			metricName: "redfish_memory_status",
 			metricRef1: "memoryMetrics",
 			metricRef2: "memoryStatus",
 			handleFunc: memSummaryMetrics,
@@ -1146,8 +1321,17 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 			expected:   GoodMemorySummaryExpected,
 		},
 		{
+			name:       "Good Thermal Summary Status",
+			metricName: "redfish_thermal_summary_status",
+			metricRef1: "thermalMetrics",
+			metricRef2: "thermalSummary",
+			handleFunc: thermMetrics,
+			response:   GoodThermalSummaryResponse,
+			expected:   GoodThermalSummaryExpected,
+		},
+		{
 			name:       "Good Thermal Fan Speed",
-			metricName: "dl360_thermal_fan_speed",
+			metricName: "redfish_thermal_fan_speed",
 			metricRef1: "thermalMetrics",
 			metricRef2: "fanSpeed",
 			handleFunc: thermMetrics,
@@ -1156,7 +1340,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Thermal Fan Status",
-			metricName: "dl360_thermal_fan_status",
+			metricName: "redfish_thermal_fan_status",
 			metricRef1: "thermalMetrics",
 			metricRef2: "fanStatus",
 			handleFunc: thermMetrics,
@@ -1165,7 +1349,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Thermal Sensor Status",
-			metricName: "dl360_thermal_sensor_status",
+			metricName: "redfish_thermal_sensor_status",
 			metricRef1: "thermalMetrics",
 			metricRef2: "sensorStatus",
 			handleFunc: thermMetrics,
@@ -1174,7 +1358,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Thermal Sensor Temperature",
-			metricName: "dl360_thermal_sensor_temperature",
+			metricName: "redfish_thermal_sensor_temperature",
 			metricRef1: "thermalMetrics",
 			metricRef2: "sensorTemperature",
 			handleFunc: thermMetrics,
@@ -1183,7 +1367,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Power Voltage Output",
-			metricName: "dl360_power_voltage_output",
+			metricName: "redfish_power_voltage_output",
 			metricRef1: "powerMetrics",
 			metricRef2: "voltageOutput",
 			handleFunc: powMetrics,
@@ -1192,7 +1376,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 		},
 		{
 			name:       "Good Power Voltage Status",
-			metricName: "dl360_power_voltage_status",
+			metricName: "redfish_power_voltage_status",
 			metricRef1: "powerMetrics",
 			metricRef2: "voltageStatus",
 			handleFunc: powMetrics,
@@ -1200,26 +1384,44 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 			expected:   GoodPowerVoltageStatusExpected,
 		},
 		{
-			name:       "Good Power Supply Output",
-			metricName: "dl360_power_supply_output",
+			name:       "Good Power Supply Output Oem Hpe",
+			metricName: "redfish_power_supply_output",
 			metricRef1: "powerMetrics",
 			metricRef2: "supplyOutput",
 			handleFunc: powMetrics,
-			response:   GoodPowerSupplyOutputResponse,
-			expected:   GoodPowerSupplyOutputExpected,
+			response:   GoodPowerSupplyOutputOemHpeResponse,
+			expected:   GoodPowerSupplyOutputOemHpeExpected,
 		},
 		{
-			name:       "Good Power Supply Status",
-			metricName: "dl360_power_supply_status",
+			name:       "Good Power Supply Status Oem Hpe",
+			metricName: "redfish_power_supply_status",
 			metricRef1: "powerMetrics",
 			metricRef2: "supplyStatus",
 			handleFunc: powMetrics,
-			response:   GoodPowerSupplyStatusResponse,
-			expected:   GoodPowerSupplyStatusExpected,
+			response:   GoodPowerSupplyStatusOemHpeResponse,
+			expected:   GoodPowerSupplyStatusOemHpeExpected,
+		},
+		{
+			name:       "Good Power Supply Output Oem Hp",
+			metricName: "redfish_power_supply_output",
+			metricRef1: "powerMetrics",
+			metricRef2: "supplyOutput",
+			handleFunc: powMetrics,
+			response:   GoodPowerSupplyOutputOemHpResponse,
+			expected:   GoodPowerSupplyOutputOemHpExpected,
+		},
+		{
+			name:       "Good Power Supply Status Oem Hp",
+			metricName: "redfish_power_supply_status",
+			metricRef1: "powerMetrics",
+			metricRef2: "supplyStatus",
+			handleFunc: powMetrics,
+			response:   GoodPowerSupplyStatusOemHpResponse,
+			expected:   GoodPowerSupplyStatusOemHpExpected,
 		},
 		{
 			name:       "Good Power Supply Total Consumed",
-			metricName: "dl360_power_supply_total_consumed",
+			metricName: "redfish_power_supply_total_consumed",
 			metricRef1: "powerMetrics",
 			metricRef2: "supplyTotalConsumed",
 			handleFunc: powMetrics,
@@ -1231,7 +1433,7 @@ func Test_DL360_Metrics_Handling(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// clear metric before each test
-			metric := (*exporter.(*Exporter).deviceMetrics)[test.metricRef1]
+			metric := (*exporter.(*Exporter).DeviceMetrics)[test.metricRef1]
 			m := (*metric)[test.metricRef2]
 			m.Reset()
 

@@ -38,6 +38,7 @@ type lumberjackSink struct {
 }
 
 type LoggerConfig struct {
+	LogLevel       string
 	LogMethod      string
 	LogFile        LogFile
 	VectorEndpoint string
@@ -132,6 +133,8 @@ func Initialize(svc, hostname string, config LoggerConfig) {
 			return zapcore.NewTee(logger.Core(), vectorCore)
 		}))
 	}
+
+	atomicLevel.SetLevel(parseLevel(config.LogLevel))
 
 	zap.ReplaceGlobals(logger)
 }

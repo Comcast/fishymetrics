@@ -1,18 +1,9 @@
 # fishymetrics exporter for Prometheus
 
-This is a simple server that scrapes a baremetal chassis' managers stats using the redfish API and 
+This is a simple server that scrapes a baremetal chassis' managers stats using the redfish API and
 exports them via HTTP for Prometheus consumption.
 
-Current device models supported
-- HP Moonshot
-- HP DL380
-- HP DL360
-- HP DL560
-- HP DL20
-- HP XL420
-- Cisco UCS C220 M5
-- Cisco UCS S3260 M4
-- Cisco UCS S3260 M5
+This app can support any chassis that has the redfish API available. If one needs to query any non-redfish API calls this app can be extended to support that. Please see the [`plugins`](https://github.com/Comcast/fishymetrics/tree/main/docs/plugins.md) documentation for more information.
 
 ## Getting Started
 
@@ -30,6 +21,8 @@ Flags:
       --password=""             BMC static password
       --timeout=15s             BMC scrape timeout
       --scheme="https"          BMC Scheme to use
+      --log.level=[debug|info|warn|error]
+                                log level verbosity
       --log.method=[file|vector]
                                 alternative method for logging in addition to stdout
       --log.file-path="/var/log/fishymetrics"
@@ -44,10 +37,12 @@ Flags:
                                 Vault instance address to get chassis credentials from
       --vault.role-id=""        Vault Role ID for AppRole
       --vault.secret-id=""      Vault Secret ID for AppRole
-      --credential.profiles=CREDENTIAL.PROFILES
+      --collector.drives.module-exclude=""
+                                regex of drive module(s) to exclude from the scrape
+      --credentials.profiles=CREDENTIALS.PROFILES
                                 profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
 
-                                  --credential.profiles="
+                                  --credentials.profiles="
                                     profiles:
                                       - name: profile1
                                         mountPath: "kv2"
@@ -57,10 +52,11 @@ Flags:
                                       ...
                                   "
 
-                                --credential.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'
+                                --credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'
 ```
 
 Or set the following ENV Variables:
+
 ```bash
 BMC_USERNAME=<string>
 BMC_PASSWORD=<string>
@@ -72,9 +68,26 @@ VAULT_ADDRESS=<string>
 VAULT_ROLE_ID=<string>
 VAULT_SECRET_ID=<string>
 ```
+
 ```bash
 ./fishymetrics
 ```
+
+## Collectors
+
+### Exclude flags
+
+Since some hosts can contain many dozens of drives, this can cause a scrape to take a very long time and may not be entirely necessary. Because of this we've included an exclude flag specifically for the `drives.module` scope.
+
+Example:
+
+```bash
+--collector.drives.module-exclude="(FlexUtil|SBMezz[0-9]+|IOEMezz[0-9]+)"
+```
+
+| Collector | Scope  | Include Flag | Exclude Flag   |
+| --------- | ------ | ------------ | -------------- |
+| drives    | module | N/A          | module-exclude |
 
 ## Usage
 
@@ -107,13 +120,19 @@ curl http://localhost:9533/metrics
 To test a scrape of a host's redfish API, you can curl `fishymetrics`
 
 ```bash
-curl 'http://localhost:9533/scrape?module=<module-name>&target=1.2.3.4'
+curl 'http://localhost:9533/scrape?model=<model-name>&target=1.2.3.4'
 ```
 
 If you have a credential profile configured you can add the extra URL query parameter
 
 ```bash
-curl 'http://localhost:9533/scrape?module=<module-name>&target=1.2.3.4&credential_profile=<profile-name>'
+curl 'http://localhost:9533/scrape?model=<model-name>&target=1.2.3.4&credential_profile=<profile-name>'
+```
+
+There is plugin support which is passed a comma separated list of strings
+
+```bash
+curl 'http://localhost:9533/scrape?model=<model-name>&target=1.2.3.4&plugins=example1,example2'
 ```
 
 ### Docker
@@ -121,6 +140,7 @@ curl 'http://localhost:9533/scrape?module=<module-name>&target=1.2.3.4&credentia
 To run the fishymetrics exporter as a Docker container using static crdentials, run:
 
 #### Using ENV variables
+
 ```bash
 docker run --name fishymetrics -d -p <EXPORTER_PORT>:<EXPORTER_PORT> \
 -e BMC_USERNAME='<user>' \
@@ -131,6 +151,7 @@ comcast/fishymetrics:latest
 ```
 
 #### Using command line args
+
 ```bash
 docker run --name fishymetrics -d -p <EXPORTER_PORT>:<EXPORTER_PORT> \
 -user '<user>' \
@@ -143,25 +164,26 @@ comcast/fishymetrics:latest
 ## Prometheus Configuration
 
 The fishymetrics exporter needs to be passed the address as a parameter, this can be
-done with relabelling. available module options `["moonshot", "dl360", "dl20", "dl380", "dl560", "xl420", "c220", "s3260m4", "s3260m5"]`
+done with relabelling.
 
 Example config:
+
 ```YAML
 scrape_configs:
   - job_name: 'fishymetrics'
     static_configs:
       - targets:
-        - ilo-fdqn-p1.example.com
+        - bmc-fdqn-p1.example.com
         labels:
           foo: bar
       - targets:
-        - ilo-fdqn-p2.example.com
+        - bmc-fdqn-p2.example.com
         labels:
           foo: bar
     metrics_path: /scrape
     scrape_interval: 5m
     params:
-      module: ["moonshot"]
+      model: ["dl360"]
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
@@ -176,11 +198,13 @@ scrape_configs:
 ### Building
 
 #### linux binary
+
 ```
 make build
 ```
 
 #### docker image
+
 ```
 make docker
 ```
