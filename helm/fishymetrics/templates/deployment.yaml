@@ -77,10 +77,6 @@ spec:
                   key: vault-secret-id
             - name: EXPORTER_PORT
               value: {{ .Values.exporter.port | quote }}
-            {{- if .Values.collectors.drives.modules-exclude }}
-            - name: COLLECTOR_DRIVES_MODULE_EXCLUDE
-              value: {{ .Values.collectors.drives.modules-exclude }}
-            {{- end }}
             {{- if .Values.vector.enabled }}
             - name: LOG_LEVEL
               value: {{ .Values.log.level }}
