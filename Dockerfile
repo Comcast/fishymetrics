@@ -15,7 +15,7 @@ RUN go mod download
 ARG VERSION
 ARG REPO_REV
 ARG DATE
-RUN cd /go/src/github.com/comcast/fishymetrics && go build -a -ldflags "\
+RUN cd /go/src/github.com/comcast/fishymetrics && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags "\
     -X \"github.com/comcast/fishymetrics/buildinfo.gitVersion=${VERSION}\"\
     -X \"github.com/comcast/fishymetrics/buildinfo.gitRevision=${REPO_REV}\"\
     -X \"github.com/comcast/fishymetrics/buildinfo.date=${DATE}\"\
