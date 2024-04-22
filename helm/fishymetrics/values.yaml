@@ -27,7 +27,7 @@ vault:
   roleId: ""
   secretId: ""
 
-collectors: {}
+collector: {}
 # drives:
 #   modulesExclude: "(?i)(FlexUtil|(SBMezz|IOEMezz)[0-9]+)"
 

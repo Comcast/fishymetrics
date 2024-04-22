@@ -52,8 +52,8 @@ spec:
           {{- if .Values.credentials }}
             - --credentials.profiles={{ toJson .Values.credentials }}
           {{- end }}
-          {{- if .Values.collectors.drives.modulesExclude }}
-            - --collectors.drives.modules-exclude={{ .Values.collectors.drives.modulesExclude }}
+          {{- if .Values.collector.drives.modulesExclude }}
+            - --collector.drives.modules-exclude={{ .Values.collector.drives.modulesExclude | quote }}
           {{- end }}
           env:
             - name: BMC_USERNAME

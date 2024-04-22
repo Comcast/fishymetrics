@@ -72,7 +72,7 @@ var (
 	vaultAddr         = a.Flag("vault.addr", "Vault instance address to get chassis credentials from").Default("https://vault.com").Envar("VAULT_ADDRESS").String()
 	vaultRoleId       = a.Flag("vault.role-id", "Vault Role ID for AppRole").Default("").Envar("VAULT_ROLE_ID").String()
 	vaultSecretId     = a.Flag("vault.secret-id", "Vault Secret ID for AppRole").Default("").Envar("VAULT_SECRET_ID").String()
-	driveModExclude   = a.Flag("collector.drives.module-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
+	driveModExclude   = a.Flag("collector.drives.modules-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
 	credProfiles      = common.CredentialProf(a.Flag("credentials.profiles",
 		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
   --credentials.profiles="
