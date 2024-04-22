@@ -12,9 +12,9 @@ log:
   level: "info"
   method: ""
   filePath: "/var/log/fishymetrics"
-  fileMaxSize: 256
-  fileMaxBackups: 1
-  fileMaxAge: 1
+  fileMaxSize: "256"
+  fileMaxBackups: "1"
+  fileMaxAge: "1"
 
 bmc:
   username: ""
@@ -27,7 +27,7 @@ vault:
   roleId: ""
   secretId: ""
 
-collectors: {}
+collector: {}
 # drives:
 #   modulesExclude: "(?i)(FlexUtil|(SBMezz|IOEMezz)[0-9]+)"
 
