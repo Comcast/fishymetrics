@@ -52,7 +52,7 @@ spec:
           {{- if .Values.credentials }}
             - --credentials.profiles={{ toJson .Values.credentials }}
           {{- end }}
-          {{- if .Values.collectors.drives.modules-exclude }}
+          {{- if .Values.collectors.drives.modulesExclude }}
             - --collectors.drives.modules-exclude={{ .Values.collectors.drives.modulesExclude }}
           {{- end }}
           env:
