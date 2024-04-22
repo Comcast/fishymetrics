@@ -85,11 +85,11 @@ spec:
             - name: LOG_FILE_PATH
               value: {{ .Values.log.filePath }}
             - name: LOG_FILE_MAX_SIZE
-              value: {{ .Values.log.fileMaxSize }}
+              value: {{ .Values.log.fileMaxSize | quote }}
             - name: LOG_FILE_MAX_BACKUPS
-              value: {{ .Values.log.fileMaxBackups }}
+              value: {{ .Values.log.fileMaxBackups | quote }}
             - name: LOG_FILE_MAX_AGE
-              value: {{ .Values.log.fileMaxAge }}
+              value: {{ .Values.log.fileMaxAge | quote }}
             - name: VECTOR_ENDPOINT
               value: {{ .Values.vector.endpoint }}
             {{- end }}
