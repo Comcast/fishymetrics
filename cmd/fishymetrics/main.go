@@ -216,17 +216,17 @@ func main() {
 		}
 	}
 
-	logfilemax_size, err := strconv.Atoi(*logFileMaxSize)
+	logfileMaxSize, err := strconv.Atoi(*logFileMaxSize)
 	if err != nil {
 		panic(fmt.Errorf("error converting type - %s", err.Error()))
 	}
 
-	logfilemax_backups, err := strconv.Atoi(*logFileMaxBackups)
+	logfileMaxBackups, err := strconv.Atoi(*logFileMaxBackups)
 	if err != nil {
 		panic(fmt.Errorf("error converting type - %s", err.Error()))
 	}
 
-	logfilemax_age, err := strconv.Atoi(*logFileMaxAge)
+	logfileMaxAge, err := strconv.Atoi(*logFileMaxAge)
 	if err != nil {
 		panic(fmt.Errorf("error converting type - %s", err.Error()))
 	}
@@ -237,9 +237,9 @@ func main() {
 		LogMethod: *logMethod,
 		LogFile: logger.LogFile{
 			Path:       *logFilePath,
-			MaxSize:    logfilemax_size,
-			MaxBackups: logfilemax_backups,
-			MaxAge:     logfilemax_age,
+			MaxSize:    logfileMaxSize,
+			MaxBackups: logfileMaxBackups,
+			MaxAge:     logfileMaxAge,
 		},
 		VectorEndpoint: *vectorEndpoint,
 	}
