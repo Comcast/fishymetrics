@@ -27,9 +27,13 @@ COPY vendor /sources/vendor/
 # Build the sources tarball outside of /deps so it has to be copied explicitly
 RUN cd /; tar -czf /sources.tgz sources
 
+FROM alpine:latest as certs
+RUN apk --update --no-cache add ca-certificates
+
 # 'bin' stage, copy in only the binary and dependencies
 FROM scratch AS bin
 WORKDIR /
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /go/src/github.com/comcast/fishymetrics/fishymetrics /
 
 ENTRYPOINT ["/fishymetrics"]
