@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -195,7 +196,7 @@ func main() {
 
 	_, err = a.Parse(os.Args[1:])
 	if err != nil {
-		panic(fmt.Errorf("Error parsing argument flags - %s", err.Error()))
+		panic(fmt.Errorf("error parsing argument flags - %s", err.Error()))
 	}
 
 	// populate excludes map
@@ -215,15 +216,30 @@ func main() {
 		}
 	}
 
+	logfileMaxSize, err := strconv.Atoi(*logFileMaxSize)
+	if err != nil {
+		panic(fmt.Errorf("error converting arg --log.file-max-size to int - %s", err.Error()))
+	}
+
+	logfileMaxBackups, err := strconv.Atoi(*logFileMaxBackups)
+	if err != nil {
+		panic(fmt.Errorf("error converting arg --log.file-max-backups to int - %s", err.Error()))
+	}
+
+	logfileMaxAge, err := strconv.Atoi(*logFileMaxAge)
+	if err != nil {
+		panic(fmt.Errorf("error converting arg --log.file-max-age to int - %s", err.Error()))
+	}
+
 	// init logger config
 	logConfig := logger.LoggerConfig{
 		LogLevel:  *logLevel,
 		LogMethod: *logMethod,
 		LogFile: logger.LogFile{
 			Path:       *logFilePath,
-			MaxSize:    *logFileMaxSize,
-			MaxBackups: *logFileMaxBackups,
-			MaxAge:     *logFileMaxAge,
+			MaxSize:    logfileMaxSize,
+			MaxBackups: logfileMaxBackups,
+			MaxAge:     logfileMaxAge,
 		},
 		VectorEndpoint: *vectorEndpoint,
 	}
