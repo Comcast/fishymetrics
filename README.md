@@ -27,9 +27,9 @@ Flags:
                                 alternative method for logging in addition to stdout
       --log.file-path="/var/log/fishymetrics"
                                 directory path where log files are written if log-method is file
-      --log.file-max-size=256   max file size in megabytes if log-method is file
-      --log.file-max-backups=1  max file backups before they are rotated if log-method is file
-      --log.file-max-age=1      max file age in days before they are rotated if log-method is file
+      --log.file-max-size="256"   max file size in megabytes if log-method is file
+      --log.file-max-backups="1"  max file backups before they are rotated if log-method is file
+      --log.file-max-age="1"      max file age in days before they are rotated if log-method is file
       --vector.endpoint="http://0.0.0.0:4444"
                                 vector endpoint to send structured json logs to
       --port="9533"             exporter port
@@ -37,7 +37,7 @@ Flags:
                                 Vault instance address to get chassis credentials from
       --vault.role-id=""        Vault Role ID for AppRole
       --vault.secret-id=""      Vault Secret ID for AppRole
-      --collector.drives.module-exclude=""
+      --collector.drives.modules-exclude=""
                                 regex of drive module(s) to exclude from the scrape
       --credentials.profiles=CREDENTIALS.PROFILES
                                 profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
@@ -82,7 +82,7 @@ Since some hosts can contain many dozens of drives, this can cause a scrape to t
 Example:
 
 ```bash
---collector.drives.module-exclude="(?i)(FlexUtil|(SBMezz|IOEMezz)[0-9]+)"
+--collector.drives.modules-exclude="(?i)(FlexUtil|(SBMezz|IOEMezz)[0-9]+)"
 ```
 
 | Collector | Scope  | Include Flag | Exclude Flag   |

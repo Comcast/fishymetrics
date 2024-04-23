@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -195,7 +196,7 @@ func main() {
 
 	_, err = a.Parse(os.Args[1:])
 	if err != nil {
-		panic(fmt.Errorf("Error parsing argument flags - %s", err.Error()))
+		panic(fmt.Errorf("error parsing argument flags - %s", err.Error()))
 	}
 
 	// populate excludes map
@@ -215,15 +216,30 @@ func main() {
 		}
 	}
 
+	logfilemax_size, err := strconv.Atoi(*logFileMaxSize)
+	if err != nil {
+		panic(fmt.Errorf("error converting type - %s", err.Error()))
+	}
+
+	logfilemax_backups, err := strconv.Atoi(*logFileMaxBackups)
+	if err != nil {
+		panic(fmt.Errorf("error converting type - %s", err.Error()))
+	}
+
+	logfilemax_age, err := strconv.Atoi(*logFileMaxAge)
+	if err != nil {
+		panic(fmt.Errorf("error converting type - %s", err.Error()))
+	}
+
 	// init logger config
 	logConfig := logger.LoggerConfig{
 		LogLevel:  *logLevel,
 		LogMethod: *logMethod,
 		LogFile: logger.LogFile{
 			Path:       *logFilePath,
-			MaxSize:    *logFileMaxSize,
-			MaxBackups: *logFileMaxBackups,
-			MaxAge:     *logFileMaxAge,
+			MaxSize:    logfilemax_size,
+			MaxBackups: logfilemax_backups,
+			MaxAge:     logfilemax_age,
 		},
 		VectorEndpoint: *vectorEndpoint,
 	}
