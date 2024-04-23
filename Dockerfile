@@ -28,7 +28,7 @@ COPY vendor /sources/vendor/
 RUN cd /; tar -czf /sources.tgz sources
 
 FROM alpine:latest as certs
-RUN apk --update add ca-certificates
+RUN apk --update --no-cache add ca-certificates
 
 # 'bin' stage, copy in only the binary and dependencies
 FROM scratch AS bin
