@@ -267,8 +267,8 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		state = BAD
 	}
 
-	if dlphysical.Location != "" {
-		loc = dlphysical.Location
+	if dlphysical.LocationWrap.Location != "" {
+		loc = dlphysical.LocationWrap.Location
 	} else if dlphysical.PhysicalLocation.PartLocation.ServiceLabel != "" {
 		loc = dlphysical.PhysicalLocation.PartLocation.ServiceLabel
 	}

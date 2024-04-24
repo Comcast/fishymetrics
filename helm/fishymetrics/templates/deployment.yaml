@@ -53,7 +53,7 @@ spec:
             - --credentials.profiles={{ toJson .Values.credentials }}
           {{- end }}
           {{- if .Values.collector.drives.modulesExclude }}
-            - --collector.drives.modules-exclude={{ .Values.collector.drives.modulesExclude | quote }}
+            - --collector.drives.modules-exclude={{ .Values.collector.drives.modulesExclude }}
           {{- end }}
           env:
             - name: BMC_USERNAME
@@ -77,7 +77,6 @@ spec:
                   key: vault-secret-id
             - name: EXPORTER_PORT
               value: {{ .Values.exporter.port | quote }}
-            {{- if .Values.vector.enabled }}
             - name: LOG_LEVEL
               value: {{ .Values.log.level }}
             - name: LOG_METHOD
@@ -90,6 +89,7 @@ spec:
               value: {{ .Values.log.fileMaxBackups | quote }}
             - name: LOG_FILE_MAX_AGE
               value: {{ .Values.log.fileMaxAge | quote }}
+            {{- if .Values.vector.enabled }}
             - name: VECTOR_ENDPOINT
               value: {{ .Values.vector.endpoint }}
             {{- end }}

@@ -156,7 +156,7 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 		for _, drive := range chas.Links.Drives.LinksURLSlice {
 			url := appendSlash(drive)
 			// this list can potentially be large and cause scrapes to take a long time please
-			// see the '--collector.drives.module-exclude' config in the README for more information
+			// see the '--collector.drives.modules-exclude' config in the README for more information
 			if reg, ok := excludes["drive"]; ok {
 				if !reg.(*regexp.Regexp).MatchString(url) {
 					if checkUnique(sysEnd.drives, url) {
@@ -173,7 +173,7 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 		for _, drive := range chas.LinksLower.Drives.LinksURLSlice {
 			url := appendSlash(drive)
 			// this list can potentially be large and cause scrapes to take a long time please
-			// see the '--collector.drives.module-exclude' config in the README for more information
+			// see the '--collector.drives.modules-exclude' config in the README for more information
 			if reg, ok := excludes["drive"]; ok {
 				if !reg.(*regexp.Regexp).MatchString(url) {
 					if checkUnique(sysEnd.drives, url) {
