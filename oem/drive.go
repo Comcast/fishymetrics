@@ -16,6 +16,11 @@
 
 package oem
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
 // /redfish/v1/Systems/X/SmartStorage/ArrayControllers/
 
 type DriveProtocol struct {
@@ -54,7 +59,8 @@ type LogicalDriveMetrics struct {
 }
 
 // Disk Drives
-// /redfish/v1/Systems/X/SmartStorage/ArrayControllers/X/DiskDrives/X/
+// /redfish/v1/Systems/XXXXX/SmartStorage/ArrayControllers/X/DiskDrives/X/
+// /redfish/v1/Systems/XXXXX/Storage/XXXXX/Drives/PD-XX/
 type DiskDriveMetrics struct {
 	Id               string           `json:"Id"`
 	CapacityMiB      int              `json:"CapacityMiB"`
@@ -64,9 +70,33 @@ type DiskDriveMetrics struct {
 	Name             string           `json:"Name"`
 	Model            string           `json:"Model"`
 	Status           Status           `json:"Status"`
-	Location         string           `json:"Location"`
+	LocationWrap     LocationWrapper  `json:"Location"`
 	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
 	SerialNumber     string           `json:"SerialNumber"`
+}
+
+type LocationWrapper struct {
+	Location string
+}
+
+func (w *LocationWrapper) UnmarshalJSON(data []byte) error {
+	// because of a change in output between firmware versions we need to account for this
+	if bytes.Compare([]byte("[{"), data[0:2]) == 0 {
+		var locTmp []struct {
+			Loc string `json:"Info,omitempty"`
+		}
+		err := json.Unmarshal(data, &locTmp)
+		if len(locTmp) > 0 {
+			for _, l := range locTmp {
+				if l.Loc != "" {
+					w.Location = l.Loc
+				}
+			}
+			return nil
+		}
+		return err
+	}
+	return json.Unmarshal(data, &w.Location)
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
