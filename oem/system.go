@@ -21,11 +21,11 @@ package oem
 // ServerManager contains the BIOS version and Serial number of the chassis,
 // we will also collect memory summary and storage battery metrics if present
 type System struct {
-	BiosVersion   string        `json:"BiosVersion"`
-	SerialNumber  string        `json:"SerialNumber"`
-	IloServerName string        `json:"HostName"`
-	Oem           OemSys        `json:"Oem"`
-	MemorySummary MemorySummary `json:"MemorySummary"`
+	BiosVersion    string        `json:"BiosVersion"`
+	SerialNumber   string        `json:"SerialNumber"`
+	SystemHostname string        `json:"HostName"`
+	Oem            OemSys        `json:"Oem"`
+	MemorySummary  MemorySummary `json:"MemorySummary"`
 }
 
 type OemSys struct {

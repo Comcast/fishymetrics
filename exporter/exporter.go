@@ -79,15 +79,15 @@ var (
 // Exporter collects chassis manager stats from the given URI and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	ctx         context.Context
-	mutex       sync.RWMutex
-	pool        *pool.Pool
-	client      *retryablehttp.Client
-	host        string
-	url         string
-	credProfile string
-	biosVersion string
-
+	ctx                 context.Context
+	mutex               sync.RWMutex
+	pool                *pool.Pool
+	client              *retryablehttp.Client
+	host                string
+	url                 string
+	credProfile         string
+	biosVersion         string
+	systemHostname      string
 	ChassisSerialNumber string
 	DeviceMetrics       *map[string]*metrics
 	Model               string
@@ -255,6 +255,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		}
 		exp.biosVersion = sysResp.BiosVersion
 		exp.ChassisSerialNumber = sysResp.SerialNumber
+		exp.systemHostname = sysResp.SystemHostname
 
 		// call /redfish/v1/Systems/XXXXX/ for memory summary and smart storage batteries
 		// TODO: do not assume 1 systems endpoint

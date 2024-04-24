@@ -38,7 +38,7 @@ const (
 	GoodDeviceInfoExpected = `
         # HELP redfish_device_info Current snapshot of device firmware information
         # TYPE redfish_device_info gauge
-        redfish_device_info{biosVersion="U99 v0.00 (xx/xx/xxxx)",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="iLO 5 v2.65",name="test description"} 1
+        redfish_device_info{biosVersion="U99 v0.00 (xx/xx/xxxx)",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="iLO 5 v2.65",name="hostname123"} 1
 	`
 	GoodCPUStatusExpected = `
         # HELP redfish_cpu_status Current cpu status 1 = OK, 0 = BAD
@@ -1110,6 +1110,7 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
 		host:                "fishymetrics.com",
 		Model:               "model a",
 		biosVersion:         "U99 v0.00 (xx/xx/xxxx)",
+		systemHostname:      "hostname123",
 		ChassisSerialNumber: "SN98765",
 		DeviceMetrics:       NewDeviceMetrics(),
 	}

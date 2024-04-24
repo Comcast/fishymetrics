@@ -71,7 +71,7 @@ func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling FirmwareMetrics - " + err.Error())
 	}
 
-	(*dm)["deviceInfo"].WithLabelValues(mgr.Description, e.ChassisSerialNumber, e.Model, mgr.FirmwareVersion, e.biosVersion).Set(1.0)
+	(*dm)["deviceInfo"].WithLabelValues(e.systemHostname, e.ChassisSerialNumber, e.Model, mgr.FirmwareVersion, e.biosVersion).Set(1.0)
 
 	return nil
 }
