@@ -17,7 +17,6 @@
 package oem
 
 import (
-	"bytes"
 	"encoding/json"
 )
 
@@ -50,19 +49,19 @@ type PowerControlWrapper struct {
 }
 
 func (w *PowerControlWrapper) UnmarshalJSON(data []byte) error {
-	// because of a change in output betwen firmware versions we need to account for this
-	if bytes.Compare([]byte("{"), data[0:1]) == 0 {
-		var powCtlSlice PowerControl
-		err := json.Unmarshal(data, &powCtlSlice)
-		if err != nil {
-			return err
-		}
+	// because of a change in output between firmware versions we need to account for this
+	// PowerControl can either be []PowerControl or a singular PowerControl
+	var powCtl PowerControl
+	err := json.Unmarshal(data, &powCtl)
+	if err == nil {
 		s := make([]PowerControl, 0)
-		s = append(s, powCtlSlice)
+		s = append(s, powCtl)
 		w.PowerControl = s
-		return nil
+	} else {
+		return json.Unmarshal(data, &w.PowerControl)
 	}
-	return json.Unmarshal(data, &w.PowerControl)
+
+	return nil
 }
 
 // PowerMetric contains avg/min/max power metadata

@@ -17,7 +17,6 @@
 package oem
 
 import (
-	"bytes"
 	"encoding/json"
 )
 
@@ -48,19 +47,19 @@ type StorageControllerWrapper struct {
 }
 
 func (w *StorageControllerWrapper) UnmarshalJSON(data []byte) error {
-	// because of a change in output betwen c220 firmware versions we need to account for this
-	if bytes.Compare([]byte("{"), data[0:1]) == 0 {
-		var storCtlSlice StorageController
-		err := json.Unmarshal(data, &storCtlSlice)
-		if err != nil {
-			return err
-		}
-		s := make([]StorageController, 0)
-		s = append(s, storCtlSlice)
-		w.StorageController = s
-		return nil
+	// because of a change in output between firmware versions we need to account for this
+	// StorageController can either be []StorageController or a singular StorageController
+	var storCtl StorageController
+	err := json.Unmarshal(data, &storCtl)
+	if err == nil {
+		sc := make([]StorageController, 0)
+		sc = append(sc, storCtl)
+		w.StorageController = sc
+	} else {
+		return json.Unmarshal(data, &w.StorageController)
 	}
-	return json.Unmarshal(data, &w.StorageController)
+
+	return nil
 }
 
 type Drive struct {

@@ -17,7 +17,6 @@
 package oem
 
 import (
-	"bytes"
 	"encoding/json"
 )
 
@@ -81,22 +80,36 @@ type LocationWrapper struct {
 
 func (w *LocationWrapper) UnmarshalJSON(data []byte) error {
 	// because of a change in output between firmware versions we need to account for this
-	if bytes.Compare([]byte("[{"), data[0:2]) == 0 {
-		var locTmp []struct {
-			Loc string `json:"Info,omitempty"`
-		}
-		err := json.Unmarshal(data, &locTmp)
-		if len(locTmp) > 0 {
-			for _, l := range locTmp {
+	// try to unmarshal as a slice of structs
+	// [
+	//   {
+	//     "Info": "location data"
+	//   }
+	// ]
+	var loc []struct {
+		Loc string `json:"Info,omitempty"`
+	}
+	err := json.Unmarshal(data, &loc)
+	if err == nil {
+		if len(loc) > 0 {
+			for _, l := range loc {
 				if l.Loc != "" {
 					w.Location = l.Loc
 				}
 			}
-			return nil
 		}
-		return err
+	} else {
+		// try to unmarshal as a string
+		// {
+		//   ...
+		//   "Location": "location data"
+		//   ...
+		// }
+		return json.Unmarshal(data, &w.Location)
 	}
-	return json.Unmarshal(data, &w.Location)
+
+	return nil
+
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
