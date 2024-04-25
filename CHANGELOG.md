@@ -25,6 +25,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Thermal Summary, Power total consumed for Cisco servers and Chassis, memory metrics for Gen9 server models [#53](https://github.com/Comcast/fishymetrics/issues/53)
 - Firmware gathering endpoint update and add device info to other HP models [#55](https://github.com/Comcast/fishymetrics/issues/55)
 - C220 drive metrics on hosts with fw < 4.0, psu metrics result and label values [#57](https://github.com/Comcast/fishymetrics/issues/57)
+- Chassis ComputerSystems field is handled improperly [#68](https://github.com/Comcast/fishymetrics/issues/68)
 
 ## Updated
 

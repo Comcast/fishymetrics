@@ -23,6 +23,7 @@ import (
 	"html/template"
 	"io"
 	logg "log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -319,17 +320,27 @@ func main() {
 		Handler: loggingHandler(mux),
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("starting "+app+" service failed", zap.Error(err))
-		}
-	}()
-
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+
+	listener, err := net.Listen("tcp4", ":"+*exporterPort)
+	if err != nil {
+		log.Error("starting "+app+" service failed", zap.Error(err))
+		signals <- syscall.SIGTERM
+	} else {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
+				log.Error("http server received an error", zap.Error(err))
+				signals <- syscall.SIGTERM
+			}
+		}()
+
+		log.Info("started " + app + " service")
+	}
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -345,8 +356,6 @@ func main() {
 		}
 		doneRenew <- true
 	}()
-
-	log.Info("started " + app + " service")
 
 	wg.Wait()
 }

@@ -17,7 +17,6 @@
 package oem
 
 import (
-	"bytes"
 	"encoding/json"
 )
 
@@ -45,26 +44,37 @@ type ServerManagerURLWrapper struct {
 }
 
 func (w *ServerManagerURLWrapper) UnmarshalJSON(data []byte) error {
-	// because of a change in output betwen c220 firmware versions we need to account for this
-	if bytes.Compare([]byte("[{"), data[0:2]) == 0 {
-		var serMgrTmp []struct {
-			UrlLinks string `json:"@odata.id,omitempty"`
-			Urllinks string `json:"href,omitempty"`
-		}
-		err := json.Unmarshal(data, &serMgrTmp)
-		if len(serMgrTmp) > 0 {
-			s := make([]string, 0)
-			if serMgrTmp[0].UrlLinks != "" {
-				s = append(s, serMgrTmp[0].UrlLinks)
-			} else {
-				s = append(s, serMgrTmp[0].Urllinks)
-			}
-			w.ServerManagerURLSlice = s
-			return nil
-		}
-		return err
+	// because of a change in output between firmware versions we need to account for this
+	// try to unmarshal as a slice of structs
+	// [
+	//   {
+	//     "@odata.id": "/redfish/v1/Systems/XXXX"
+	//   }
+	// ]
+	var svrMgr []struct {
+		URL  string `json:"@odata.id,omitempty"`
+		HRef string `json:"href,omitempty"`
 	}
-	return json.Unmarshal(data, &w.ServerManagerURLSlice)
+	err := json.Unmarshal(data, &svrMgr)
+	if err == nil {
+		if len(svrMgr) > 0 {
+			for _, l := range svrMgr {
+				if l.URL != "" {
+					w.ServerManagerURLSlice = append(w.ServerManagerURLSlice, l.URL)
+				} else {
+					w.ServerManagerURLSlice = append(w.ServerManagerURLSlice, l.HRef)
+				}
+			}
+		}
+	} else {
+		// try to unmarshal as a slice of strings
+		// [
+		//   "/redfish/v1/Systems/XXXX"
+		// ]
+		return json.Unmarshal(data, &w.ServerManagerURLSlice)
+	}
+
+	return nil
 }
 
 type IloSelfTest struct {

@@ -17,7 +17,6 @@
 package oem
 
 import (
-	"bytes"
 	"encoding/json"
 )
 
@@ -62,25 +61,36 @@ type LinksWrapper struct {
 
 func (w *LinksWrapper) UnmarshalJSON(data []byte) error {
 	// because of a change in output between firmware versions we need to account for this
-	if bytes.Compare([]byte("[{"), data[0:2]) == 0 {
-		var linksTmp []struct {
-			URL  string `json:"@odata.id,omitempty"`
-			HRef string `json:"href,omitempty"`
-		}
-		err := json.Unmarshal(data, &linksTmp)
-		if len(linksTmp) > 0 {
-			for _, l := range linksTmp {
+	// try to unmarshal as a slice of structs
+	// [
+	//   {
+	//     "@odata.id": "/redfish/v1/Systems/XXXX"
+	//   }
+	// ]
+	var links []struct {
+		URL  string `json:"@odata.id,omitempty"`
+		HRef string `json:"href,omitempty"`
+	}
+	err := json.Unmarshal(data, &links)
+	if err == nil {
+		if len(links) > 0 {
+			for _, l := range links {
 				if l.URL != "" {
 					w.LinksURLSlice = append(w.LinksURLSlice, l.URL)
 				} else {
 					w.LinksURLSlice = append(w.LinksURLSlice, l.HRef)
 				}
 			}
-			return nil
 		}
-		return err
+	} else {
+		// try to unmarshal as a slice of strings
+		// [
+		//   "/redfish/v1/Systems/XXXX"
+		// ]
+		return json.Unmarshal(data, &w.LinksURLSlice)
 	}
-	return json.Unmarshal(data, &w.LinksURLSlice)
+
+	return nil
 }
 
 type ChassisStorageBattery struct {
