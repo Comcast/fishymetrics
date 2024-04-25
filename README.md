@@ -9,7 +9,7 @@ This app can support any chassis that has the redfish API available. If one need
 
 To run it:
 
-```bash
+```
 $ ./fishymetrics --help
 usage: fishymetrics [<flags>]
 
@@ -57,7 +57,7 @@ Flags:
 
 Or set the following ENV Variables:
 
-```bash
+```
 BMC_USERNAME=<string>
 BMC_PASSWORD=<string>
 BMC_TIMEOUT=<duration> (Default: 15s)
