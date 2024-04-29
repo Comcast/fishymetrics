@@ -114,7 +114,7 @@ type Plugin interface {
 
 // NewExporter returns an initialized Exporter for a redfish API capable device.
 func NewExporter(ctx context.Context, target, uri, profile, model string, excludes Excludes, plugins ...Plugin) (*Exporter, error) {
-	var fqdn *url.URL
+	var u *url.URL
 	var tasks []*pool.Task
 	var exp = Exporter{
 		ctx:           ctx,
@@ -158,15 +158,17 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	exp.client = retryClient
 
 	// Check that the target passed in has http:// or https:// prefixed
-	fqdn, err := url.ParseRequestURI(target)
-	if err != nil {
-		fqdn = &url.URL{
-			Scheme: config.GetConfig().BMCScheme,
-			Host:   target,
+	u, err := url.ParseRequestURI(target)
+	if err != nil || u.Host == "" {
+		u, err = url.ParseRequestURI(config.GetConfig().BMCScheme + "://" + target)
+		if err != nil {
+			log.Error("error parsing target param", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return &exp, err
 		}
 	}
-	exp.host = fqdn.Hostname()
-	exp.url = fqdn.String()
+
+	exp.host = u.Hostname()
+	exp.url = u.String()
 
 	// check if host is on the ignored list, if so we immediately return
 	if _, ok := common.IgnoredDevices[exp.host]; ok {
@@ -177,7 +179,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	chassisEndpoints, err := getMemberUrls(exp.url+uri+"/Chassis/", target, retryClient)
 	if err != nil {
-		log.Error("error when getting chassis url from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		log.Error("error when getting chassis url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		if errors.Is(err, common.ErrInvalidCredential) {
 			common.IgnoredDevices[exp.host] = common.IgnoredDevice{
 				Name:              exp.host,
@@ -198,7 +200,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	mgrEndpoints, err := getMemberUrls(exp.url+uri+"/Managers/", target, retryClient)
 	if err != nil {
-		log.Error("error when getting manager endpoint from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		log.Error("error when getting manager endpoint", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
 
@@ -232,7 +234,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	// point for the systems and manager endpoints
 	sysEndpoints, err := getSystemEndpoints(chasUrlsFinal, target, retryClient, excludes)
 	if err != nil {
-		log.Error("error when getting chassis endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		log.Error("error when getting chassis endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 		return nil, err
 	}
 
@@ -250,7 +252,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		// call /redfish/v1/Systems/XXXXX/ for BIOS, Serial number
 		sysResp, err = getSystemsMetadata(exp.url+sysEndpoints.systems[0], target, retryClient)
 		if err != nil {
-			log.Error("error when getting BIOS version from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			log.Error("error when getting BIOS version", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
 		}
 		exp.biosVersion = sysResp.BiosVersion
@@ -267,14 +269,14 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		// DIMM endpoints array
 		dimms, err = getDIMMEndpoints(exp.url+sysEndpoints.systems[0]+"Memory/", target, retryClient)
 		if err != nil {
-			log.Error("error when getting DIMM endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			log.Error("error when getting DIMM endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
 		}
 
 		// CPU processor metrics
 		processors, err = getProcessorEndpoints(exp.url+sysEndpoints.systems[0]+"Processors/", target, retryClient)
 		if err != nil {
-			log.Error("error when getting Processors endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			log.Error("error when getting Processors endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
 		}
 	} else {
@@ -298,7 +300,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	if ss != "" {
 		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient)
 		if err != nil {
-			log.Error("error when getting drive endpoints from "+model, zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
 		}
 	}
@@ -441,7 +443,7 @@ func (e *Exporter) scrape() {
 			}
 			var upMetric = (*e.DeviceMetrics)["up"]
 			(*upMetric)["up"].WithLabelValues().Set(float64(deviceState))
-			log.Error("error calling redfish api from "+e.Model, zap.Error(task.Err), zap.String("url", task.URL), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error calling redfish api", zap.Error(task.Err), zap.String("url", task.URL), zap.Any("trace_id", e.ctx.Value("traceID")))
 			return
 		}
 
@@ -450,7 +452,7 @@ func (e *Exporter) scrape() {
 		}
 
 		if err != nil {
-			log.Error("error exporting metrics - from "+e.Model, zap.Error(err), zap.String("url", task.URL), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error exporting metrics", zap.Error(err), zap.String("url", task.URL), zap.Any("trace_id", e.ctx.Value("traceID")))
 			continue
 		}
 		scrapeChan <- 1
