@@ -231,7 +231,6 @@ dependency licenses for each package:
 | package                                       | license                       |
 | --------------------------------------------- | ----------------------------- |
 | `github.com/google/uuid`                      | `BSD-3-Clause license`        |
-| `github.com/gorilla/mux`                      | `BSD-3-Clause license`        |
 | `github.com/hashicorp/go-hclog`               | `MIT license`                 |
 | `github.com/hashicorp/go-retryablehttp`       | `Mozilla Public License v2.0` |
 | `github.com/hashicorp/vault/api`              | `Mozilla Public License v2.0` |

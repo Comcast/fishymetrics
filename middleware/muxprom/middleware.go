@@ -21,21 +21,19 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
 	labelCode   = "code"
 	labelMethod = "method"
-	labelModule = "module"
+	labelModel  = "model"
 	labelHost   = "host"
 	labelRoute  = "route"
 )
 
 // Instrumentation implements the mux middleware and contains configuration options
 type Instrumentation struct {
-	UseRouteTemplate   bool
 	ReqDurationBuckets []float64
 	Namespace          string
 	Subsystem          string
@@ -50,7 +48,6 @@ type Instrumentation struct {
 // NewDefaultInstrumentation returns an instrumentation with the default options
 func NewDefaultInstrumentation() *Instrumentation {
 	i := Instrumentation{
-		UseRouteTemplate:   true,
 		Namespace:          "mux",
 		Subsystem:          "router",
 		ReqDurationBuckets: []float64{1, 2.5, 5, 10, 30, 60, 120, 180, 240},
@@ -71,10 +68,12 @@ func (i *Instrumentation) Middleware(next http.Handler) http.Handler {
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
 		next.ServeHTTP(&sResponseWriter, r)
 
-		moduleName := query.Get("module")
+		modelName := query.Get("module")
+		if modelName == "" {
+			modelName = query.Get("model")
+		}
 
-		defaultLabelVals := []string{fmt.Sprintf("%d", sResponseWriter.status), r.Method, r.Host, moduleName, i.getRoute(r)}
-
+		defaultLabelVals := []string{fmt.Sprintf("%d", sResponseWriter.status), r.Method, r.Host, modelName, r.URL.Path}
 		i.reqSizeBytes.WithLabelValues(defaultLabelVals...).Observe(float64(estimateRequestSize(r)))
 		i.reqTotal.WithLabelValues(defaultLabelVals...).Inc()
 		i.resSizeBytes.WithLabelValues(defaultLabelVals...).Observe(float64(sResponseWriter.size))
@@ -89,14 +88,14 @@ func (i *Instrumentation) initMetrics() {
 		Subsystem: i.Subsystem,
 		Namespace: i.Namespace,
 		Help:      "The total number of requests received",
-	}, []string{labelCode, labelMethod, labelHost, labelModule, labelRoute})
+	}, []string{labelCode, labelMethod, labelHost, labelModel, labelRoute})
 
 	i.reqSizeBytes = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Name:      "request_size_bytes",
 		Subsystem: i.Subsystem,
 		Namespace: i.Namespace,
 		Help:      "Summary of request bytes received",
-	}, []string{labelCode, labelMethod, labelHost, labelModule, labelRoute})
+	}, []string{labelCode, labelMethod, labelHost, labelModel, labelRoute})
 
 	i.reqDurationSecs = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:      "request_duration_seconds",
@@ -104,14 +103,14 @@ func (i *Instrumentation) initMetrics() {
 		Namespace: i.Namespace,
 		Help:      "Histogram of the request duration",
 		Buckets:   i.ReqDurationBuckets,
-	}, []string{labelCode, labelMethod, labelHost, labelModule, labelRoute})
+	}, []string{labelCode, labelMethod, labelHost, labelModel, labelRoute})
 
 	i.resSizeBytes = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Name:      "response_size_bytes",
 		Subsystem: i.Subsystem,
 		Namespace: i.Namespace,
 		Help:      "Summary of response bytes sent",
-	}, []string{labelCode, labelMethod, labelHost, labelModule, labelRoute})
+	}, []string{labelCode, labelMethod, labelHost, labelModel, labelRoute})
 
 	reg := prometheus.WrapRegistererWith(i.Labels, i.Registerer)
 	reg.MustRegister(
@@ -120,15 +119,6 @@ func (i *Instrumentation) initMetrics() {
 		i.reqDurationSecs,
 		i.resSizeBytes,
 	)
-}
-
-// getRoute returns the route either as template or the actual url path based on the instrumentation settings
-func (i *Instrumentation) getRoute(r *http.Request) string {
-	if i.UseRouteTemplate {
-		path, _ := mux.CurrentRoute(r).GetPathTemplate()
-		return path
-	}
-	return r.RequestURI
 }
 
 // estimateRequestSize approximates the size of the request according to the definition of nginx https://nginx.org/en/docs/http/ngx_http_log_module.html

@@ -32,7 +32,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/comcast/fishymetrics/buildinfo"
 	"github.com/comcast/fishymetrics/common"
@@ -40,13 +39,12 @@ import (
 	"github.com/comcast/fishymetrics/exporter"
 	"github.com/comcast/fishymetrics/exporter/moonshot"
 	"github.com/comcast/fishymetrics/logger"
+	"github.com/comcast/fishymetrics/middleware/logging"
 	"github.com/comcast/fishymetrics/middleware/muxprom"
 	"github.com/comcast/fishymetrics/plugins/nuova"
 	fishy_vault "github.com/comcast/fishymetrics/vault"
 	"go.uber.org/zap"
 
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -278,46 +276,46 @@ func main() {
 		Pass:      *password,
 	})
 
-	mux := mux.NewRouter()
+	mux := http.NewServeMux()
 
-	instrumentation := muxprom.NewDefaultInstrumentation()
-	mux.Use(instrumentation.Middleware)
-
-	mux.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /info", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(buildinfo.Info)
-	}).Methods("GET")
+	})
 
-	mux.Handle("/metrics", promhttp.Handler()).Methods("GET")
+	mux.Handle("GET /metrics", promhttp.Handler())
 
-	mux.HandleFunc("/scrape", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /scrape", func(w http.ResponseWriter, r *http.Request) {
 		handler(ctx, w, r)
-	}).Methods("GET")
+	})
 
 	tmplIndex := template.Must(template.New("index").Parse(indexTmpl))
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		err := tmplIndex.Execute(w, buildinfo.Info)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-	}).Methods("GET")
+	})
 
 	tmplIgnored := template.Must(template.New("ignored").Parse(ignoredTmpl))
-	mux.HandleFunc("/ignored", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /ignored", func(w http.ResponseWriter, r *http.Request) {
 		err := tmplIgnored.Execute(w, common.IgnoredDevices)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-	}).Methods("GET")
+	})
 
-	mux.HandleFunc("/ignored/test-conn", common.TestConn).Methods("POST")
-	mux.HandleFunc("/ignored/remove", common.RemoveHost).Methods("POST")
+	mux.HandleFunc("POST /ignored/test-conn", common.TestConn)
+	mux.HandleFunc("POST /ignored/remove", common.RemoveHost)
 
-	mux.HandleFunc("/verbosity", logger.Verbosity).Methods("GET")
-	mux.HandleFunc("/verbosity", logger.SetVerbosity).Methods("PUT")
+	mux.HandleFunc("GET /verbosity", logger.Verbosity)
+	mux.HandleFunc("PUT /verbosity", logger.SetVerbosity)
+
+	instrumentation := muxprom.NewDefaultInstrumentation()
+	wrappedmux := logging.LoggingHandler(instrumentation.Middleware(mux))
 
 	srv := &http.Server{
 		Addr:    ":" + *exporterPort,
-		Handler: loggingHandler(mux),
+		Handler: wrappedmux,
 	}
 
 	signals := make(chan os.Signal, 1)
@@ -358,48 +356,4 @@ func main() {
 	}()
 
 	wg.Wait()
-}
-
-// statusResponseWriter wraps an http.ResponseWriter, recording
-// the status code for logging.
-type statusResponseWriter struct {
-	http.ResponseWriter
-	status int // the http.ResponseWriter updates this value
-}
-
-// WriteHeader writes the header and saves the status for inspection.
-func (r *statusResponseWriter) WriteHeader(status int) {
-	r.ResponseWriter.WriteHeader(status)
-	r.status = status
-}
-
-// loggingHandler accepts an http.Handler and wraps it with a
-// handler that logs the request and response information.
-func loggingHandler(h http.Handler) http.Handler {
-	if h == nil {
-		h = http.DefaultServeMux
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		newCtx := context.WithValue(req.Context(), "traceID", uuid.New().String())
-		req = req.WithContext(newCtx)
-		srw := statusResponseWriter{ResponseWriter: w, status: http.StatusOK}
-		query := req.URL.Query()
-
-		defer func(start time.Time) {
-			log.Info("finished handling",
-				zap.String("module", query.Get("module")),
-				zap.String("target", query.Get("target")),
-				zap.String("sourceAddr", req.RemoteAddr),
-				zap.String("method", req.Method),
-				zap.String("url", req.URL.String()),
-				zap.String("proto", req.Proto),
-				zap.Int("status", srw.status),
-				zap.Float64("elapsed_time_sec", time.Since(start).Seconds()),
-				zap.Any("trace_id", req.Context().Value("traceID")),
-			)
-		}(time.Now())
-
-		h.ServeHTTP(&srw, req)
-	})
 }

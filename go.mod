@@ -1,10 +1,9 @@
 module github.com/comcast/fishymetrics
 
-go 1.21
+go 1.22
 
 require (
 	github.com/google/uuid v1.3.1
-	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-retryablehttp v0.7.2
 	github.com/hashicorp/vault/api v1.12.0
