@@ -21,12 +21,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/nrednav/cuid2"
 	"go.uber.org/zap"
 )
 
 var (
 	log *zap.Logger
+	generate, _ = cuid2.Init(
+        cuid2.WithLength(32),
+    )
 )
 
 // LoggingHandler accepts an http.Handler and wraps it with a
@@ -39,7 +42,7 @@ func LoggingHandler(h http.Handler) http.Handler {
 	log = zap.L()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		newCtx := context.WithValue(req.Context(), "traceID", uuid.New().String())
+		newCtx := context.WithValue(req.Context(), "traceID", generate())
 		req = req.WithContext(newCtx)
 		srw := statusResponseWriter{ResponseWriter: w, status: http.StatusOK}
 		query := req.URL.Query()
