@@ -37,6 +37,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - consolidate hardware component structs to a single package [#45](https://github.com/Comcast/fishymetrics/issues/45)
 - get chassis serial number from JSON response instead of url path [#50](https://github.com/Comcast/fishymetrics/issues/50)
 - HP DL380 module to include CPU metrics and all HP models to include bayNumber in PSU metrics [#57](https://github.com/Comcast/fishymetrics/issues/57)
+- use standard library for http routing instead of gorilla mux package [#47](https://github.com/Comcast/fishymetrics/issues/47)
 
 ## [0.7.1]
 
