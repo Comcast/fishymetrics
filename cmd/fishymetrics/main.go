@@ -243,9 +243,25 @@ func main() {
 		VectorEndpoint: *vectorEndpoint,
 	}
 
-	logger.Initialize(app, hostname, logConfig)
+	err = logger.Initialize(app, hostname, logConfig)
+	if err != nil {
+		panic(fmt.Errorf("error initializing logger - log_method=%s vector_endpoint=%s log_file_path=%s log_file_max_size=%d log_file_max_backups=%d log_file_max_age=%d - err=%s",
+			*logMethod, *vectorEndpoint, *logFilePath, logfileMaxSize, logfileMaxBackups, logfileMaxAge, err.Error()))
+	}
+
 	log = zap.L()
 	defer logger.Flush()
+
+	if *logMethod == "vector" {
+		log.Info("successfully initialized logger", zap.String("log_method", *logMethod),
+			zap.String("vector_endpoint", *vectorEndpoint))
+	} else if *logMethod == "file" {
+		log.Info("successfully initialized logger", zap.String("log_method", *logMethod),
+			zap.String("log_file_path", *logFilePath),
+			zap.Int("log_file_max_size", logfileMaxSize),
+			zap.Int("log_file_max_backups", logfileMaxBackups),
+			zap.Int("log_file_max_age", logfileMaxAge))
+	}
 
 	// configure vault client if vaultRoleId & vaultSecretId are set
 	if *vaultRoleId != "" && *vaultSecretId != "" {
@@ -259,15 +275,17 @@ func main() {
 			},
 		)
 		if err != nil {
-			log.Error("failed initializing vault client", zap.Error(err))
+			log.Error("failed initializing vault client", zap.Error(err),
+				zap.String("vault_address", *vaultAddr),
+				zap.String("vault_role_id", *vaultRoleId))
+		} else {
+			// we add this here so we can update credentials once we detect they are rotated
+			common.ChassisCreds.Vault = vault
+
+			// start go routine to continuously renew vault token
+			wg.Add(1)
+			go vault.RenewToken(ctx, doneRenew, tokenLifecycle, &wg)
 		}
-
-		// we add this here so we can update credentials once we detect they are rotated
-		common.ChassisCreds.Vault = vault
-
-		// start go routine to continuously renew vault token
-		wg.Add(1)
-		go vault.RenewToken(ctx, doneRenew, tokenLifecycle, &wg)
 	}
 
 	config.NewConfig(&config.Config{

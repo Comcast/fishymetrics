@@ -55,7 +55,7 @@ func (lumberjackSink) Sync() error {
 	return nil
 }
 
-func Initialize(svc, hostname string, config LoggerConfig) {
+func Initialize(svc, hostname string, config LoggerConfig) error {
 
 	atomicLevel = zap.NewAtomicLevel()
 
@@ -98,17 +98,17 @@ func Initialize(svc, hostname string, config LoggerConfig) {
 	if config.LogMethod == "vector" {
 		url, err := url.Parse(config.VectorEndpoint)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		err = zap.RegisterSink(url.Scheme, initVectorSink)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		vecWriteSyncer, _, err := zap.Open(url.String())
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		ws := zapcore.Lock(vecWriteSyncer)
@@ -137,6 +137,8 @@ func Initialize(svc, hostname string, config LoggerConfig) {
 	atomicLevel.SetLevel(parseLevel(config.LogLevel))
 
 	zap.ReplaceGlobals(logger)
+
+	return nil
 }
 
 func Flush() {
