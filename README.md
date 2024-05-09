@@ -230,13 +230,12 @@ dependency licenses for each package:
 
 | package                                       | license                       |
 | --------------------------------------------- | ----------------------------- |
-| `github.com/google/uuid`                      | `BSD-3-Clause license`        |
-| `github.com/gorilla/mux`                      | `BSD-3-Clause license`        |
 | `github.com/hashicorp/go-hclog`               | `MIT license`                 |
 | `github.com/hashicorp/go-retryablehttp`       | `Mozilla Public License v2.0` |
 | `github.com/hashicorp/vault/api`              | `Mozilla Public License v2.0` |
 | `github.com/hashicorp/vault/api/auth/approle` | `Mozilla Public License v2.0` |
 | `github.com/hashicorp/vault/sdk`              | `Mozilla Public License v2.0` |
+| `github.com/nrednav/cuid2`                    | `MIT license`                 |
 | `github.com/prometheus/client_golang`         | `Apache-2.0 license`          |
 | `github.com/stretchr/testify`                 | `MIT license`                 |
 | `go.uber.org/zap`                             | `MIT license`                 |
