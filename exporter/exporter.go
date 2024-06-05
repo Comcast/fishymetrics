@@ -102,8 +102,9 @@ type SystemEndpoints struct {
 }
 
 type DriveEndpoints struct {
-	logicalDriveURLs  []string
-	physicalDriveURLs []string
+	arrayControllerURLs []string
+	logicalDriveURLs    []string
+	physicalDriveURLs   []string
 }
 
 type Excludes map[string]interface{}
@@ -305,11 +306,24 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		}
 	}
 
-	log.Debug("drive endpoints response", zap.Strings("logical_drive_endpoints", driveEndpointsResp.logicalDriveURLs),
+	if len(sysEndpoints.storageController) == 0 && ss == "" {
+		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+sysEndpoints.systems[0]+"Storage/", target, retryClient)
+		if err != nil {
+			log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
+		}
+	}
+
+	log.Debug("drive endpoints response", zap.Strings("array_controller_endpoints", driveEndpointsResp.arrayControllerURLs),
+		zap.Strings("logical_drive_endpoints", driveEndpointsResp.logicalDriveURLs),
 		zap.Strings("physical_drive_endpoints", driveEndpointsResp.physicalDriveURLs),
 		zap.Any("trace_id", ctx.Value("traceID")))
 
-	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
+	// Loop through arrayControllerURLs, logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
+	for _, url := range driveEndpointsResp.arrayControllerURLs {
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, STORAGE_CONTROLLER)))
+	}
+
 	for _, url := range driveEndpointsResp.logicalDriveURLs {
 		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, LOGICALDRIVE)))
 	}

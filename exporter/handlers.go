@@ -291,9 +291,21 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	var state float64
 	var dllogical oem.LogicalDriveMetrics
 	var dllogicaldrive = (*e.DeviceMetrics)["logicalDriveMetrics"]
+	var ldName string
+	var raidType string
+	var volIdentifier string
 	err := json.Unmarshal(body, &dllogical)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling LogicalDriveMetrics - " + err.Error())
+	}
+	if dllogical.Raid == "" {
+		ldName = dllogical.DisplayName
+		raidType = dllogical.RaidType
+		volIdentifier = dllogical.Identifiers[0].DurableName
+	} else {
+		ldName = dllogical.LogicalDriveName
+		raidType = dllogical.Raid
+		volIdentifier = dllogical.VolumeUniqueIdentifier
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
 	if dllogical.Status.State == "Enabled" {
@@ -306,7 +318,7 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, e.ChassisSerialNumber, e.Model, dllogical.LogicalDriveName, dllogical.VolumeUniqueIdentifier, dllogical.Raid).Set(state)
+	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, e.ChassisSerialNumber, e.Model, ldName, volIdentifier, raidType).Set(state)
 	return nil
 }
 
@@ -381,6 +393,17 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 		}
 	}
 
+	if len(scm.StorageController.StorageController) == 0 {
+		if scm.Status.State == "Enabled" {
+			if scm.Status.Health == "OK" {
+				state = OK
+			} else {
+				state = BAD
+			}
+			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, scm.ControllerFirmware.FirmwareVersion, scm.Model).Set(state)
+		}
+	}
+
 	return nil
 }
 
@@ -395,7 +418,10 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling MemorySummaryMetrics - " + err.Error())
 	}
 	// Check memory status and convert string to numeric values
-	if dlm.MemorySummary.Status.HealthRollup == "OK" {
+	// Ignore memory summary if status is not present
+	if dlm.MemorySummary.Status.HealthRollup == "" {
+		return nil
+	} else if dlm.MemorySummary.Status.HealthRollup == "OK" {
 		state = OK
 	} else {
 		state = BAD
@@ -566,6 +592,12 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	case int:
 		totCores = strconv.Itoa(pm.TotalCores.(int))
 	}
+
+	// Ignore metrics if processor is absent
+	if pm.Status.State == "Absent" {
+		return nil
+	}
+
 	if pm.Status.Health == "OK" {
 		state = OK
 	} else {
