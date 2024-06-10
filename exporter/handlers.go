@@ -113,13 +113,24 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	for _, pv := range pm.Voltages {
 		if pv.Status.State == "Enabled" {
 			var volts float64
+			var upperThresCrit float64
 			switch pv.ReadingVolts.(type) {
 			case float64:
 				volts = pv.ReadingVolts.(float64)
 			case string:
 				volts, _ = strconv.ParseFloat(pv.ReadingVolts.(string), 32)
 			}
-			(*pow)["voltageOutput"].WithLabelValues(pv.Name, e.ChassisSerialNumber, e.Model).Set(volts)
+			switch pv.UpperThresholdCritical.(type) {
+			case float64:
+				upperThresCrit = pv.UpperThresholdCritical.(float64)
+			case string:
+				upperThresCrit, _ = strconv.ParseFloat(pv.UpperThresholdCritical.(string), 32)
+			}
+			if volts == 0 && upperThresCrit == 0 {
+				continue
+			} else {
+				(*pow)["voltageOutput"].WithLabelValues(pv.Name, e.ChassisSerialNumber, e.Model).Set(volts)
+			}
 			if pv.Status.Health == "OK" {
 				state = OK
 			} else {
@@ -199,7 +210,11 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 			}
 
 			if fan.FanName != "" {
-				(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.ChassisSerialNumber, e.Model).Set(float64(fan.CurrentReading))
+				if float64(fan.CurrentReading) != 0 {
+					(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.ChassisSerialNumber, e.Model).Set(float64(fan.CurrentReading))
+				} else {
+					(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.ChassisSerialNumber, e.Model).Set(fanSpeed)
+				}
 			} else {
 				(*therm)["fanSpeed"].WithLabelValues(fan.Name, e.ChassisSerialNumber, e.Model).Set(fanSpeed)
 			}
@@ -386,6 +401,8 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 		if sc.Status.State == "Enabled" {
 			if sc.Status.Health == "OK" {
 				state = OK
+			} else if sc.Status.Health == "" && sc.Status.HealthRollup == "" {
+				continue
 			} else {
 				state = BAD
 			}
