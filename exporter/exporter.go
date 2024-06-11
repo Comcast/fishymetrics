@@ -64,6 +64,8 @@ const (
 	STORAGEBATTERY = "StorBatteryMetrics"
 	// ILOSELFTEST represents the processor metric endpoints
 	ILOSELFTEST = "iloSelfTestMetrics"
+	// FIRMWAREINVENTORY represents the component firmware metric endpoints
+	FIRMWAREINVENTORY = "FirmwareInventoryMetrics"
 	// OK is a string representation of the float 1.0 for device status
 	OK = 1.0
 	// BAD is a string representation of the float 0.0 for device status
@@ -342,6 +344,18 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	for _, dimm := range dimms.Members {
 		tasks = append(tasks,
 			pool.NewTask(common.Fetch(exp.url+dimm.URL, target, profile, retryClient), exp.url+dimm.URL, handle(&exp, MEMORY)))
+	}
+
+	// Using initial /UpdateService/FirmwareInventory endpoint, grab all of the Firmware Inventory URLs
+	firmwareInventoryEndpoints, err := getFirmwareInventoryUrls(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
+	if err != nil {
+		log.Error("error when getting FirmwareInventory url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
+	// Firmware Inventory
+	for _, url := range firmwareInventoryEndpoints {
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, FIRMWAREINVENTORY)))
 	}
 
 	// call /redfish/v1/Managers/XXX/ for firmware version and ilo self test metrics
