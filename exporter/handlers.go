@@ -56,7 +56,10 @@ func handle(exp *Exporter, metricType ...string) []common.Handler {
 			handlers = append(handlers, exp.exportStorageBattery)
 		} else if m == ILOSELFTEST {
 			handlers = append(handlers, exp.exportIloSelfTest)
+		} else if m == FIRMWAREINVENTORY {
+			handlers = append(handlers, exp.exportFirmwareInventoryMetrics)
 		}
+
 	}
 
 	return handlers
@@ -573,6 +576,20 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	}
 	(*proc)["processorStatus"].WithLabelValues(pm.Id, e.ChassisSerialNumber, e.Model, pm.Socket, pm.Model, totCores).Set(state)
 
+	return nil
+}
+
+// exportFirmwareInventoryMetrics collects the inventory component's firmware metrics in json format and sets the prometheus guages
+func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
+
+	var fwcomponent oem.FirmwareComponent
+	var component = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
+	err := json.Unmarshal(body, &fwcomponent)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
+	}
+
+	(*component)["componentFirmware"].WithLabelValues(fwcomponent.Name, fwcomponent.Description, fwcomponent.Version)
 	return nil
 }
 
