@@ -582,6 +582,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 // exportFirmwareInventoryMetrics collects the inventory component's firmware metrics in json format and sets the prometheus guages
 func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 
+	var state float64
 	var fwcomponent oem.FirmwareComponent
 	var component = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
 	err := json.Unmarshal(body, &fwcomponent)
@@ -589,7 +590,17 @@ func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
 	}
 
-	(*component)["componentFirmware"].WithLabelValues(fwcomponent.Name, fwcomponent.Description, fwcomponent.Version)
+	if fwcomponent.Status.State == "Enabled" || fwcomponent.Status.State != "" {
+		if fwcomponent.Status.Health == "OK" {
+			state = OK
+		} else {
+			state = BAD
+		}
+	} else if fwcomponent.Status.Health == "" && fwcomponent.Status.State == "" {
+		state = OK
+	}
+
+	(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, fwcomponent.Name, fwcomponent.Description, fwcomponent.Version).Set(state)
 	return nil
 }
 
