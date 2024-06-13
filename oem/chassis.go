@@ -104,3 +104,13 @@ type HRef struct {
 type Link struct {
 	URL string `json:"@odata.id"`
 }
+
+// Collection returns the component details
+// /redfish/v1/UpdateService/FirmwareInventory/XXXX/
+type FirmwareComponent struct {
+	Name        string `json:"Name"`
+	Description string `json:"Description"`
+	Version     string `json:"Version"`
+	Id          string `json:"Id"`
+	Status      Status
+}
