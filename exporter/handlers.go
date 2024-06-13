@@ -316,7 +316,9 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	if dllogical.Raid == "" {
 		ldName = dllogical.DisplayName
 		raidType = dllogical.RaidType
-		volIdentifier = dllogical.Identifiers[0].DurableName
+		if len(dllogical.Identifiers) > 0 {
+			volIdentifier = dllogical.Identifiers[0].DurableName
+		}
 	} else {
 		ldName = dllogical.LogicalDriveName
 		raidType = dllogical.Raid
@@ -430,6 +432,7 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 	var state float64
 	var dlm oem.System
 	var dlMemory = (*e.DeviceMetrics)["memoryMetrics"]
+	var totalSystemMemoryGiB string
 	err := json.Unmarshal(body, &dlm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling MemorySummaryMetrics - " + err.Error())
@@ -444,7 +447,14 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 		state = BAD
 	}
 
-	(*dlMemory)["memoryStatus"].WithLabelValues(e.ChassisSerialNumber, e.Model, strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
+	switch dlm.MemorySummary.TotalSystemMemoryGiB.(type) {
+	case int:
+		totalSystemMemoryGiB = strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB.(int))
+	case float64:
+		totalSystemMemoryGiB = strconv.FormatFloat(dlm.MemorySummary.TotalSystemMemoryGiB.(float64), 'f', -1, 64)
+	}
+
+	(*dlMemory)["memoryStatus"].WithLabelValues(e.ChassisSerialNumber, e.Model, totalSystemMemoryGiB).Set(state)
 
 	return nil
 }
