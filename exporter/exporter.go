@@ -311,6 +311,13 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		zap.Strings("physical_drive_endpoints", driveEndpointsResp.physicalDriveURLs),
 		zap.Any("trace_id", ctx.Value("traceID")))
 
+	// Using initial /UpdateService/FirmwareInventory endpoint, grab all of the Firmware Inventory URLs
+	firmwareInventoryEndpoints, err := getMemberUrls(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
+	if err != nil {
+		log.Error("error when getting FirmwareInventory url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		return nil, err
+	}
+
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
 	for _, url := range driveEndpointsResp.logicalDriveURLs {
 		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, LOGICALDRIVE)))
@@ -344,13 +351,6 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	for _, dimm := range dimms.Members {
 		tasks = append(tasks,
 			pool.NewTask(common.Fetch(exp.url+dimm.URL, target, profile, retryClient), exp.url+dimm.URL, handle(&exp, MEMORY)))
-	}
-
-	// Using initial /UpdateService/FirmwareInventory endpoint, grab all of the Firmware Inventory URLs
-	firmwareInventoryEndpoints, err := getFirmwareInventoryUrls(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
-	if err != nil {
-		log.Error("error when getting FirmwareInventory url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil, err
 	}
 
 	// Firmware Inventory
