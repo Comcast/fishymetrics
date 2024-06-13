@@ -94,7 +94,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 
 		// Component Firmware Metrics
 		FirmwareInventoryMetrics = &metrics{
-			"componentFirmware": newServerMetric("redfish_component_firmware", "Component Firmware Details", nil, []string{"name", "description", "version"}),
+			"componentFirmware": newServerMetric("redfish_component_firmware", "Current firmware component status 1 = OK, 0 = BAD", nil, []string{"id", "name", "description", "version"}),
 		}
 
 		DeviceMetrics = &metrics{
