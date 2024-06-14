@@ -438,42 +438,6 @@ func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.
 	return processors, nil
 }
 
-// Get Component Firmware URLS
-func getFirmwareInventoryUrls(url, host string, client *retryablehttp.Client) ([]string, error) {
-	var components oem.FirmwareComponents
-	var firmwareInventoryEndpoints []string
-	req := common.BuildRequest(url, host)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return firmwareInventoryEndpoints, err
-	}
-	defer resp.Body.Close()
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusUnauthorized {
-			return firmwareInventoryEndpoints, common.ErrInvalidCredential
-		} else {
-			return firmwareInventoryEndpoints, fmt.Errorf("HTTP status %d", resp.StatusCode)
-		}
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return firmwareInventoryEndpoints, fmt.Errorf("Error reading Response Body - " + err.Error())
-	}
-
-	err = json.Unmarshal(body, &components)
-	if err != nil {
-		return firmwareInventoryEndpoints, fmt.Errorf("Error Unmarshalling Firmware Component struct - " + err.Error())
-	}
-
-	for _, member := range components.Members {
-		firmwareInventoryEndpoints = append(firmwareInventoryEndpoints, appendSlash(member.URL))
-	}
-
-	return firmwareInventoryEndpoints, nil
-}
-
 // appendSlash appends a slash to the end of a URL if it does not already have one
 func appendSlash(url string) string {
 	if url[len(url)-1] != '/' {
