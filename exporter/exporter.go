@@ -315,7 +315,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	firmwareInventoryEndpoints, err := getMemberUrls(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
 	if err != nil {
 		log.Error("error when getting FirmwareInventory url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		return nil, err
+		firmwareInventoryEndpoints = []string{}
 	}
 
 	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
