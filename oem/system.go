@@ -75,3 +75,19 @@ type MemorySummary struct {
 type StatusMemory struct {
 	HealthRollup string `json:"HealthRollup"`
 }
+
+// SystemFirmwareInventory is the json object for SystemFirwmareInventory metadata
+type SystemFirmwareInventory struct {
+	Current []struct {
+		Component []struct {
+			Details []struct {
+				Item []struct {
+					Name     string `json:"Name,omitempty"`
+					Key      string `json:"Key,omitempty"`
+					Location string `json:"Location,omitempty"`
+				}
+				VersionString string `json:"VersionString,omitempty"`
+			}
+		}
+	}
+}
