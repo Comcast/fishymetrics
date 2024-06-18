@@ -314,13 +314,18 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	// Using initial /UpdateService/FirmwareInventory endpoint, grab all of the Firmware Inventory URLs
 	firmwareInventoryEndpoints, err := getMemberUrls(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
 	if err != nil {
-		log.Error("error when getting FirmwareInventory url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		firmwareInventoryEndpoints = []string{}
-	}
+		// Try the iLo 4 firmware inventory endpoint
+		firmwareInventoryResp, err := getFirmwareComponents(exp.url+uri+"/Systems/1/FirmwareInventory/", target, retryClient)
+		if err != nil {
+			log.Error("error when getting FirmwareInventory url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
+		}
+		firmwareInventory := firmwareInventoryResp.Current
 
-	// Loop through logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
-	for _, url := range driveEndpointsResp.logicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, LOGICALDRIVE)))
+		// Loop through firmwareInventory and set metrics
+		for _, Component := range firmwareInventory {
+			// TODO FINISH STREAMING METRICS HERE
+		}
 	}
 
 	for _, url := range driveEndpointsResp.physicalDriveURLs {
