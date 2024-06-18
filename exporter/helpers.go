@@ -438,6 +438,51 @@ func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.
 	return processors, nil
 }
 
+// Getting firmware components for iLO 4 hosts
+func getFirmwareComponents(url, host string, client *retryablehttp.Client) (oem.SystemFirmwareInventory, error) {
+	var fc oem.SystemFirmwareInventory
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return fc, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return fc, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return fc, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else if resp.StatusCode == http.StatusUnauthorized {
+			return fc, common.ErrInvalidCredential
+		} else {
+			return fc, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fc, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &fc)
+	if err != nil {
+		return fc, fmt.Errorf("Error Unmarshalling SystemFirmwareInventory Collection struct - " + err.Error())
+	}
+
+	return fc, nil
+}
+
 // appendSlash appends a slash to the end of a URL if it does not already have one
 func appendSlash(url string) string {
 	if url[len(url)-1] != '/' {
