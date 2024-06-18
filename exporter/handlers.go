@@ -584,8 +584,11 @@ func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 
 	var state float64
 	var fwcomponent oem.FirmwareComponent
+	var ilo4fwcomponent oem.SystemFirmwareInventory
 	var component = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
 	err := json.Unmarshal(body, &fwcomponent)
+	ilo4err := json.Unmarshal(body, &ilo4fwcomponent)
+
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
 	}
@@ -600,7 +603,15 @@ func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 		state = OK
 	}
 
-	(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, fwcomponent.Name, fwcomponent.Description, fwcomponent.Version).Set(state)
+	// non iLO 4
+	if err != nil {
+		(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, fwcomponent.Name, fwcomponent.Description, fwcomponent.Version).Set(state)
+	}
+
+	// iLO 4 export
+	if ilo4err != nil {
+		(*component)["ilo4ComponentFirmware"].WithLabelValues(ilo4fwcomponent.Current.Component.Details.Item.Name, ilo4fwcomponent.Current.Component.Details.Item.Key, ilo4fwcomponent.Current.Component.Details.Item.Location, ilo4fwcomponent.Current.Component.Details.VersionString)
+	}
 	return nil
 }
 
