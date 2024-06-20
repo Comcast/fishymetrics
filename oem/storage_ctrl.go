@@ -23,9 +23,12 @@ import (
 // /redfish/v1/Systems/WZPXXXXX/Storage/MRAID
 
 type StorageControllerMetrics struct {
-	Name              string                   `json:"Name"`
-	StorageController StorageControllerWrapper `json:"StorageControllers"`
-	Drives            []Drive                  `json:"Drives"`
+	Name               string                   `json:"Name"`
+	StorageController  StorageControllerWrapper `json:"StorageControllers"`
+	Drives             []Drive                  `json:"Drives"`
+	Status             Status                   `json:"Status"`
+	Model              string                   `json:"Model"`
+	ControllerFirmware FirmwareVersionWrapper   `json:"FirmwareVersion"`
 }
 
 // StorageController contains status metadata of the C220 chassis storage controller
@@ -57,6 +60,28 @@ func (w *StorageControllerWrapper) UnmarshalJSON(data []byte) error {
 		w.StorageController = sc
 	} else {
 		return json.Unmarshal(data, &w.StorageController)
+	}
+
+	return nil
+}
+
+type FirmwareVersionWrapper struct {
+	FirmwareVersion string
+}
+
+func (w *FirmwareVersionWrapper) UnmarshalJSON(data []byte) error {
+	// because of a change in output between firmware versions we need to account for this
+	// firmware version can either be a string or a json object
+	var CurrentFirmware struct {
+		Current struct {
+			VersionString string `json:"VersionString"`
+		} `json:"Current"`
+	}
+	err := json.Unmarshal(data, &CurrentFirmware)
+	if err == nil {
+		w.FirmwareVersion = CurrentFirmware.Current.VersionString
+	} else {
+		return json.Unmarshal(data, &w.FirmwareVersion)
 	}
 
 	return nil

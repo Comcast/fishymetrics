@@ -334,6 +334,43 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 			return driveEndpoints, err
 		}
 
+		// This if condition is for servers with iLO6. Gather metrics only from controllers with drives
+		// /redfish/v1/Systems/XXXX/Storage/XXXXX/
+		if len(arrayCtrlResp.StorageDrives) > 0 {
+			for _, member := range arrayCtrlResp.StorageDrives {
+				driveEndpoints.physicalDriveURLs = append(driveEndpoints.physicalDriveURLs, appendSlash(member.URL))
+			}
+
+			// If Volumes are present, parse volumes endpoint until all urls are found
+			if arrayCtrlResp.Volumes.URL != "" {
+				volumeOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.Volumes.URL, host, client)
+				if err != nil {
+					log.Error("api call "+fqdn+arrayCtrlResp.Volumes.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					return driveEndpoints, err
+				}
+
+				for _, member := range volumeOutput.Members {
+					driveEndpoints.logicalDriveURLs = append(driveEndpoints.logicalDriveURLs, appendSlash(member.URL))
+				}
+			}
+
+			if arrayCtrlResp.Controllers.URL != "" {
+				controllerOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.Controllers.URL, host, client)
+				if err != nil {
+					log.Error("api call "+fqdn+arrayCtrlResp.Controllers.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					return driveEndpoints, err
+				}
+
+				for _, member := range controllerOutput.Members {
+					driveEndpoints.arrayControllerURLs = append(driveEndpoints.arrayControllerURLs, appendSlash(member.URL))
+				}
+			}
+		} else if arrayCtrlResp.LinksUpper.PhysicalDrives.URL != "" || arrayCtrlResp.LinksLower.PhysicalDrives.URL != "" {
+			// /redfish/v1/Systems/XXXX/SmartStorage/ArrayControllers/X/
+			driveEndpoints.arrayControllerURLs = append(driveEndpoints.arrayControllerURLs, appendSlash(member.URL))
+		}
+
+		// all other servers apart from iLO6
 		// If LogicalDrives is present, parse logical drive endpoint until all urls are found
 		if arrayCtrlResp.LinksUpper.LogicalDrives.URL != "" {
 			logicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksUpper.LogicalDrives.URL, host, client)
