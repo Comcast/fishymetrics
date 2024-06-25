@@ -584,34 +584,60 @@ func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 
 	var state float64
 	var fwcomponent oem.FirmwareComponent
-	var ilo4fwcomponent oem.SystemFirmwareInventory
 	var component = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
+	// var fcomponent = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
 	err := json.Unmarshal(body, &fwcomponent)
-	ilo4err := json.Unmarshal(body, &ilo4fwcomponent)
-
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
 	}
 
-	if fwcomponent.Status.State == "Enabled" || fwcomponent.Status.State != "" {
-		if fwcomponent.Status.Health == "OK" {
+	if fwcomponent.GenericFirmware.Status.State == "Enabled" || fwcomponent.GenericFirmware.Status.State != "" {
+		if fwcomponent.GenericFirmware.Status.Health == "OK" {
 			state = OK
 		} else {
 			state = BAD
 		}
-	} else if fwcomponent.Status.Health == "" && fwcomponent.Status.State == "" {
+	} else if fwcomponent.GenericFirmware.Status.Health == "" && fwcomponent.GenericFirmware.Status.State == "" {
 		state = OK
 	}
 
-	// non iLO 4
-	if err != nil {
-		(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, fwcomponent.Name, fwcomponent.Description, fwcomponent.Version).Set(state)
-	}
+	fmt.Printf("Component: %+v\n", fwcomponent.FirmwareSystemInventory.Current.Component)
+	// fmt.Printf("Component: %+v\n", fwcomponent.FirmwareSystemInventory.Current.Component[0].Details)
+	// // Loop through the components
+	// for _, component := range fwcomponent.FirmwareSystemInventory.Current.Component {
+	// 	// Access the component properties
+	// 	componentName := component.Details.FName
+	// 	componentVersion := component.Details.FVersionString
+	// 	componentLocation := component.Details.FLocation
 
-	// iLO 4 export
-	if ilo4err != nil {
-		(*component)["ilo4ComponentFirmware"].WithLabelValues(ilo4fwcomponent.Current.Component.Details.Item.Name, ilo4fwcomponent.Current.Component.Details.Item.Key, ilo4fwcomponent.Current.Component.Details.Item.Location, ilo4fwcomponent.Current.Component.Details.VersionString)
-	}
+	// 	// Process the component properties as needed
+	// 	// ...
+
+	// 	// // Set the state for the component
+	// 	// componentState := OK // Assuming OK as the default state
+	// 	// if component.Status.State == "Enabled" || component.Status.State != "" {
+	// 	// 	if component.Status.Health == "OK" {
+	// 	// 		componentState = OK
+	// 	// 	} else {
+	// 	// 		componentState = BAD
+	// 	// 	}
+	// 	// } else if component.Status.Health == "" && component.Status.State == "" {
+	// 	// 	componentState = OK
+	// 	// }
+
+	// 	fmt.Println("Component Name: ", componentName)
+	// 	fmt.Println("Component Version: ", componentVersion)
+	// 	fmt.Println("Component Location: ", componentLocation)
+
+	// 	// Set the prometheus gauge for the component
+	// 	(*fcomponent)["componentFirmware"].WithLabelValues(componentName, componentVersion, componentLocation).Set(state)
+	// }
+	// DEBUG PRINT
+	fmt.Printf("Firmware Inventory Metrics: %+v\n", fwcomponent)
+	fmt.Println("Firmware Inventory Metrics: ", fwcomponent.GenericFirmware.Name, fwcomponent.GenericFirmware.Description, fwcomponent.GenericFirmware.Version, fwcomponent.GenericFirmware.Location)
+	// fmt.Println("Firmware Inventory Metrics: ", fwcomponent.FirmwareSystemInventory.Current.Component.Details.FName, fwcomponent.FirmwareSystemInventory.Current.Component.Details.FVersionString, fwcomponent.FirmwareSystemInventory.Current.Component.Details.FLocation)
+	// END DEBUG PRINT
+	(*component)["componentFirmware"].WithLabelValues(fwcomponent.GenericFirmware.Name, fwcomponent.GenericFirmware.Description, fwcomponent.GenericFirmware.Version, fwcomponent.GenericFirmware.Location).Set(state)
 	return nil
 }
 
