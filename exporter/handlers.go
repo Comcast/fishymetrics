@@ -581,63 +581,28 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 
 // exportFirmwareInventoryMetrics collects the inventory component's firmware metrics in json format and sets the prometheus guages
 func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
-
-	var state float64
-	var fwcomponent oem.FirmwareComponent
+	var fwcomponent oem.ILO4Firmware
 	var component = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
-	// var fcomponent = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
+
 	err := json.Unmarshal(body, &fwcomponent)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
 	}
-
-	if fwcomponent.GenericFirmware.Status.State == "Enabled" || fwcomponent.GenericFirmware.Status.State != "" {
-		if fwcomponent.GenericFirmware.Status.Health == "OK" {
-			state = OK
-		} else {
-			state = BAD
+	// Export for iLO4 since it has a different structure
+	if len(fwcomponent.Current.Firmware) > 0 {
+		for _, firmware := range fwcomponent.Current.Firmware {
+			(*component)["componentFirmware"].WithLabelValues(firmware.Id, firmware.Name, firmware.Location, firmware.VersionString).Set(1.0)
 		}
-	} else if fwcomponent.GenericFirmware.Status.Health == "" && fwcomponent.GenericFirmware.Status.State == "" {
-		state = OK
+	} else {
+		// Export for iLO5, since it's structure matches the GenericFirmware struct
+		var fwcomponent oem.GenericFirmware
+		err := json.Unmarshal(body, &fwcomponent)
+		if err != nil {
+			return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
+		}
+
+		(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, fwcomponent.Name, fwcomponent.Description, fwcomponent.Version).Set(1.0)
 	}
-
-	fmt.Printf("Component: %+v\n", fwcomponent.FirmwareSystemInventory.Current.Component)
-	// fmt.Printf("Component: %+v\n", fwcomponent.FirmwareSystemInventory.Current.Component[0].Details)
-	// // Loop through the components
-	// for _, component := range fwcomponent.FirmwareSystemInventory.Current.Component {
-	// 	// Access the component properties
-	// 	componentName := component.Details.FName
-	// 	componentVersion := component.Details.FVersionString
-	// 	componentLocation := component.Details.FLocation
-
-	// 	// Process the component properties as needed
-	// 	// ...
-
-	// 	// // Set the state for the component
-	// 	// componentState := OK // Assuming OK as the default state
-	// 	// if component.Status.State == "Enabled" || component.Status.State != "" {
-	// 	// 	if component.Status.Health == "OK" {
-	// 	// 		componentState = OK
-	// 	// 	} else {
-	// 	// 		componentState = BAD
-	// 	// 	}
-	// 	// } else if component.Status.Health == "" && component.Status.State == "" {
-	// 	// 	componentState = OK
-	// 	// }
-
-	// 	fmt.Println("Component Name: ", componentName)
-	// 	fmt.Println("Component Version: ", componentVersion)
-	// 	fmt.Println("Component Location: ", componentLocation)
-
-	// 	// Set the prometheus gauge for the component
-	// 	(*fcomponent)["componentFirmware"].WithLabelValues(componentName, componentVersion, componentLocation).Set(state)
-	// }
-	// DEBUG PRINT
-	fmt.Printf("Firmware Inventory Metrics: %+v\n", fwcomponent)
-	fmt.Println("Firmware Inventory Metrics: ", fwcomponent.GenericFirmware.Name, fwcomponent.GenericFirmware.Description, fwcomponent.GenericFirmware.Version, fwcomponent.GenericFirmware.Location)
-	// fmt.Println("Firmware Inventory Metrics: ", fwcomponent.FirmwareSystemInventory.Current.Component.Details.FName, fwcomponent.FirmwareSystemInventory.Current.Component.Details.FVersionString, fwcomponent.FirmwareSystemInventory.Current.Component.Details.FLocation)
-	// END DEBUG PRINT
-	(*component)["componentFirmware"].WithLabelValues(fwcomponent.GenericFirmware.Name, fwcomponent.GenericFirmware.Description, fwcomponent.GenericFirmware.Version, fwcomponent.GenericFirmware.Location).Set(state)
 	return nil
 }
 
