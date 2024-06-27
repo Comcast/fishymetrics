@@ -16,53 +16,51 @@
 
 package oem
 
-type GenericFirmware struct {
-	Name        string `json:"Name,omitempty"`
-	Version     string `json:"Version,VersionString,omitempty"`
-	Location    string `json:"Location,omitempty"`
-	Description string `json:"Description,omitempty"`
-	Status      Status
-}
+import "encoding/json"
 
-// Collection returns the component details
 // /redfish/v1/UpdateService/FirmwareInventory/XXXX/
-// type FirmwareComponent struct {
-// 	Name        string `json:"Name,omitempty"`
-// 	Description string `json:"Description,omitempty"`
-// 	Version     string `json:"Version,omitempty"`
-// 	Id          string `json:"Id,omitempty"`
-// 	Status      Status
-// }
-
-type FirmwareComponent struct {
-	GenericFirmware
-	FirmwareSystemInventory
+type GenericFirmware struct {
+	Id            string `json:"Id,omitempty"`
+	Name          string `json:"Name"`
+	Version       string `json:"Version,omitempty"`
+	VersionString string `json:"VersionString,omitempty"`
+	Location      string `json:"Location,omitempty"`
+	Description   string `json:"Description,omitempty"`
+	Status        Status `json:"Status,omitempty"`
 }
 
-type FirmwareInventory struct {
-	Components []FirmwareComponent `json:"Components,omitempty"`
+// /redfish/v1/Systems/1/FirmwareInventory/
+type ILO4Firmware struct {
+	Current FirmwareWrapper `json:"Current"`
 }
 
-// /redfish/v1/Systems/XXXX/FirmwareInventory
-type FirmwareSystemInventory struct {
-	Current Current `json:"Current,omitempty"`
-	Status  Status
+type FirmwareWrapper struct {
+	FirmwareSlice
 }
 
-type Current struct {
-	Component Component `json:"Component,omitempty"`
+type FirmwareSlice struct {
+	Firmware []GenericFirmware
 }
 
-type Component struct {
-	Details Details `json:"Details,omitempty"`
-}
+// Function to unmarshal the FirmwareWrapper struct
+func (w *FirmwareWrapper) UnmarshalJSON(data []byte) error {
+	var fw GenericFirmware
+	var jsonData map[string]interface{}
+	err := json.Unmarshal(data, &jsonData)
 
-// type Details struct {
-// 	Location      string `json:"Location,omitempty"`
-// 	Name          string `json:"Name,omitempty"`
-// 	VersionString string `json:"VersionString,omitempty"`
-// }
+	if err == nil {
+		for _, items := range jsonData {
+			for _, item := range items.([]interface{}) {
+				component, _ := json.Marshal(item)
+				err = json.Unmarshal(component, &fw)
+				if err == nil {
+					w.Firmware = append(w.Firmware, fw)
+				}
+			}
+		}
+	} else {
+		return json.Unmarshal(data, &w.Firmware)
+	}
 
-type Details struct {
-	GenericFirmware
+	return nil
 }
