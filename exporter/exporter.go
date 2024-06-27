@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -375,9 +374,6 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	// Firmware Inventory
 	for _, url := range firmwareInventoryEndpoints {
-		// DEBUG PRINT
-		fmt.Printf("task url to be appended: %s\n", exp.url+url)
-		// END DEBUG PRINT
 		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, FIRMWAREINVENTORY)))
 	}
 
