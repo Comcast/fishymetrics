@@ -311,13 +311,6 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		zap.Strings("physical_drive_endpoints", driveEndpointsResp.physicalDriveURLs),
 		zap.Any("trace_id", ctx.Value("traceID")))
 
-	// // Using initial /UpdateService/FirmwareInventory endpoint, grab all of the Firmware Inventory URLs
-	// firmwareInventoryEndpoints, err := getMemberUrls(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
-	// if err != nil {
-	// 	log.Error("error when getting FirmwareInventory url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-	// 	firmwareInventoryEndpoints = []string{}
-	// }
-
 	// Using initial /UpdateService/FirmwareInventory endpoint, grab all of the Firmware Inventory URLs
 	// Call /redfish/v1/Managers/XXXX/UpdateService/FirmwareInventory/ for firmware inventory
 	firmwareInventoryEndpoints, err := getMemberUrls(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
