@@ -16,6 +16,9 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Add HPE Proliant XL420 Support [#33](https://github.com/Comcast/fishymetrics/issues/33)
 - consolidate exporters into a single generic exporter [#52](https://github.com/Comcast/fishymetrics/issues/52)
 - update Dockerfile to comply with opensource packaging requirements [#61](https://github.com/Comcast/fishymetrics/issues/61)
+- Storage controller status metric for HP servers [#79](https://github.com/Comcast/fishymetrics/issues/79)
+- Ignore CPU metrics if Processor is Absent [#79](https://github.com/Comcast/fishymetrics/issues/79)
+- Added support for metrics collection from Dell servers [#77](https://github.com/Comcast/fishymetrics/issues/77)
 
 ## Fixed
 

@@ -116,13 +116,24 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	for _, pv := range pm.Voltages {
 		if pv.Status.State == "Enabled" {
 			var volts float64
+			var upperThresCrit float64
 			switch pv.ReadingVolts.(type) {
 			case float64:
 				volts = pv.ReadingVolts.(float64)
 			case string:
 				volts, _ = strconv.ParseFloat(pv.ReadingVolts.(string), 32)
 			}
-			(*pow)["voltageOutput"].WithLabelValues(pv.Name, e.ChassisSerialNumber, e.Model).Set(volts)
+			switch pv.UpperThresholdCritical.(type) {
+			case float64:
+				upperThresCrit = pv.UpperThresholdCritical.(float64)
+			case string:
+				upperThresCrit, _ = strconv.ParseFloat(pv.UpperThresholdCritical.(string), 32)
+			}
+			if volts == 0 && upperThresCrit == 0 {
+				continue
+			} else {
+				(*pow)["voltageOutput"].WithLabelValues(pv.Name, e.ChassisSerialNumber, e.Model).Set(volts)
+			}
 			if pv.Status.Health == "OK" {
 				state = OK
 			} else {
@@ -202,7 +213,11 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 			}
 
 			if fan.FanName != "" {
-				(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.ChassisSerialNumber, e.Model).Set(float64(fan.CurrentReading))
+				if float64(fan.CurrentReading) != 0 {
+					(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.ChassisSerialNumber, e.Model).Set(float64(fan.CurrentReading))
+				} else {
+					(*therm)["fanSpeed"].WithLabelValues(fan.FanName, e.ChassisSerialNumber, e.Model).Set(fanSpeed)
+				}
 			} else {
 				(*therm)["fanSpeed"].WithLabelValues(fan.Name, e.ChassisSerialNumber, e.Model).Set(fanSpeed)
 			}
@@ -294,9 +309,23 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	var state float64
 	var dllogical oem.LogicalDriveMetrics
 	var dllogicaldrive = (*e.DeviceMetrics)["logicalDriveMetrics"]
+	var ldName string
+	var raidType string
+	var volIdentifier string
 	err := json.Unmarshal(body, &dllogical)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling LogicalDriveMetrics - " + err.Error())
+	}
+	if dllogical.Raid == "" {
+		ldName = dllogical.DisplayName
+		raidType = dllogical.RaidType
+		if len(dllogical.Identifiers) > 0 {
+			volIdentifier = dllogical.Identifiers[0].DurableName
+		}
+	} else {
+		ldName = dllogical.LogicalDriveName
+		raidType = dllogical.Raid
+		volIdentifier = dllogical.VolumeUniqueIdentifier
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
 	if dllogical.Status.State == "Enabled" {
@@ -309,7 +338,7 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, e.ChassisSerialNumber, e.Model, dllogical.LogicalDriveName, dllogical.VolumeUniqueIdentifier, dllogical.Raid).Set(state)
+	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, e.ChassisSerialNumber, e.Model, ldName, volIdentifier, raidType).Set(state)
 	return nil
 }
 
@@ -377,10 +406,23 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 		if sc.Status.State == "Enabled" {
 			if sc.Status.Health == "OK" {
 				state = OK
+			} else if sc.Status.Health == "" && sc.Status.HealthRollup == "" {
+				continue
 			} else {
 				state = BAD
 			}
 			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, sc.FirmwareVersion, sc.Model).Set(state)
+		}
+	}
+
+	if len(scm.StorageController.StorageController) == 0 {
+		if scm.Status.State == "Enabled" {
+			if scm.Status.Health == "OK" {
+				state = OK
+			} else {
+				state = BAD
+			}
+			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, scm.ControllerFirmware.FirmwareVersion, scm.Model).Set(state)
 		}
 	}
 
@@ -393,18 +435,29 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 	var state float64
 	var dlm oem.System
 	var dlMemory = (*e.DeviceMetrics)["memoryMetrics"]
+	var totalSystemMemoryGiB string
 	err := json.Unmarshal(body, &dlm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling MemorySummaryMetrics - " + err.Error())
 	}
 	// Check memory status and convert string to numeric values
-	if dlm.MemorySummary.Status.HealthRollup == "OK" {
+	// Ignore memory summary if status is not present
+	if dlm.MemorySummary.Status.HealthRollup == "" {
+		return nil
+	} else if dlm.MemorySummary.Status.HealthRollup == "OK" {
 		state = OK
 	} else {
 		state = BAD
 	}
 
-	(*dlMemory)["memoryStatus"].WithLabelValues(e.ChassisSerialNumber, e.Model, strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB)).Set(state)
+	switch dlm.MemorySummary.TotalSystemMemoryGiB.(type) {
+	case int:
+		totalSystemMemoryGiB = strconv.Itoa(dlm.MemorySummary.TotalSystemMemoryGiB.(int))
+	case float64:
+		totalSystemMemoryGiB = strconv.FormatFloat(dlm.MemorySummary.TotalSystemMemoryGiB.(float64), 'f', -1, 64)
+	}
+
+	(*dlMemory)["memoryStatus"].WithLabelValues(e.ChassisSerialNumber, e.Model, totalSystemMemoryGiB).Set(state)
 
 	return nil
 }
@@ -569,6 +622,12 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	case int:
 		totCores = strconv.Itoa(pm.TotalCores.(int))
 	}
+
+	// Ignore metrics if processor is absent
+	if pm.Status.State == "Absent" {
+		return nil
+	}
+
 	if pm.Status.Health == "OK" {
 		state = OK
 	} else {

@@ -35,7 +35,7 @@ type PowerMetrics struct {
 // PowerControl is the top level json object for metadata on power supply consumption
 type PowerControl struct {
 	MemberID           string      `json:"MemberId"`
-	PowerCapacityWatts int         `json:"PowerCapacityWatts,omitempty"`
+	PowerCapacityWatts interface{} `json:"PowerCapacityWatts,omitempty"`
 	PowerConsumedWatts interface{} `json:"PowerConsumedWatts"`
 	PowerMetrics       PowerMetric `json:"PowerMetrics"`
 }

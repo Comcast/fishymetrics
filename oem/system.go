@@ -26,6 +26,7 @@ type System struct {
 	SystemHostname string        `json:"HostName"`
 	Oem            OemSys        `json:"Oem"`
 	MemorySummary  MemorySummary `json:"MemorySummary"`
+	Volumes        Link          `json:"Volumes"`
 }
 
 type OemSys struct {
@@ -67,7 +68,7 @@ type StorageBattery struct {
 // MemorySummary is the json object for MemorySummary metadata
 type MemorySummary struct {
 	Status                         StatusMemory `json:"Status"`
-	TotalSystemMemoryGiB           int          `json:"TotalSystemMemoryGiB"`
+	TotalSystemMemoryGiB           interface{}  `json:"TotalSystemMemoryGiB"`
 	TotalSystemPersistentMemoryGiB int          `json:"TotalSystemPersistentMemoryGiB"`
 }
 
