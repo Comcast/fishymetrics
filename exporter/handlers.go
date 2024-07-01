@@ -56,7 +56,10 @@ func handle(exp *Exporter, metricType ...string) []common.Handler {
 			handlers = append(handlers, exp.exportStorageBattery)
 		} else if m == ILOSELFTEST {
 			handlers = append(handlers, exp.exportIloSelfTest)
+		} else if m == FIRMWAREINVENTORY {
+			handlers = append(handlers, exp.exportFirmwareInventoryMetrics)
 		}
+
 	}
 
 	return handlers
@@ -632,6 +635,33 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	}
 	(*proc)["processorStatus"].WithLabelValues(pm.Id, e.ChassisSerialNumber, e.Model, pm.Socket, pm.Model, totCores).Set(state)
 
+	return nil
+}
+
+// exportFirmwareInventoryMetrics collects the inventory component's firmware metrics in json format and sets the prometheus guages
+func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
+	var fwcomponent oem.ILO4Firmware
+	var component = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
+
+	err := json.Unmarshal(body, &fwcomponent)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
+	}
+	// Export for iLO4 since it has a different structure
+	if len(fwcomponent.Current.Firmware) > 0 {
+		for _, firmware := range fwcomponent.Current.Firmware {
+			(*component)["componentFirmware"].WithLabelValues(firmware.Id, firmware.Name, firmware.Location, firmware.VersionString).Set(1.0)
+		}
+	} else {
+		// Export for iLO5, since it's structure matches the GenericFirmware struct
+		var fwcomponent oem.GenericFirmware
+		err := json.Unmarshal(body, &fwcomponent)
+		if err != nil {
+			return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
+		}
+
+		(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, fwcomponent.Name, fwcomponent.Description, fwcomponent.Version).Set(1.0)
+	}
 	return nil
 }
 
