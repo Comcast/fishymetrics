@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -426,7 +427,13 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	// Firmware Inventory
 	for _, url := range firmwareInventoryEndpoints {
-		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, FIRMWAREINVENTORY)))
+		// this list can potentially be large and cause scrapes to take a long time please
+		// see the '--collector.firmware.modules-exclude' config in the README for more information
+		if reg, ok := excludes["firmware"]; ok {
+			if !reg.(*regexp.Regexp).MatchString(url) {
+				tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, FIRMWAREINVENTORY)))
+			}
+		}
 	}
 
 	// call /redfish/v1/Managers/XXX/ for firmware version and ilo self test metrics
