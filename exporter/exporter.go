@@ -298,7 +298,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 			return nil, err
 		}
 		exp.biosVersion = sysResp.BiosVersion
-		exp.ChassisSerialNumber = sysResp.SerialNumber
+		exp.ChassisSerialNumber = strings.TrimRight(sysResp.SerialNumber, " ")
 		exp.systemHostname = sysResp.SystemHostname
 
 		// call /redfish/v1/Systems/XXXXX/ for memory summary and smart storage batteries

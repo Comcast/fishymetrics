@@ -111,31 +111,50 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 			}
 		}
 
-		for _, power := range chas.Links.Power.LinksURLSlice {
-			url := appendSlash(power)
+		if chas.PowerAlt.URL != "" {
+			url := appendSlash(chas.PowerAlt.URL)
 			if checkUnique(sysEnd.power, url) {
 				sysEnd.power = append(sysEnd.power, url)
 			}
 		}
 
-		for _, power := range chas.LinksLower.Power.LinksURLSlice {
-			url := appendSlash(power)
-			if checkUnique(sysEnd.power, url) {
-				sysEnd.power = append(sysEnd.power, url)
-			}
-		}
-
-		for _, thermal := range chas.Links.Thermal.LinksURLSlice {
-			url := appendSlash(thermal)
+		if chas.ThermalAlt.URL != "" {
+			url := appendSlash(chas.ThermalAlt.URL)
 			if checkUnique(sysEnd.thermal, url) {
 				sysEnd.thermal = append(sysEnd.thermal, url)
 			}
 		}
 
-		for _, thermal := range chas.LinksLower.Thermal.LinksURLSlice {
-			url := appendSlash(thermal)
-			if checkUnique(sysEnd.thermal, url) {
-				sysEnd.thermal = append(sysEnd.thermal, url)
+		// if power and thermal endpoints are not found in main level, check the nested results in Links/links
+		if len(sysEnd.power) == 0 {
+			for _, power := range chas.Links.Power.LinksURLSlice {
+				url := appendSlash(power)
+				if checkUnique(sysEnd.power, url) {
+					sysEnd.power = append(sysEnd.power, url)
+				}
+			}
+
+			for _, power := range chas.LinksLower.Power.LinksURLSlice {
+				url := appendSlash(power)
+				if checkUnique(sysEnd.power, url) {
+					sysEnd.power = append(sysEnd.power, url)
+				}
+			}
+		}
+
+		if len(sysEnd.thermal) == 0 {
+			for _, thermal := range chas.Links.Thermal.LinksURLSlice {
+				url := appendSlash(thermal)
+				if checkUnique(sysEnd.thermal, url) {
+					sysEnd.thermal = append(sysEnd.thermal, url)
+				}
+			}
+
+			for _, thermal := range chas.LinksLower.Thermal.LinksURLSlice {
+				url := appendSlash(thermal)
+				if checkUnique(sysEnd.thermal, url) {
+					sysEnd.thermal = append(sysEnd.thermal, url)
+				}
 			}
 		}
 
@@ -186,15 +205,6 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 				}
 			}
 		}
-	}
-
-	// check last resort places for power and thermal endpoints if none were found
-	if len(sysEnd.power) == 0 && chas.PowerAlt.URL != "" {
-		sysEnd.power = append(sysEnd.power, appendSlash(chas.PowerAlt.URL))
-	}
-
-	if len(sysEnd.thermal) == 0 && chas.ThermalAlt.URL != "" {
-		sysEnd.thermal = append(sysEnd.thermal, appendSlash(chas.ThermalAlt.URL))
 	}
 
 	return sysEnd, nil
