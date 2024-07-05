@@ -39,6 +39,8 @@ Flags:
       --vault.secret-id=""      Vault Secret ID for AppRole
       --collector.drives.modules-exclude=""
                                 regex of drive module(s) to exclude from the scrape
+      --collector.firmware.modules-exclude=""
+                                regex of firmware module to exclude from the scrape
       --credentials.profiles=CREDENTIALS.PROFILES
                                 profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
 
@@ -77,7 +79,7 @@ VAULT_SECRET_ID=<string>
 
 ### Exclude flags
 
-Since some hosts can contain many dozens of drives, this can cause a scrape to take a very long time and may not be entirely necessary. Because of this we've included an exclude flag specifically for the `drives.module` scope.
+Since some hosts can contain many dozens of drives, this can cause a scrape to take a very long time and may not be entirely necessary. Because of this we've included an exclude flag specifically for the `drives.module` and `firmware.module` scopes.
 
 Example:
 
@@ -88,6 +90,7 @@ Example:
 | Collector | Scope  | Include Flag | Exclude Flag   |
 | --------- | ------ | ------------ | -------------- |
 | drives    | module | N/A          | module-exclude |
+| firmware  | module | N/A          | module-exclude |
 
 ## Usage
 
