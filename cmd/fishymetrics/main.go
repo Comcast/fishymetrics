@@ -56,24 +56,25 @@ const (
 )
 
 var (
-	a                 = kingpin.New(app, "redfish api exporter with all the bells and whistles")
-	username          = a.Flag("user", "BMC static username").Default("").Envar("BMC_USERNAME").String()
-	password          = a.Flag("password", "BMC static password").Default("").Envar("BMC_PASSWORD").String()
-	bmcTimeout        = a.Flag("timeout", "BMC scrape timeout").Default("15s").Envar("BMC_TIMEOUT").Duration()
-	bmcScheme         = a.Flag("scheme", "BMC Scheme to use").Default("https").Envar("BMC_SCHEME").String()
-	logLevel          = a.Flag("log.level", "log level verbosity").PlaceHolder("[debug|info|warn|error]").Default("info").Envar("LOG_LEVEL").String()
-	logMethod         = a.Flag("log.method", "alternative method for logging in addition to stdout").PlaceHolder("[file|vector]").Default("").Envar("LOG_METHOD").String()
-	logFilePath       = a.Flag("log.file-path", "directory path where log files are written if log-method is file").Default("/var/log/fishymetrics").Envar("LOG_FILE_PATH").String()
-	logFileMaxSize    = a.Flag("log.file-max-size", "max file size in megabytes if log-method is file").Default("256").Envar("LOG_FILE_MAX_SIZE").String()
-	logFileMaxBackups = a.Flag("log.file-max-backups", "max file backups before they are rotated if log-method is file").Default("1").Envar("LOG_FILE_MAX_BACKUPS").String()
-	logFileMaxAge     = a.Flag("log.file-max-age", "max file age in days before they are rotated if log-method is file").Default("1").Envar("LOG_FILE_MAX_AGE").String()
-	vectorEndpoint    = a.Flag("vector.endpoint", "vector endpoint to send structured json logs to").Default("http://0.0.0.0:4444").Envar("VECTOR_ENDPOINT").String()
-	exporterPort      = a.Flag("port", "exporter port").Default("9533").Envar("EXPORTER_PORT").String()
-	vaultAddr         = a.Flag("vault.addr", "Vault instance address to get chassis credentials from").Default("https://vault.com").Envar("VAULT_ADDRESS").String()
-	vaultRoleId       = a.Flag("vault.role-id", "Vault Role ID for AppRole").Default("").Envar("VAULT_ROLE_ID").String()
-	vaultSecretId     = a.Flag("vault.secret-id", "Vault Secret ID for AppRole").Default("").Envar("VAULT_SECRET_ID").String()
-	driveModExclude   = a.Flag("collector.drives.modules-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
-	credProfiles      = common.CredentialProf(a.Flag("credentials.profiles",
+	a                  = kingpin.New(app, "redfish api exporter with all the bells and whistles")
+	username           = a.Flag("user", "BMC static username").Default("").Envar("BMC_USERNAME").String()
+	password           = a.Flag("password", "BMC static password").Default("").Envar("BMC_PASSWORD").String()
+	bmcTimeout         = a.Flag("timeout", "BMC scrape timeout").Default("15s").Envar("BMC_TIMEOUT").Duration()
+	bmcScheme          = a.Flag("scheme", "BMC Scheme to use").Default("https").Envar("BMC_SCHEME").String()
+	logLevel           = a.Flag("log.level", "log level verbosity").PlaceHolder("[debug|info|warn|error]").Default("info").Envar("LOG_LEVEL").String()
+	logMethod          = a.Flag("log.method", "alternative method for logging in addition to stdout").PlaceHolder("[file|vector]").Default("").Envar("LOG_METHOD").String()
+	logFilePath        = a.Flag("log.file-path", "directory path where log files are written if log-method is file").Default("/var/log/fishymetrics").Envar("LOG_FILE_PATH").String()
+	logFileMaxSize     = a.Flag("log.file-max-size", "max file size in megabytes if log-method is file").Default("256").Envar("LOG_FILE_MAX_SIZE").String()
+	logFileMaxBackups  = a.Flag("log.file-max-backups", "max file backups before they are rotated if log-method is file").Default("1").Envar("LOG_FILE_MAX_BACKUPS").String()
+	logFileMaxAge      = a.Flag("log.file-max-age", "max file age in days before they are rotated if log-method is file").Default("1").Envar("LOG_FILE_MAX_AGE").String()
+	vectorEndpoint     = a.Flag("vector.endpoint", "vector endpoint to send structured json logs to").Default("http://0.0.0.0:4444").Envar("VECTOR_ENDPOINT").String()
+	exporterPort       = a.Flag("port", "exporter port").Default("9533").Envar("EXPORTER_PORT").String()
+	vaultAddr          = a.Flag("vault.addr", "Vault instance address to get chassis credentials from").Default("https://vault.com").Envar("VAULT_ADDRESS").String()
+	vaultRoleId        = a.Flag("vault.role-id", "Vault Role ID for AppRole").Default("").Envar("VAULT_ROLE_ID").String()
+	vaultSecretId      = a.Flag("vault.secret-id", "Vault Secret ID for AppRole").Default("").Envar("VAULT_SECRET_ID").String()
+	driveModExclude    = a.Flag("collector.drives.modules-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
+	firmwareModExclude = a.Flag("collector.firmware.modules-exclude", "regex of firmware module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_FIRMWARE_MODULE_EXCLUDE").String()
+	credProfiles       = common.CredentialProf(a.Flag("credentials.profiles",
 		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
   --credentials.profiles="
     profiles:
@@ -202,6 +203,11 @@ func main() {
 	if *driveModExclude != "" {
 		driveModPattern := regexp.MustCompile(*driveModExclude)
 		excludes["drive"] = driveModPattern
+	}
+
+	if *firmwareModExclude != "" {
+		firmwareModPattern := regexp.MustCompile(*firmwareModExclude)
+		excludes["firmware"] = firmwareModPattern
 	}
 
 	// validate logFilePath exists and is a directory
