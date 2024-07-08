@@ -364,20 +364,20 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		zap.Any("trace_id", ctx.Value("traceID")))
 
 	// Call /redfish/v1/Managers/XXXX/UpdateService/FirmwareInventory/ for firmware inventory
-	firmwareInventoryEndpoints, err := getMemberUrls(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
+	firmwareInventoryEndpoints, err := getFirmwareEndpoints(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
 	if err != nil {
 		// Try the iLo 4 firmware inventory endpoint
 		// Use the collected sysEndpoints.systems to build url(s)
 		if len(sysEndpoints.systems) > 0 {
 			// call /redfish/v1/Systems/XXXX/FirmwareInventory/
 			for _, system := range sysEndpoints.systems {
-				firmwareInventoryEndpoints = append(firmwareInventoryEndpoints, system+"FirmwareInventory/")
+				url := system + "FirmwareInventory/"
+				tasks = append(tasks,
+					pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, FIRMWAREINVENTORY)))
 			}
-			// Ensure we have at least one firmware inventory endpoint
-			if len(firmwareInventoryEndpoints) == 0 {
-				log.Error("error when getting FirmwareInventory url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-				return nil, err
-			}
+		} else {
+			log.Error("error when getting Firmware endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
 		}
 	}
 
@@ -426,12 +426,13 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	}
 
 	// Firmware Inventory
-	for _, url := range firmwareInventoryEndpoints {
-		// this list can potentially be large and cause scrapes to take a long time please
+	for _, fwEp := range firmwareInventoryEndpoints.Members {
+		// this list can potentially be large and cause scrapes to take a long time
 		// see the '--collector.firmware.modules-exclude' config in the README for more information
 		if reg, ok := excludes["firmware"]; ok {
-			if !reg.(*regexp.Regexp).MatchString(url) {
-				tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, FIRMWAREINVENTORY)))
+			if !reg.(*regexp.Regexp).MatchString(fwEp.URL) {
+				tasks = append(tasks,
+					pool.NewTask(common.Fetch(exp.url+fwEp.URL, target, profile, retryClient), exp.url+fwEp.URL, handle(&exp, FIRMWAREINVENTORY)))
 			}
 		}
 	}
