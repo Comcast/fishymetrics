@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -64,6 +65,8 @@ const (
 	STORAGEBATTERY = "StorBatteryMetrics"
 	// ILOSELFTEST represents the processor metric endpoints
 	ILOSELFTEST = "iloSelfTestMetrics"
+	// FIRMWAREINVENTORY represents the component firmware metric endpoints
+	FIRMWAREINVENTORY = "FirmwareInventoryMetrics"
 	// OK is a string representation of the float 1.0 for device status
 	OK = 1.0
 	// BAD is a string representation of the float 0.0 for device status
@@ -360,6 +363,24 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		zap.Strings("physical_drive_endpoints", driveEndpointsResp.physicalDriveURLs),
 		zap.Any("trace_id", ctx.Value("traceID")))
 
+	// Call /redfish/v1/Managers/XXXX/UpdateService/FirmwareInventory/ for firmware inventory
+	firmwareInventoryEndpoints, err := getMemberUrls(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
+	if err != nil {
+		// Try the iLo 4 firmware inventory endpoint
+		// Use the collected sysEndpoints.systems to build url(s)
+		if len(sysEndpoints.systems) > 0 {
+			// call /redfish/v1/Systems/XXXX/FirmwareInventory/
+			for _, system := range sysEndpoints.systems {
+				firmwareInventoryEndpoints = append(firmwareInventoryEndpoints, system+"FirmwareInventory/")
+			}
+			// Ensure we have at least one firmware inventory endpoint
+			if len(firmwareInventoryEndpoints) == 0 {
+				log.Error("error when getting FirmwareInventory url", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
+			}
+		}
+	}
+
 	// Loop through arrayControllerURLs, logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
 	for _, url := range driveEndpointsResp.arrayControllerURLs {
 		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, STORAGE_CONTROLLER)))
@@ -402,6 +423,17 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	for _, dimm := range dimms.Members {
 		tasks = append(tasks,
 			pool.NewTask(common.Fetch(exp.url+dimm.URL, target, profile, retryClient), exp.url+dimm.URL, handle(&exp, MEMORY)))
+	}
+
+	// Firmware Inventory
+	for _, url := range firmwareInventoryEndpoints {
+		// this list can potentially be large and cause scrapes to take a long time please
+		// see the '--collector.firmware.modules-exclude' config in the README for more information
+		if reg, ok := excludes["firmware"]; ok {
+			if !reg.(*regexp.Regexp).MatchString(url) {
+				tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, FIRMWAREINVENTORY)))
+			}
+		}
 	}
 
 	// call /redfish/v1/Managers/XXX/ for firmware version and ilo self test metrics

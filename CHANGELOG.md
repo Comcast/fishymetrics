@@ -19,6 +19,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Storage controller status metric for HP servers [#79](https://github.com/Comcast/fishymetrics/issues/79)
 - Ignore CPU metrics if Processor is Absent [#79](https://github.com/Comcast/fishymetrics/issues/79)
 - Added support for metrics collection from Dell servers [#77](https://github.com/Comcast/fishymetrics/issues/77)
+- Added support for firmware metrics collection from all supported servers and iLO versions from a single universal exporter [#83](https://github.com/Comcast/fishymetrics/issues/83)
 
 ## Fixed
 
