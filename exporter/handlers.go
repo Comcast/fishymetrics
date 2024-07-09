@@ -147,6 +147,13 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	}
 
 	for _, ps := range pm.PowerSupplies {
+		// if power supply status state is present, capture the bay number
+		if ps.Oem.Hp.PowerSupplyStatus.State != "" {
+			bay = ps.Oem.Hp.BayNumber
+		} else if ps.Oem.Hpe.PowerSupplyStatus.State != "" {
+			bay = ps.Oem.Hpe.BayNumber
+		}
+
 		if ps.Status.State == "Enabled" {
 			var watts float64
 			switch ps.LastPowerOutputWatts.(type) {
@@ -154,12 +161,6 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				watts = ps.LastPowerOutputWatts.(float64)
 			case string:
 				watts, _ = strconv.ParseFloat(ps.LastPowerOutputWatts.(string), 32)
-			}
-
-			if ps.Oem.Hp.PowerSupplyStatus.State != "" {
-				bay = ps.Oem.Hp.BayNumber
-			} else if ps.Oem.Hpe.PowerSupplyStatus.State != "" {
-				bay = ps.Oem.Hpe.BayNumber
 			}
 
 			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
@@ -174,7 +175,9 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			state = BAD
 		}
 
-		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
+		if ps.Status.State != "Absent" {
+			(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
+		}
 	}
 
 	return nil
