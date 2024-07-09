@@ -30,6 +30,8 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Firmware gathering endpoint update and add device info to other HP models [#55](https://github.com/Comcast/fishymetrics/issues/55)
 - C220 drive metrics on hosts with fw < 4.0, psu metrics result and label values [#57](https://github.com/Comcast/fishymetrics/issues/57)
 - Chassis ComputerSystems field is handled improperly [#68](https://github.com/Comcast/fishymetrics/issues/68)
+- Power and Thermal metrics collection for Dell R7xxXD server models [#77](https://github.com/Comcast/fishymetrics/issues/77)
+- Firmware metrics and request headers update for Dell iDRAC9 with FW ver.3.xx and 4.xx [#77](https://github.com/Comcast/fishymetrics/issues/77)
 
 ## Updated
 

@@ -111,31 +111,50 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 			}
 		}
 
-		for _, power := range chas.Links.Power.LinksURLSlice {
-			url := appendSlash(power)
+		if chas.PowerAlt.URL != "" {
+			url := appendSlash(chas.PowerAlt.URL)
 			if checkUnique(sysEnd.power, url) {
 				sysEnd.power = append(sysEnd.power, url)
 			}
 		}
 
-		for _, power := range chas.LinksLower.Power.LinksURLSlice {
-			url := appendSlash(power)
-			if checkUnique(sysEnd.power, url) {
-				sysEnd.power = append(sysEnd.power, url)
-			}
-		}
-
-		for _, thermal := range chas.Links.Thermal.LinksURLSlice {
-			url := appendSlash(thermal)
+		if chas.ThermalAlt.URL != "" {
+			url := appendSlash(chas.ThermalAlt.URL)
 			if checkUnique(sysEnd.thermal, url) {
 				sysEnd.thermal = append(sysEnd.thermal, url)
 			}
 		}
 
-		for _, thermal := range chas.LinksLower.Thermal.LinksURLSlice {
-			url := appendSlash(thermal)
-			if checkUnique(sysEnd.thermal, url) {
-				sysEnd.thermal = append(sysEnd.thermal, url)
+		// if power and thermal endpoints are not found in main level, check the nested results in Links/links
+		if len(sysEnd.power) == 0 {
+			for _, power := range chas.Links.Power.LinksURLSlice {
+				url := appendSlash(power)
+				if checkUnique(sysEnd.power, url) {
+					sysEnd.power = append(sysEnd.power, url)
+				}
+			}
+
+			for _, power := range chas.LinksLower.Power.LinksURLSlice {
+				url := appendSlash(power)
+				if checkUnique(sysEnd.power, url) {
+					sysEnd.power = append(sysEnd.power, url)
+				}
+			}
+		}
+
+		if len(sysEnd.thermal) == 0 {
+			for _, thermal := range chas.Links.Thermal.LinksURLSlice {
+				url := appendSlash(thermal)
+				if checkUnique(sysEnd.thermal, url) {
+					sysEnd.thermal = append(sysEnd.thermal, url)
+				}
+			}
+
+			for _, thermal := range chas.LinksLower.Thermal.LinksURLSlice {
+				url := appendSlash(thermal)
+				if checkUnique(sysEnd.thermal, url) {
+					sysEnd.thermal = append(sysEnd.thermal, url)
+				}
 			}
 		}
 
@@ -186,15 +205,6 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 				}
 			}
 		}
-	}
-
-	// check last resort places for power and thermal endpoints if none were found
-	if len(sysEnd.power) == 0 && chas.PowerAlt.URL != "" {
-		sysEnd.power = append(sysEnd.power, appendSlash(chas.PowerAlt.URL))
-	}
-
-	if len(sysEnd.thermal) == 0 && chas.ThermalAlt.URL != "" {
-		sysEnd.thermal = append(sysEnd.thermal, appendSlash(chas.ThermalAlt.URL))
 	}
 
 	return sysEnd, nil
@@ -429,6 +439,48 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 	}
 
 	return driveEndpoints, nil
+}
+
+func getFirmwareEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+	var fwEpUrls oem.Collection
+	var resp *http.Response
+	var err error
+	retryCount := 0
+	req := common.BuildRequest(url, host)
+
+	resp, err = common.DoRequest(client, req)
+	if err != nil {
+		return fwEpUrls, err
+	}
+	defer resp.Body.Close()
+	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+		if resp.StatusCode == http.StatusNotFound {
+			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				retryCount = retryCount + 1
+			}
+			if err != nil {
+				return fwEpUrls, err
+			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				return fwEpUrls, fmt.Errorf("HTTP status %d", resp.StatusCode)
+			}
+		} else {
+			return fwEpUrls, fmt.Errorf("HTTP status %d", resp.StatusCode)
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fwEpUrls, fmt.Errorf("Error reading Response Body - " + err.Error())
+	}
+
+	err = json.Unmarshal(body, &fwEpUrls)
+	if err != nil {
+		return fwEpUrls, fmt.Errorf("Error Unmarshalling Memory Collection struct - " + err.Error())
+	}
+
+	return fwEpUrls, nil
 }
 
 func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
