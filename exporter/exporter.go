@@ -426,13 +426,16 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	}
 
 	// Firmware Inventory
-	for _, fwEp := range firmwareInventoryEndpoints.Members {
-		// this list can potentially be large and cause scrapes to take a long time
-		// see the '--collector.firmware.modules-exclude' config in the README for more information
-		if reg, ok := excludes["firmware"]; ok {
-			if !reg.(*regexp.Regexp).MatchString(fwEp.URL) {
-				tasks = append(tasks,
-					pool.NewTask(common.Fetch(exp.url+fwEp.URL, target, profile, retryClient), exp.url+fwEp.URL, handle(&exp, FIRMWAREINVENTORY)))
+	// To avoid scraping a large number of firmware endpoints, we will only scrape if there are less than 75 members
+	if len(firmwareInventoryEndpoints.Members) < 75 {
+		for _, fwEp := range firmwareInventoryEndpoints.Members {
+			// this list can potentially be large and cause scrapes to take a long time
+			// see the '--collector.firmware.modules-exclude' config in the README for more information
+			if reg, ok := excludes["firmware"]; ok {
+				if !reg.(*regexp.Regexp).MatchString(fwEp.URL) {
+					tasks = append(tasks,
+						pool.NewTask(common.Fetch(exp.url+fwEp.URL, target, profile, retryClient), exp.url+fwEp.URL, handle(&exp, FIRMWAREINVENTORY)))
+				}
 			}
 		}
 	}

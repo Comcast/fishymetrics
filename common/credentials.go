@@ -70,7 +70,7 @@ func (cp *CredentialProfilesFlag) Set(value string) error {
 		// if json was passed in we will attempt to unmarshal differently
 		err := json.Unmarshal([]byte(value), cp)
 		if err != nil {
-			panic(fmt.Errorf("Error parsing argument flag \"--credentials.profiles\" - %s", err.Error()))
+			panic(fmt.Errorf("error parsing argument flag \"--credentials.profiles\" - %s", err.Error()))
 		}
 	}
 	ChassisCreds.populateProfiles(cp)
