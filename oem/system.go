@@ -26,7 +26,8 @@ type System struct {
 	SystemHostname string        `json:"HostName"`
 	Oem            OemSys        `json:"Oem"`
 	MemorySummary  MemorySummary `json:"MemorySummary"`
-	Volumes        Link          `json:"Volumes"`
+	Memory         Link          `json:"Memory"`
+	Volumes        LinksWrapper  `json:"Volumes"`
 }
 
 type OemSys struct {
