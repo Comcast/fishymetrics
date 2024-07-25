@@ -253,14 +253,17 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 				log.Error("error when getting storage controller metadata", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 				return nil, err
 			}
-			if controllerOutput.Volumes.URL != "" {
-				url := appendSlash(controllerOutput.Volumes.URL)
-				if checkUnique(sysEndpoints.volumes, url) {
-					sysEndpoints.volumes = append(sysEndpoints.volumes, url)
+			if len(controllerOutput.Volumes.LinksURLSlice) > 0 {
+				for _, volume := range controllerOutput.Volumes.LinksURLSlice {
+					url := appendSlash(volume)
+					if checkUnique(sysEndpoints.volumes, url) {
+						sysEndpoints.volumes = append(sysEndpoints.volumes, url)
+					}
 				}
 			}
 		}
 	}
+
 	if len(sysEndpoints.volumes) > 0 {
 		for _, volume := range sysEndpoints.volumes {
 			virtualDrives, err := getMemberUrls(exp.url+volume, target, retryClient)
@@ -312,10 +315,12 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 				handle(&exp, MEMORY_SUMMARY, STORAGEBATTERY)))
 
 		// DIMM endpoints array
-		dimms, err = getDIMMEndpoints(exp.url+sysEndpoints.systems[0]+"Memory/", target, retryClient)
-		if err != nil {
-			log.Error("error when getting DIMM endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-			return nil, err
+		if sysResp.Memory.URL != "" {
+			dimms, err = getDIMMEndpoints(exp.url+sysResp.Memory.URL, target, retryClient)
+			if err != nil {
+				log.Error("error when getting DIMM endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
+			}
 		}
 
 		// CPU processor metrics
@@ -377,7 +382,22 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 			}
 		} else {
 			log.Error("error when getting Firmware endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-			return nil, err
+			//return nil, err
+		}
+	} else {
+		// Firmware Inventory
+		// To avoid scraping a large number of firmware endpoints, we will only scrape if there are less than 75 members
+		if len(firmwareInventoryEndpoints.Members) < 75 {
+			for _, fwEp := range firmwareInventoryEndpoints.Members {
+				// this list can potentially be large and cause scrapes to take a long time
+				// see the '--collector.firmware.modules-exclude' config in the README for more information
+				if reg, ok := excludes["firmware"]; ok {
+					if !reg.(*regexp.Regexp).MatchString(fwEp.URL) {
+						tasks = append(tasks,
+							pool.NewTask(common.Fetch(exp.url+fwEp.URL, target, profile, retryClient), exp.url+fwEp.URL, handle(&exp, FIRMWAREINVENTORY)))
+					}
+				}
+			}
 		}
 	}
 
@@ -423,21 +443,6 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	for _, dimm := range dimms.Members {
 		tasks = append(tasks,
 			pool.NewTask(common.Fetch(exp.url+dimm.URL, target, profile, retryClient), exp.url+dimm.URL, handle(&exp, MEMORY)))
-	}
-
-	// Firmware Inventory
-	// To avoid scraping a large number of firmware endpoints, we will only scrape if there are less than 75 members
-	if len(firmwareInventoryEndpoints.Members) < 75 {
-		for _, fwEp := range firmwareInventoryEndpoints.Members {
-			// this list can potentially be large and cause scrapes to take a long time
-			// see the '--collector.firmware.modules-exclude' config in the README for more information
-			if reg, ok := excludes["firmware"]; ok {
-				if !reg.(*regexp.Regexp).MatchString(fwEp.URL) {
-					tasks = append(tasks,
-						pool.NewTask(common.Fetch(exp.url+fwEp.URL, target, profile, retryClient), exp.url+fwEp.URL, handle(&exp, FIRMWAREINVENTORY)))
-				}
-			}
-		}
 	}
 
 	// call /redfish/v1/Managers/XXX/ for firmware version and ilo self test metrics
