@@ -396,9 +396,9 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 				log.Error("no update service/system firmware URI to collect firmware metrics",
 					zap.Any("trace_id", ctx.Value("traceID")))
 			}
-		} else {
-			log.Error("error when getting firmware endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-		}
+		} 
+	} else {
+		log.Error("error when getting firmware endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 	}
 
 	// Firmware Inventory
