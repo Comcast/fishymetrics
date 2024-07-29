@@ -44,11 +44,13 @@ type HpeSys struct {
 }
 
 type SystemLinksUpper struct {
-	SmartStorage Link `json:"SmartStorage"`
+	SmartStorage      Link `json:"SmartStorage"`
+	FirmwareInventory Link `json:"FirmwareInventory"`
 }
 
 type SystemLinksLower struct {
-	SmartStorage HRef `json:"SmartStorage"`
+	SmartStorage      HRef `json:"SmartStorage"`
+	FirmwareInventory HRef `json:"FirmwareInventory"`
 }
 
 type SmartStorageBattery struct {
