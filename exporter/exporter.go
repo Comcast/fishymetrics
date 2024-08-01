@@ -315,9 +315,11 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 				handle(&exp, MEMORY_SUMMARY, STORAGEBATTERY)))
 
 		// DIMM endpoints array
-		if sysResp.Memory.URL != "" {
-			dimms, err = getDIMMEndpoints(exp.url+sysResp.Memory.URL, target, retryClient)
-			if err != nil {
+		if sysResp.Memory.URL == "" {
+			sysResp.Memory.URL = sysEndpoints.systems[0] + "Memory/"
+		}
+		dimms, err = getDIMMEndpoints(exp.url+sysResp.Memory.URL, target, retryClient)
+		if err != nil {
 			log.Error("error when getting DIMM endpoints",
 				zap.Error(err),
 				zap.Any("trace_id", ctx.Value("traceID")))
@@ -394,9 +396,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 				log.Error("no update service/system firmware URI to collect firmware metrics",
 					zap.Any("trace_id", ctx.Value("traceID")))
 			}
-		} 
-	} else {
-		log.Error("error when getting firmware endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		}
 	}
 
 	// Firmware Inventory
