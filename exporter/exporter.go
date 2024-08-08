@@ -315,14 +315,15 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 				handle(&exp, MEMORY_SUMMARY, STORAGEBATTERY)))
 
 		// DIMM endpoints array
-		if sysResp.Memory.URL == "" {
-			sysResp.Memory.URL = sysEndpoints.systems[0] + "Memory/"
-		}
-		dimms, err = getDIMMEndpoints(exp.url+sysResp.Memory.URL, target, retryClient)
-		if err != nil {
-			log.Error("error when getting DIMM endpoints",
-				zap.Error(err),
-				zap.Any("trace_id", ctx.Value("traceID")))
+		var systemMemoryEndpoint = GetMemoryURL(sysResp)
+		if systemMemoryEndpoint != "" {
+			dimms, err = getDIMMEndpoints(exp.url+systemMemoryEndpoint, target, retryClient)
+			if err != nil {
+				log.Error("error when getting DIMM endpoints",
+					zap.Error(err),
+					zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
+			}
 		}
 
 		// CPU processor metrics
@@ -336,18 +337,8 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	}
 
 	// check for SmartStorage endpoint from either Hp or Hpe
-	var ss string
-	if sysResp.Oem.Hpe.Links.SmartStorage.URL != "" {
-		ss = appendSlash(sysResp.Oem.Hpe.Links.SmartStorage.URL) + "ArrayControllers/"
-	} else if sysResp.Oem.Hp.Links.SmartStorage.URL != "" {
-		ss = appendSlash(sysResp.Oem.Hp.Links.SmartStorage.URL) + "ArrayControllers/"
-	} else if sysResp.Oem.Hpe.LinksLower.SmartStorage.URL != "" {
-		ss = appendSlash(sysResp.Oem.Hpe.LinksLower.SmartStorage.URL) + "ArrayControllers/"
-	} else if sysResp.Oem.Hp.LinksLower.SmartStorage.URL != "" {
-		ss = appendSlash(sysResp.Oem.Hp.LinksLower.SmartStorage.URL) + "ArrayControllers/"
-	}
-
 	// skip if SmartStorage URL is not present
+	var ss = GetSmartStorageURL(sysResp)
 	var driveEndpointsResp DriveEndpoints
 	if ss != "" {
 		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient)
@@ -370,45 +361,33 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		zap.Strings("physical_drive_endpoints", driveEndpointsResp.physicalDriveURLs),
 		zap.Any("trace_id", ctx.Value("traceID")))
 
-	// Call /redfish/v1/Managers/XXXX/UpdateService/FirmwareInventory/ for firmware inventory
-	firmwareInventoryEndpoints, err := getFirmwareEndpoints(exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
-	if err != nil {
-		// Try the iLo 4 firmware inventory endpoint
-		// Use the collected sysEndpoints.systems to build url(s)
-		if len(sysEndpoints.systems) > 0 {
-			// call /redfish/v1/Systems/XXXX/FirmwareInventory/
-			var systemFML string
-			if sysResp.Oem.Hpe.Links.FirmwareInventory.URL != "" {
-				systemFML = sysResp.Oem.Hpe.Links.FirmwareInventory.URL
-			} else if sysResp.Oem.Hp.Links.FirmwareInventory.URL != "" {
-				systemFML = sysResp.Oem.Hp.Links.FirmwareInventory.URL
-			} else if sysResp.Oem.Hpe.LinksLower.FirmwareInventory.URL != "" {
-				systemFML = sysResp.Oem.Hpe.LinksLower.FirmwareInventory.URL
-			} else if sysResp.Oem.Hp.LinksLower.FirmwareInventory.URL != "" {
-				systemFML = sysResp.Oem.Hp.LinksLower.FirmwareInventory.URL
-			}
-
-			if systemFML != "" {
-				tasks = append(tasks,
-					pool.NewTask(common.Fetch(exp.url+systemFML, target, profile, retryClient),
-						exp.url+systemFML, handle(&exp, FIRMWAREINVENTORY)))
-			} else {
-				log.Error("no update service/system firmware URI to collect firmware metrics",
-					zap.Any("trace_id", ctx.Value("traceID")))
-			}
+	//Firmware Inventory - Try the iLo 4 firmware inventory endpoints using sysEndpoints.systems URL
+	// call /redfish/v1/Systems/XXXX/FirmwareInventory/
+	var systemFML = GetFirmwareInventoryURL(sysResp)
+	if systemFML != "" {
+		tasks = append(tasks,
+			pool.NewTask(common.Fetch(exp.url+systemFML, target, profile, retryClient),
+				exp.url+systemFML, handle(&exp, FIRMWAREINVENTORY)))
+	} else {
+		// Call /redfish/v1/Managers/XXXX/UpdateService/FirmwareInventory/ for firmware inventory
+		firmwareInventoryEndpoints, err := getFirmwareEndpoints(
+			exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
+		if err != nil {
+			log.Error("error when getting firmware inventory endpoints", zap.Error(err),
+				zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
 		}
-	}
-
-	// Firmware Inventory
-	// To avoid scraping a large number of firmware endpoints, we will only scrape if there are less than 75 members
-	if len(firmwareInventoryEndpoints.Members) < 75 {
-		for _, fwEp := range firmwareInventoryEndpoints.Members {
-			// this list can potentially be large and cause scrapes to take a long time
-			// see the '--collector.firmware.modules-exclude' config in the README for more information
-			if reg, ok := excludes["firmware"]; ok {
-				if !reg.(*regexp.Regexp).MatchString(fwEp.URL) {
-					tasks = append(tasks,
-						pool.NewTask(common.Fetch(exp.url+fwEp.URL, target, profile, retryClient), exp.url+fwEp.URL, handle(&exp, FIRMWAREINVENTORY)))
+		// To avoid scraping a large number of firmware endpoints, we will only scrape if there are less than 75 members
+		if len(firmwareInventoryEndpoints.Members) < 75 {
+			for _, fwEp := range firmwareInventoryEndpoints.Members {
+				// this list can potentially be large and cause scrapes to take a long time
+				// see the '--collector.firmware.modules-exclude' config in the README for more information
+				if reg, ok := excludes["firmware"]; ok {
+					if !reg.(*regexp.Regexp).MatchString(fwEp.URL) {
+						tasks = append(tasks,
+							pool.NewTask(common.Fetch(exp.url+fwEp.URL, target, profile, retryClient),
+								exp.url+fwEp.URL, handle(&exp, FIRMWAREINVENTORY)))
+					}
 				}
 			}
 		}
