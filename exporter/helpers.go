@@ -543,3 +543,48 @@ func checkUnique(s []string, str string) bool {
 	}
 	return true
 }
+
+// GetFirstNonEmptyURL returns the first non-empty URL from the provided list.
+func GetFirstNonEmptyURL(urls ...string) string {
+	for _, url := range urls {
+		if url != "" {
+			return url
+		}
+	}
+	return ""
+}
+
+// GetMemoryURL assigns the appropriate URL to the Memory field.
+func GetMemoryURL(sysResp oem.System) string {
+	return GetFirstNonEmptyURL(
+		sysResp.Memory.URL,
+		sysResp.Oem.Hpe.Links.Memory.URL,
+		sysResp.Oem.Hp.Links.Memory.URL,
+		sysResp.Oem.Hpe.LinksLower.Memory.URL,
+		sysResp.Oem.Hp.LinksLower.Memory.URL,
+	)
+}
+
+// GetSmartStorageURL assigns the appropriate URL to the SmartStorage field.
+func GetSmartStorageURL(sysResp oem.System) string {
+	ss := GetFirstNonEmptyURL(
+		sysResp.Oem.Hpe.Links.SmartStorage.URL,
+		sysResp.Oem.Hp.Links.SmartStorage.URL,
+		sysResp.Oem.Hpe.LinksLower.SmartStorage.URL,
+		sysResp.Oem.Hp.LinksLower.SmartStorage.URL,
+	)
+	if ss != "" {
+		ss = appendSlash(ss) + "ArrayControllers/"
+	}
+	return ss
+}
+
+// GetFirmwareInventoryURL assigns the appropriate URL to the FirmwareInventory field.
+func GetFirmwareInventoryURL(sysResp oem.System) string {
+	return GetFirstNonEmptyURL(
+		sysResp.Oem.Hpe.Links.FirmwareInventory.URL,
+		sysResp.Oem.Hp.Links.FirmwareInventory.URL,
+		sysResp.Oem.Hpe.LinksLower.FirmwareInventory.URL,
+		sysResp.Oem.Hp.LinksLower.FirmwareInventory.URL,
+	)
+}

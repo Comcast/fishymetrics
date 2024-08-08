@@ -26,7 +26,8 @@ type System struct {
 	SystemHostname string        `json:"HostName"`
 	Oem            OemSys        `json:"Oem"`
 	MemorySummary  MemorySummary `json:"MemorySummary"`
-	Volumes        Link          `json:"Volumes"`
+	Memory         Link          `json:"Memory"`
+	Volumes        LinksWrapper  `json:"Volumes"`
 }
 
 type OemSys struct {
@@ -43,11 +44,15 @@ type HpeSys struct {
 }
 
 type SystemLinksUpper struct {
-	SmartStorage Link `json:"SmartStorage"`
+	SmartStorage      Link `json:"SmartStorage"`
+	FirmwareInventory Link `json:"FirmwareInventory"`
+	Memory            Link `json:"Memory"`
 }
 
 type SystemLinksLower struct {
-	SmartStorage HRef `json:"SmartStorage"`
+	SmartStorage      HRef `json:"SmartStorage"`
+	FirmwareInventory HRef `json:"FirmwareInventory"`
+	Memory            Link `json:"Memory"`
 }
 
 type SmartStorageBattery struct {

@@ -51,46 +51,8 @@ type ChassisLinks struct {
 	Thermal LinksWrapper `json:"CooledBy"`
 }
 
-type LinksURL struct {
-	LinksURLSlice []string
-}
-
 type LinksWrapper struct {
-	LinksURL
-}
-
-func (w *LinksWrapper) UnmarshalJSON(data []byte) error {
-	// because of a change in output between firmware versions we need to account for this
-	// try to unmarshal as a slice of structs
-	// [
-	//   {
-	//     "@odata.id": "/redfish/v1/Systems/XXXX"
-	//   }
-	// ]
-	var links []struct {
-		URL  string `json:"@odata.id,omitempty"`
-		HRef string `json:"href,omitempty"`
-	}
-	err := json.Unmarshal(data, &links)
-	if err == nil {
-		if len(links) > 0 {
-			for _, l := range links {
-				if l.URL != "" {
-					w.LinksURLSlice = append(w.LinksURLSlice, l.URL)
-				} else {
-					w.LinksURLSlice = append(w.LinksURLSlice, l.HRef)
-				}
-			}
-		}
-	} else {
-		// try to unmarshal as a slice of strings
-		// [
-		//   "/redfish/v1/Systems/XXXX"
-		// ]
-		return json.Unmarshal(data, &w.LinksURLSlice)
-	}
-
-	return nil
+	LinksURLSlice []string
 }
 
 type ChassisStorageBattery struct {
@@ -103,4 +65,66 @@ type HRef struct {
 
 type Link struct {
 	URL string `json:"@odata.id"`
+}
+
+func (w *LinksWrapper) UnmarshalJSON(data []byte) error {
+	// Because of a change in output between firmware versions, we need to account for this.
+	// Try to unmarshal as a slice of structs:
+	// [
+	//   {
+	//     "@odata.id": "/redfish/v1/Systems/XXXX"
+	//   }
+	// ]
+	if err := w.UnmarshalLinks(data); err == nil {
+		return nil
+	}
+
+	// Next, try to unmarshal as a single Link object.
+	// {
+	//	"@odata.id":"/redfish/v1/Systems/XXXX"
+	// }
+
+	if err := w.UnmarshalObject(data); err == nil {
+		return nil
+	}
+
+	// Fallback to unmarshal as a slice of strings
+	// [
+	//   "/redfish/v1/Systems/XXXX"
+	// ]
+	return json.Unmarshal(data, &w.LinksURLSlice)
+}
+
+func (w *LinksWrapper) UnmarshalLinks(data []byte) error {
+	var links []struct {
+		URL  string `json:"@odata.id,omitempty"`
+		HRef string `json:"href,omitempty"`
+	}
+	if err := json.Unmarshal(data, &links); err != nil {
+		return err
+	}
+	for _, link := range links {
+		w.appendLink(link.URL, link.HRef)
+	}
+	return nil
+}
+
+func (w *LinksWrapper) UnmarshalObject(data []byte) error {
+	var link struct {
+		URL  string `json:"@odata.id,omitempty"`
+		HRef string `json:"href,omitempty"`
+	}
+	if err := json.Unmarshal(data, &link); err != nil {
+		return err
+	}
+	w.appendLink(link.URL, link.HRef)
+	return nil
+}
+
+func (w *LinksWrapper) appendLink(url, href string) {
+	if url != "" {
+		w.LinksURLSlice = append(w.LinksURLSlice, url)
+	} else if href != "" {
+		w.LinksURLSlice = append(w.LinksURLSlice, href)
+	}
 }
