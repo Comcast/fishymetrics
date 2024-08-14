@@ -255,8 +255,12 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 			}
 			if controllerOutput.Volumes.URL != "" {
 				url := appendSlash(controllerOutput.Volumes.URL)
-				if checkUnique(sysEndpoints.volumes, url) {
-					sysEndpoints.volumes = append(sysEndpoints.volumes, url)
+				if reg, ok := excludes["drive"]; ok {
+					if !reg.(*regexp.Regexp).MatchString(url) {
+						if checkUnique(sysEndpoints.volumes, url) {
+							sysEndpoints.volumes = append(sysEndpoints.volumes, url)
+						}
+					}
 				}
 			}
 		}
@@ -343,15 +347,15 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	// skip if SmartStorage URL is not present
 	var driveEndpointsResp DriveEndpoints
 	if ss != "" {
-		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient)
+		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient, excludes)
 		if err != nil {
 			log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
 		}
 	}
 
-	if len(sysEndpoints.storageController) == 0 && ss == "" {
-		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+sysEndpoints.systems[0]+"Storage/", target, retryClient)
+	if (len(sysEndpoints.storageController) == 0 && ss == "") || (len(sysEndpoints.drives) == 0 && len(driveEndpointsResp.physicalDriveURLs) == 0) {
+		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+sysEndpoints.systems[0]+"Storage/", target, retryClient, excludes)
 		if err != nil {
 			log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
@@ -391,7 +395,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	}
 
 	for _, url := range driveEndpointsResp.physicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, DISKDRIVE)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, UNKNOWN_DRIVE)))
 	}
 
 	// drives from this list could either be NVMe or physical SAS/SATA

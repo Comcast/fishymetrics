@@ -324,7 +324,7 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 	return drive, nil
 }
 
-func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, client *retryablehttp.Client) (DriveEndpoints, error) {
+func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, client *retryablehttp.Client, excludes Excludes) (DriveEndpoints, error) {
 	var driveEndpoints DriveEndpoints
 
 	// Get initial JSON return of /redfish/v1/Systems/XXXX/SmartStorage/ArrayControllers/ set to output
@@ -348,7 +348,13 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 		// /redfish/v1/Systems/XXXX/Storage/XXXXX/
 		if len(arrayCtrlResp.StorageDrives) > 0 {
 			for _, member := range arrayCtrlResp.StorageDrives {
-				driveEndpoints.physicalDriveURLs = append(driveEndpoints.physicalDriveURLs, appendSlash(member.URL))
+				if reg, ok := excludes["drive"]; ok {
+					if !reg.(*regexp.Regexp).MatchString(member.URL) {
+						if checkUnique(driveEndpoints.physicalDriveURLs, member.URL) {
+							driveEndpoints.physicalDriveURLs = append(driveEndpoints.physicalDriveURLs, appendSlash(member.URL))
+						}
+					}
+				}
 			}
 
 			// If Volumes are present, parse volumes endpoint until all urls are found
@@ -360,7 +366,13 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 				}
 
 				for _, member := range volumeOutput.Members {
-					driveEndpoints.logicalDriveURLs = append(driveEndpoints.logicalDriveURLs, appendSlash(member.URL))
+					if reg, ok := excludes["drive"]; ok {
+						if !reg.(*regexp.Regexp).MatchString(member.URL) {
+							if checkUnique(driveEndpoints.logicalDriveURLs, member.URL) {
+								driveEndpoints.logicalDriveURLs = append(driveEndpoints.logicalDriveURLs, appendSlash(member.URL))
+							}
+						}
+					}
 				}
 			}
 

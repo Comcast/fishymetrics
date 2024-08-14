@@ -276,7 +276,9 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - " + err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
-	if dlphysical.Status.State == "Enabled" {
+	if dlphysical.Status.State == "Absent" {
+		return nil
+	} else if dlphysical.Status.State == "Enabled" {
 		if dlphysical.Status.Health == "OK" {
 			state = OK
 		} else {
@@ -356,8 +358,8 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	}
 
 	// Check nvme drive is enabled then check status and convert string to numeric values
-	if dlnvme.Oem.Hpe.DriveStatus.State == "Enabled" {
-		if dlnvme.Oem.Hpe.DriveStatus.Health == "OK" {
+	if dlnvme.Status.State == "Enabled" || dlnvme.Oem.Hpe.DriveStatus.State == "Enabled" {
+		if dlnvme.Status.Health == "OK" || dlnvme.Oem.Hpe.DriveStatus.Health == "OK" {
 			state = OK
 		} else {
 			state = BAD
@@ -384,7 +386,7 @@ func (e *Exporter) exportUnknownDriveMetrics(body []byte) error {
 		if err != nil {
 			return fmt.Errorf("Error Unmarshalling NVMeDriveMetrics - " + err.Error())
 		}
-	} else if protocol.Protocol != "" {
+	} else {
 		err = e.exportPhysicalDriveMetrics(body)
 		if err != nil {
 			return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - " + err.Error())
@@ -414,18 +416,18 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 			} else {
 				state = BAD
 			}
-			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, sc.FirmwareVersion, sc.Model).Set(state)
+			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, sc.FirmwareVersion, sc.Model, sc.Location.Location).Set(state)
 		}
 	}
 
 	if len(scm.StorageController.StorageController) == 0 {
-		if scm.Status.State == "Enabled" {
+		if scm.Status.State == "Enabled" && scm.Status.Health != "" {
 			if scm.Status.Health == "OK" {
 				state = OK
 			} else {
 				state = BAD
 			}
-			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, scm.ControllerFirmware.FirmwareVersion, scm.Model).Set(state)
+			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, scm.ControllerFirmware.FirmwareVersion, scm.Model, scm.Location.Location).Set(state)
 		}
 	}
 

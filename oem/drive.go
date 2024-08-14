@@ -44,20 +44,25 @@ type NVMeDriveMetrics struct {
 // Logical Drives
 // /redfish/v1/Systems/X/SmartStorage/ArrayControllers/X/LogicalDrives/X/
 type LogicalDriveMetrics struct {
-	Id                     string        `json:"Id"`
-	CapacityMiB            int           `json:"CapacityMiB"`
-	Description            string        `json:"Description"`
-	DisplayName            string        `json:"DisplayName"`
-	InterfaceType          string        `json:"InterfaceType"`
-	Identifiers            []Identifiers `json:"Identifiers"`
-	LogicalDriveName       string        `json:"LogicalDriveName"`
-	LogicalDriveNumber     int           `json:"LogicalDriveNumber"`
-	Name                   string        `json:"Name"`
-	Raid                   string        `json:"Raid"`
-	RaidType               string        `json:"RAIDType"`
-	Status                 Status        `json:"Status"`
-	StripeSizebytes        int           `json:"StripeSizebytes"`
-	VolumeUniqueIdentifier string        `json:"VolumeUniqueIdentifier"`
+	Id                     string          `json:"Id"`
+	CapacityMiB            int             `json:"CapacityMiB"`
+	Description            string          `json:"Description"`
+	DisplayName            string          `json:"DisplayName"`
+	InterfaceType          string          `json:"InterfaceType"`
+	Identifiers            []Identifiers   `json:"Identifiers"`
+	Links                  DriveCollection `json:"Links"`
+	LogicalDriveName       string          `json:"LogicalDriveName"`
+	LogicalDriveNumber     int             `json:"LogicalDriveNumber"`
+	Name                   string          `json:"Name"`
+	Raid                   string          `json:"Raid"`
+	RaidType               string          `json:"RAIDType"`
+	Status                 Status          `json:"Status"`
+	StripeSizebytes        int             `json:"StripeSizebytes"`
+	VolumeUniqueIdentifier string          `json:"VolumeUniqueIdentifier"`
+}
+
+type DriveCollection struct {
+	DrivesCount int `json:"Drives@odata.count"`
 }
 
 type Identifiers struct {
