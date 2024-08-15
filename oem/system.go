@@ -21,13 +21,14 @@ package oem
 // ServerManager contains the BIOS version and Serial number of the chassis,
 // we will also collect memory summary and storage battery metrics if present
 type System struct {
-	BiosVersion    string        `json:"BiosVersion"`
-	SerialNumber   string        `json:"SerialNumber"`
-	SystemHostname string        `json:"HostName"`
-	Oem            OemSys        `json:"Oem"`
-	MemorySummary  MemorySummary `json:"MemorySummary"`
-	Memory         Link          `json:"Memory"`
-	Volumes        LinksWrapper  `json:"Volumes"`
+	BiosVersion       string        `json:"BiosVersion"`
+	SerialNumber      string        `json:"SerialNumber"`
+	SystemHostname    string        `json:"HostName"`
+	Oem               OemSys        `json:"Oem"`
+	MemorySummary     MemorySummary `json:"MemorySummary"`
+	Memory            Link          `json:"Memory"`
+	Volumes           LinksWrapper  `json:"Volumes"`
+	FirmwareInventory LinksWrapper  `json:"FirmwareInventory"`
 }
 
 type OemSys struct {
@@ -80,5 +81,4 @@ type MemorySummary struct {
 // StatusMemory is the variable to determine if the memory is OK or not
 type StatusMemory struct {
 	HealthRollup string `json:"HealthRollup"`
-	Health       string `json:"Health"`
 }
