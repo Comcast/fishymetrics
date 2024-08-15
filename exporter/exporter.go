@@ -369,24 +369,27 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 			pool.NewTask(common.Fetch(exp.url+systemFML, target, profile, retryClient),
 				exp.url+systemFML, handle(&exp, FIRMWAREINVENTORY)))
 	} else {
-		// Call /redfish/v1/Managers/XXXX/UpdateService/FirmwareInventory/ for firmware inventory
-		firmwareInventoryEndpoints, err := getFirmwareEndpoints(
-			exp.url+uri+"/UpdateService/FirmwareInventory/", target, retryClient)
-		if err != nil {
-			log.Error("error when getting firmware inventory endpoints", zap.Error(err),
-				zap.Any("trace_id", ctx.Value("traceID")))
-			return nil, err
-		}
-		// To avoid scraping a large number of firmware endpoints, we will only scrape if there are less than 75 members
-		if len(firmwareInventoryEndpoints.Members) < 75 {
-			for _, fwEp := range firmwareInventoryEndpoints.Members {
-				// this list can potentially be large and cause scrapes to take a long time
-				// see the '--collector.firmware.modules-exclude' config in the README for more information
-				if reg, ok := excludes["firmware"]; ok {
-					if !reg.(*regexp.Regexp).MatchString(fwEp.URL) {
-						tasks = append(tasks,
-							pool.NewTask(common.Fetch(exp.url+fwEp.URL, target, profile, retryClient),
-								exp.url+fwEp.URL, handle(&exp, FIRMWAREINVENTORY)))
+		// Check for /redfish/v1/Managers/XXXX/UpdateService/ for firmware inventory URL
+		updateServiceEndpoints, err := getSystemsMetadata(exp.url+uri+"/UpdateService/", target, retryClient)
+		if updateServiceEndpoints.FirmwareInventory.LinksURLSlice[0] != "" && err == nil {
+			firmwareInventoryEndpoints, err := getFirmwareEndpoints(
+				exp.url+updateServiceEndpoints.FirmwareInventory.LinksURLSlice[0], target, retryClient)
+			if err != nil {
+				log.Error("error when getting firmware inventory endpoints", zap.Error(err),
+					zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
+			}
+			// To avoid scraping a large number of firmware endpoints, we will only scrape if there are less than 75 members
+			if len(firmwareInventoryEndpoints.Members) < 75 {
+				for _, fwEp := range firmwareInventoryEndpoints.Members {
+					// this list can potentially be large and cause scrapes to take a long time
+					// see the '--collector.firmware.modules-exclude' config in the README for more information
+					if reg, ok := excludes["firmware"]; ok {
+						if !reg.(*regexp.Regexp).MatchString(fwEp.URL) {
+							tasks = append(tasks,
+								pool.NewTask(common.Fetch(exp.url+fwEp.URL, target, profile, retryClient),
+									exp.url+fwEp.URL, handle(&exp, FIRMWAREINVENTORY)))
+						}
 					}
 				}
 			}
