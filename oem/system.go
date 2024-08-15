@@ -80,4 +80,5 @@ type MemorySummary struct {
 // StatusMemory is the variable to determine if the memory is OK or not
 type StatusMemory struct {
 	HealthRollup string `json:"HealthRollup"`
+	Health       string `json:"Health"`
 }
