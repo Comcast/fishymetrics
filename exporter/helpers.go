@@ -441,48 +441,6 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 	return driveEndpoints, nil
 }
 
-func getFirmwareEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
-	var fwEpUrls oem.Collection
-	var resp *http.Response
-	var err error
-	retryCount := 0
-	req := common.BuildRequest(url, host)
-
-	resp, err = common.DoRequest(client, req)
-	if err != nil {
-		return fwEpUrls, err
-	}
-	defer resp.Body.Close()
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
-				time.Sleep(client.RetryWaitMin)
-				resp, err = common.DoRequest(client, req)
-				retryCount = retryCount + 1
-			}
-			if err != nil {
-				return fwEpUrls, err
-			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-				return fwEpUrls, fmt.Errorf("HTTP status %d", resp.StatusCode)
-			}
-		} else {
-			return fwEpUrls, fmt.Errorf("HTTP status %d", resp.StatusCode)
-		}
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fwEpUrls, fmt.Errorf("Error reading Response Body - " + err.Error())
-	}
-
-	err = json.Unmarshal(body, &fwEpUrls)
-	if err != nil {
-		return fwEpUrls, fmt.Errorf("Error Unmarshalling Memory Collection struct - " + err.Error())
-	}
-
-	return fwEpUrls, nil
-}
-
 func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
 	var processors oem.Collection
 	var resp *http.Response

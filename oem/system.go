@@ -29,6 +29,8 @@ type System struct {
 	Memory            Link          `json:"Memory"`
 	Volumes           LinksWrapper  `json:"Volumes"`
 	FirmwareInventory LinksWrapper  `json:"FirmwareInventory"`
+	Storage           Link          `json:"Storage"`
+	UpdateService     Link          `json:"UpdateService"`
 }
 
 type OemSys struct {
@@ -81,4 +83,5 @@ type MemorySummary struct {
 // StatusMemory is the variable to determine if the memory is OK or not
 type StatusMemory struct {
 	HealthRollup string `json:"HealthRollup"`
+	Health       string `json:"Health"`
 }
