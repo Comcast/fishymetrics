@@ -55,7 +55,7 @@ type SystemLinksUpper struct {
 type SystemLinksLower struct {
 	SmartStorage      HRef `json:"SmartStorage"`
 	FirmwareInventory HRef `json:"FirmwareInventory"`
-	Memory            Link `json:"Memory"`
+	Memory            HRef `json:"Memory"`
 }
 
 type SmartStorageBattery struct {
