@@ -358,18 +358,21 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 			}
 
 			// If Volumes are present, parse volumes endpoint until all urls are found
-			if arrayCtrlResp.Volumes.URL != "" {
-				volumeOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.Volumes.URL, host, client)
-				if err != nil {
-					log.Error("api call "+fqdn+arrayCtrlResp.Volumes.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-					return driveEndpoints, err
-				}
+			if len(arrayCtrlResp.Volumes.LinksURLSlice) > 0 {
+				for _, volume := range arrayCtrlResp.Volumes.LinksURLSlice {
+					url := appendSlash(volume)
+					volumeOutput, err := getDriveEndpoint(fqdn+url, host, client)
+					if err != nil {
+						log.Error("api call "+fqdn+url+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						return driveEndpoints, err
+					}
 
-				for _, member := range volumeOutput.Members {
-					if reg, ok := excludes["drive"]; ok {
-						if !reg.(*regexp.Regexp).MatchString(member.URL) {
-							if checkUnique(driveEndpoints.logicalDriveURLs, member.URL) {
-								driveEndpoints.logicalDriveURLs = append(driveEndpoints.logicalDriveURLs, appendSlash(member.URL))
+					for _, member := range volumeOutput.Members {
+						if reg, ok := excludes["drive"]; ok {
+							if !reg.(*regexp.Regexp).MatchString(member.URL) {
+								if checkUnique(driveEndpoints.logicalDriveURLs, member.URL) {
+									driveEndpoints.logicalDriveURLs = append(driveEndpoints.logicalDriveURLs, appendSlash(member.URL))
+								}
 							}
 						}
 					}
@@ -453,48 +456,6 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 	return driveEndpoints, nil
 }
 
-func getFirmwareEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
-	var fwEpUrls oem.Collection
-	var resp *http.Response
-	var err error
-	retryCount := 0
-	req := common.BuildRequest(url, host)
-
-	resp, err = common.DoRequest(client, req)
-	if err != nil {
-		return fwEpUrls, err
-	}
-	defer resp.Body.Close()
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
-				time.Sleep(client.RetryWaitMin)
-				resp, err = common.DoRequest(client, req)
-				retryCount = retryCount + 1
-			}
-			if err != nil {
-				return fwEpUrls, err
-			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-				return fwEpUrls, fmt.Errorf("HTTP status %d", resp.StatusCode)
-			}
-		} else {
-			return fwEpUrls, fmt.Errorf("HTTP status %d", resp.StatusCode)
-		}
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fwEpUrls, fmt.Errorf("Error reading Response Body - " + err.Error())
-	}
-
-	err = json.Unmarshal(body, &fwEpUrls)
-	if err != nil {
-		return fwEpUrls, fmt.Errorf("Error Unmarshalling Memory Collection struct - " + err.Error())
-	}
-
-	return fwEpUrls, nil
-}
-
 func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
 	var processors oem.Collection
 	var resp *http.Response
@@ -554,4 +515,49 @@ func checkUnique(s []string, str string) bool {
 		}
 	}
 	return true
+}
+
+// GetFirstNonEmptyURL returns the first non-empty URL from the provided list.
+func GetFirstNonEmptyURL(urls ...string) string {
+	for _, url := range urls {
+		if url != "" {
+			return url
+		}
+	}
+	return ""
+}
+
+// GetMemoryURL assigns the appropriate URL to the Memory field.
+func GetMemoryURL(sysResp oem.System) string {
+	return GetFirstNonEmptyURL(
+		sysResp.Memory.URL,
+		sysResp.Oem.Hpe.Links.Memory.URL,
+		sysResp.Oem.Hp.Links.Memory.URL,
+		sysResp.Oem.Hpe.LinksLower.Memory.URL,
+		sysResp.Oem.Hp.LinksLower.Memory.URL,
+	)
+}
+
+// GetSmartStorageURL assigns the appropriate URL to the SmartStorage field.
+func GetSmartStorageURL(sysResp oem.System) string {
+	ss := GetFirstNonEmptyURL(
+		sysResp.Oem.Hpe.Links.SmartStorage.URL,
+		sysResp.Oem.Hp.Links.SmartStorage.URL,
+		sysResp.Oem.Hpe.LinksLower.SmartStorage.URL,
+		sysResp.Oem.Hp.LinksLower.SmartStorage.URL,
+	)
+	if ss != "" {
+		ss = appendSlash(ss) + "ArrayControllers/"
+	}
+	return ss
+}
+
+// GetFirmwareInventoryURL assigns the appropriate URL to the FirmwareInventory field.
+func GetFirmwareInventoryURL(sysResp oem.System) string {
+	return GetFirstNonEmptyURL(
+		sysResp.Oem.Hpe.Links.FirmwareInventory.URL,
+		sysResp.Oem.Hp.Links.FirmwareInventory.URL,
+		sysResp.Oem.Hpe.LinksLower.FirmwareInventory.URL,
+		sysResp.Oem.Hp.LinksLower.FirmwareInventory.URL,
+	)
 }

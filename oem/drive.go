@@ -128,14 +128,14 @@ func (w *LocationWrapper) UnmarshalJSON(data []byte) error {
 // /redfish/v1/Systems/X/SmartStorage/ArrayControllers/ for Logical and Physical Drives
 // /redfish/v1/Chassis/X/Drives/ for NVMe Drive(s)
 type GenericDrive struct {
-	Members       []Members  `json:"Members,omitempty"`
-	LinksUpper    LinksUpper `json:"Links,omitempty"`
-	LinksLower    LinksLower `json:"links,omitempty"`
-	MembersCount  int        `json:"Members@odata.count,omitempty"`
-	DriveCount    int        `json:"Drives@odata.count,omitempty"`
-	StorageDrives []Link     `json:"Drives,omitempty"`
-	Volumes       Link       `json:"Volumes,omitempty"`
-	Controllers   Link       `json:"Controllers,omitempty"`
+	Members       []Members    `json:"Members,omitempty"`
+	LinksUpper    LinksUpper   `json:"Links,omitempty"`
+	LinksLower    LinksLower   `json:"links,omitempty"`
+	MembersCount  int          `json:"Members@odata.count,omitempty"`
+	DriveCount    int          `json:"Drives@odata.count,omitempty"`
+	StorageDrives []Link       `json:"Drives,omitempty"`
+	Volumes       LinksWrapper `json:"Volumes,omitempty"`
+	Controllers   Link         `json:"Controllers,omitempty"`
 }
 
 type Members struct {

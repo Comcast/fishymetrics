@@ -161,10 +161,14 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				watts = ps.LastPowerOutputWatts.(float64)
 			case string:
 				watts, _ = strconv.ParseFloat(ps.LastPowerOutputWatts.(string), 32)
+			default:
+				watts = 9999
 			}
 
-			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
-			if ps.Status.Health == "OK" {
+			if watts != 9999 {
+				(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
+			}
+			if ps.Status.Health == "OK" || ps.Status.Health == "Ok" {
 				state = OK
 			} else if ps.Status.Health == "" {
 				state = OK
@@ -447,10 +451,10 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 	}
 	// Check memory status and convert string to numeric values
 	// Ignore memory summary if status is not present
-	if dlm.MemorySummary.Status.HealthRollup == "" {
-		return nil
-	} else if dlm.MemorySummary.Status.HealthRollup == "OK" {
+	if dlm.MemorySummary.Status.HealthRollup == "OK" || dlm.MemorySummary.Status.Health == "OK" {
 		state = OK
+	} else if dlm.MemorySummary.Status.HealthRollup == "" {
+		return nil
 	} else {
 		state = BAD
 	}
