@@ -256,8 +256,12 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 			if len(controllerOutput.Volumes.LinksURLSlice) > 0 {
 				for _, volume := range controllerOutput.Volumes.LinksURLSlice {
 					url := appendSlash(volume)
-					if checkUnique(sysEndpoints.volumes, url) {
-						sysEndpoints.volumes = append(sysEndpoints.volumes, url)
+					if reg, ok := excludes["drive"]; ok {
+						if !reg.(*regexp.Regexp).MatchString(url) {
+							if checkUnique(sysEndpoints.volumes, url) {
+								sysEndpoints.volumes = append(sysEndpoints.volumes, url)
+							}
+						}
 					}
 				}
 			}
@@ -319,9 +323,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		if systemMemoryEndpoint != "" {
 			dimms, err = getDIMMEndpoints(exp.url+systemMemoryEndpoint, target, retryClient)
 			if err != nil {
-				log.Error("error when getting DIMM endpoints",
-					zap.Error(err),
-					zap.Any("trace_id", ctx.Value("traceID")))
+				log.Error("error when getting DIMM endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 				return nil, err
 			}
 		}
@@ -341,17 +343,17 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	var ss = GetSmartStorageURL(sysResp)
 	var driveEndpointsResp DriveEndpoints
 	if ss != "" {
-		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient)
+		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient, excludes)
 		if err != nil {
 			log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
 		}
 	}
 
-	if len(sysEndpoints.storageController) == 0 && ss == "" {
+	if (len(sysEndpoints.storageController) == 0 && ss == "") || (len(sysEndpoints.drives) == 0 && len(driveEndpointsResp.physicalDriveURLs) == 0) {
 		if sysResp.Storage.URL != "" {
 			url := appendSlash(sysResp.Storage.URL)
-			driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+url, target, retryClient)
+			driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+url, target, retryClient, excludes)
 			if err != nil {
 				log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 				return nil, err
@@ -418,7 +420,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	}
 
 	for _, url := range driveEndpointsResp.physicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, DISKDRIVE)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, UNKNOWN_DRIVE)))
 	}
 
 	// drives from this list could either be NVMe or physical SAS/SATA

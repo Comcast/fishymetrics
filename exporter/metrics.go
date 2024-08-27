@@ -84,7 +84,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		StorageControllerMetrics = &metrics{
-			"storageControllerStatus": newServerMetric("redfish_storage_controller_status", "Current storage controller status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel", "firmwareVersion", "model"}),
+			"storageControllerStatus": newServerMetric("redfish_storage_controller_status", "Current storage controller status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel", "firmwareVersion", "model", "location"}),
 		}
 
 		MemoryMetrics = &metrics{
