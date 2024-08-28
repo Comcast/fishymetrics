@@ -19,6 +19,8 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Storage controller status metric for HP servers [#79](https://github.com/Comcast/fishymetrics/issues/79)
 - Ignore CPU metrics if Processor is Absent [#79](https://github.com/Comcast/fishymetrics/issues/79)
 - Added support for metrics collection from Dell servers [#77](https://github.com/Comcast/fishymetrics/issues/77)
+- Added support for firmware metrics collection from all supported servers and iLO versions from a single universal exporter [#83](https://github.com/Comcast/fishymetrics/issues/83)
+- Added support for Supermicro models metrics collection [#87](https://github.com/Comcast/fishymetrics/issues/87)
 
 ## Fixed
 
@@ -29,6 +31,9 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Firmware gathering endpoint update and add device info to other HP models [#55](https://github.com/Comcast/fishymetrics/issues/55)
 - C220 drive metrics on hosts with fw < 4.0, psu metrics result and label values [#57](https://github.com/Comcast/fishymetrics/issues/57)
 - Chassis ComputerSystems field is handled improperly [#68](https://github.com/Comcast/fishymetrics/issues/68)
+- Power and Thermal metrics collection for Dell R7xxXD server models [#77](https://github.com/Comcast/fishymetrics/issues/77)
+- Firmware metrics and request headers update for Dell iDRAC9 with FW ver.3.xx and 4.xx [#77](https://github.com/Comcast/fishymetrics/issues/77)
+- Power supply status duplicate bay number metrics [#85] (https://github.com/Comcast/fishymetrics/issues/85)
 
 ## Updated
 
@@ -41,6 +46,8 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - get chassis serial number from JSON response instead of url path [#50](https://github.com/Comcast/fishymetrics/issues/50)
 - HP DL380 module to include CPU metrics and all HP models to include bayNumber in PSU metrics [#57](https://github.com/Comcast/fishymetrics/issues/57)
 - use standard library for http routing instead of gorilla mux package [#47](https://github.com/Comcast/fishymetrics/issues/47)
+- Avoid collecting firmware metrics if count of endpoints are 75 or greater [#77] (https://github.com/Comcast/fishymetrics/issues/77)
+- Support for physical disk, logical drive and storage controller metrics collection from iLO5 fw ver.3.0.x [#91](https://github.com/Comcast/fishymetrics/issues/91)
 
 ## [0.7.1]
 

@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -64,6 +65,8 @@ const (
 	STORAGEBATTERY = "StorBatteryMetrics"
 	// ILOSELFTEST represents the processor metric endpoints
 	ILOSELFTEST = "iloSelfTestMetrics"
+	// FIRMWAREINVENTORY represents the component firmware metric endpoints
+	FIRMWAREINVENTORY = "FirmwareInventoryMetrics"
 	// OK is a string representation of the float 1.0 for device status
 	OK = 1.0
 	// BAD is a string representation of the float 0.0 for device status
@@ -250,14 +253,21 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 				log.Error("error when getting storage controller metadata", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 				return nil, err
 			}
-			if controllerOutput.Volumes.URL != "" {
-				url := appendSlash(controllerOutput.Volumes.URL)
-				if checkUnique(sysEndpoints.volumes, url) {
-					sysEndpoints.volumes = append(sysEndpoints.volumes, url)
+			if len(controllerOutput.Volumes.LinksURLSlice) > 0 {
+				for _, volume := range controllerOutput.Volumes.LinksURLSlice {
+					url := appendSlash(volume)
+					if reg, ok := excludes["drive"]; ok {
+						if !reg.(*regexp.Regexp).MatchString(url) {
+							if checkUnique(sysEndpoints.volumes, url) {
+								sysEndpoints.volumes = append(sysEndpoints.volumes, url)
+							}
+						}
+					}
 				}
 			}
 		}
 	}
+
 	if len(sysEndpoints.volumes) > 0 {
 		for _, volume := range sysEndpoints.volumes {
 			virtualDrives, err := getMemberUrls(exp.url+volume, target, retryClient)
@@ -298,7 +308,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 			return nil, err
 		}
 		exp.biosVersion = sysResp.BiosVersion
-		exp.ChassisSerialNumber = sysResp.SerialNumber
+		exp.ChassisSerialNumber = strings.TrimRight(sysResp.SerialNumber, " ")
 		exp.systemHostname = sysResp.SystemHostname
 
 		// call /redfish/v1/Systems/XXXXX/ for memory summary and smart storage batteries
@@ -309,10 +319,13 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 				handle(&exp, MEMORY_SUMMARY, STORAGEBATTERY)))
 
 		// DIMM endpoints array
-		dimms, err = getDIMMEndpoints(exp.url+sysEndpoints.systems[0]+"Memory/", target, retryClient)
-		if err != nil {
-			log.Error("error when getting DIMM endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-			return nil, err
+		var systemMemoryEndpoint = GetMemoryURL(sysResp)
+		if systemMemoryEndpoint != "" {
+			dimms, err = getDIMMEndpoints(exp.url+systemMemoryEndpoint, target, retryClient)
+			if err != nil {
+				log.Error("error when getting DIMM endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
+			}
 		}
 
 		// CPU processor metrics
@@ -326,32 +339,25 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	}
 
 	// check for SmartStorage endpoint from either Hp or Hpe
-	var ss string
-	if sysResp.Oem.Hpe.Links.SmartStorage.URL != "" {
-		ss = appendSlash(sysResp.Oem.Hpe.Links.SmartStorage.URL) + "ArrayControllers/"
-	} else if sysResp.Oem.Hp.Links.SmartStorage.URL != "" {
-		ss = appendSlash(sysResp.Oem.Hp.Links.SmartStorage.URL) + "ArrayControllers/"
-	} else if sysResp.Oem.Hpe.LinksLower.SmartStorage.URL != "" {
-		ss = appendSlash(sysResp.Oem.Hpe.LinksLower.SmartStorage.URL) + "ArrayControllers/"
-	} else if sysResp.Oem.Hp.LinksLower.SmartStorage.URL != "" {
-		ss = appendSlash(sysResp.Oem.Hp.LinksLower.SmartStorage.URL) + "ArrayControllers/"
-	}
-
 	// skip if SmartStorage URL is not present
+	var ss = GetSmartStorageURL(sysResp)
 	var driveEndpointsResp DriveEndpoints
 	if ss != "" {
-		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient)
+		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient, excludes)
 		if err != nil {
 			log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
 			return nil, err
 		}
 	}
 
-	if len(sysEndpoints.storageController) == 0 && ss == "" {
-		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+sysEndpoints.systems[0]+"Storage/", target, retryClient)
-		if err != nil {
-			log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
-			return nil, err
+	if (len(sysEndpoints.storageController) == 0 && ss == "") || (len(sysEndpoints.drives) == 0 && len(driveEndpointsResp.physicalDriveURLs) == 0) {
+		if sysResp.Storage.URL != "" {
+			url := appendSlash(sysResp.Storage.URL)
+			driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+url, target, retryClient, excludes)
+			if err != nil {
+				log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
+			}
 		}
 	}
 
@@ -359,6 +365,50 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		zap.Strings("logical_drive_endpoints", driveEndpointsResp.logicalDriveURLs),
 		zap.Strings("physical_drive_endpoints", driveEndpointsResp.physicalDriveURLs),
 		zap.Any("trace_id", ctx.Value("traceID")))
+
+	//Firmware Inventory - Try the iLo 4 firmware inventory endpoints using sysEndpoints.systems URL
+	// call /redfish/v1/Systems/XXXX/FirmwareInventory/
+	var systemFML = GetFirmwareInventoryURL(sysResp)
+	var firmwareInventoryEndpoints []string
+	if systemFML != "" {
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+systemFML, target, profile, retryClient), exp.url+systemFML, handle(&exp, FIRMWAREINVENTORY)))
+	} else {
+		// Check for /redfish/v1/Managers/XXXX/UpdateService/ for firmware inventory URL
+		rootComponents, err := getSystemsMetadata(exp.url+uri, target, retryClient)
+		if err != nil {
+			log.Error("error when getting root components metadata", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			return nil, err
+		}
+		if rootComponents.UpdateService.URL != "" {
+			updateServiceEndpoints, err := getSystemsMetadata(exp.url+rootComponents.UpdateService.URL, target, retryClient)
+			if err != nil {
+				log.Error("error when getting update service metadata", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				return nil, err
+			}
+
+			if len(updateServiceEndpoints.FirmwareInventory.LinksURLSlice) == 1 {
+				firmwareInventoryEndpoints, err = getMemberUrls(exp.url+updateServiceEndpoints.FirmwareInventory.LinksURLSlice[0], target, retryClient)
+				if err != nil {
+					log.Error("error when getting firmware inventory endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					return nil, err
+				}
+			} else if len(updateServiceEndpoints.FirmwareInventory.LinksURLSlice) > 1 {
+				firmwareInventoryEndpoints = updateServiceEndpoints.FirmwareInventory.LinksURLSlice
+			}
+
+			if len(firmwareInventoryEndpoints) < 75 {
+				for _, fwEp := range firmwareInventoryEndpoints {
+					// this list can potentially be large and cause scrapes to take a long time
+					// see the '--collector.firmware.modules-exclude' config in the README for more information
+					if reg, ok := excludes["firmware"]; ok {
+						if !reg.(*regexp.Regexp).MatchString(fwEp) {
+							tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+fwEp, target, profile, retryClient), exp.url+fwEp, handle(&exp, FIRMWAREINVENTORY)))
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// Loop through arrayControllerURLs, logicalDriveURLs, physicalDriveURLs, and nvmeDriveURLs and append each URL to the tasks pool
 	for _, url := range driveEndpointsResp.arrayControllerURLs {
@@ -370,7 +420,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	}
 
 	for _, url := range driveEndpointsResp.physicalDriveURLs {
-		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, DISKDRIVE)))
+		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, UNKNOWN_DRIVE)))
 	}
 
 	// drives from this list could either be NVMe or physical SAS/SATA

@@ -56,7 +56,10 @@ func handle(exp *Exporter, metricType ...string) []common.Handler {
 			handlers = append(handlers, exp.exportStorageBattery)
 		} else if m == ILOSELFTEST {
 			handlers = append(handlers, exp.exportIloSelfTest)
+		} else if m == FIRMWAREINVENTORY {
+			handlers = append(handlers, exp.exportFirmwareInventoryMetrics)
 		}
+
 	}
 
 	return handlers
@@ -144,6 +147,13 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	}
 
 	for _, ps := range pm.PowerSupplies {
+		// if power supply status state is present, capture the bay number
+		if ps.Oem.Hp.PowerSupplyStatus.State != "" {
+			bay = ps.Oem.Hp.BayNumber
+		} else if ps.Oem.Hpe.PowerSupplyStatus.State != "" {
+			bay = ps.Oem.Hpe.BayNumber
+		}
+
 		if ps.Status.State == "Enabled" {
 			var watts float64
 			switch ps.LastPowerOutputWatts.(type) {
@@ -151,16 +161,14 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				watts = ps.LastPowerOutputWatts.(float64)
 			case string:
 				watts, _ = strconv.ParseFloat(ps.LastPowerOutputWatts.(string), 32)
+			default:
+				watts = 9999
 			}
 
-			if ps.Oem.Hp.PowerSupplyStatus.State != "" {
-				bay = ps.Oem.Hp.BayNumber
-			} else if ps.Oem.Hpe.PowerSupplyStatus.State != "" {
-				bay = ps.Oem.Hpe.BayNumber
+			if watts != 9999 {
+				(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
 			}
-
-			(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
-			if ps.Status.Health == "OK" {
+			if ps.Status.Health == "OK" || ps.Status.Health == "Ok" {
 				state = OK
 			} else if ps.Status.Health == "" {
 				state = OK
@@ -171,7 +179,9 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			state = BAD
 		}
 
-		(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
+		if ps.Status.State != "Absent" {
+			(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
+		}
 	}
 
 	return nil
@@ -270,7 +280,9 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - " + err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
-	if dlphysical.Status.State == "Enabled" {
+	if dlphysical.Status.State == "Absent" {
+		return nil
+	} else if dlphysical.Status.State == "Enabled" {
 		if dlphysical.Status.Health == "OK" {
 			state = OK
 		} else {
@@ -350,8 +362,8 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	}
 
 	// Check nvme drive is enabled then check status and convert string to numeric values
-	if dlnvme.Oem.Hpe.DriveStatus.State == "Enabled" {
-		if dlnvme.Oem.Hpe.DriveStatus.Health == "OK" {
+	if dlnvme.Status.State == "Enabled" || dlnvme.Oem.Hpe.DriveStatus.State == "Enabled" {
+		if dlnvme.Status.Health == "OK" || dlnvme.Oem.Hpe.DriveStatus.Health == "OK" {
 			state = OK
 		} else {
 			state = BAD
@@ -378,7 +390,7 @@ func (e *Exporter) exportUnknownDriveMetrics(body []byte) error {
 		if err != nil {
 			return fmt.Errorf("Error Unmarshalling NVMeDriveMetrics - " + err.Error())
 		}
-	} else if protocol.Protocol != "" {
+	} else {
 		err = e.exportPhysicalDriveMetrics(body)
 		if err != nil {
 			return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - " + err.Error())
@@ -408,18 +420,18 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 			} else {
 				state = BAD
 			}
-			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, sc.FirmwareVersion, sc.Model).Set(state)
+			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, sc.FirmwareVersion, sc.Model, sc.Location.Location).Set(state)
 		}
 	}
 
 	if len(scm.StorageController.StorageController) == 0 {
-		if scm.Status.State == "Enabled" {
+		if scm.Status.State == "Enabled" && scm.Status.Health != "" {
 			if scm.Status.Health == "OK" {
 				state = OK
 			} else {
 				state = BAD
 			}
-			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, scm.ControllerFirmware.FirmwareVersion, scm.Model).Set(state)
+			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, scm.ControllerFirmware.FirmwareVersion, scm.Model, scm.Location.Location).Set(state)
 		}
 	}
 
@@ -439,10 +451,10 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 	}
 	// Check memory status and convert string to numeric values
 	// Ignore memory summary if status is not present
-	if dlm.MemorySummary.Status.HealthRollup == "" {
-		return nil
-	} else if dlm.MemorySummary.Status.HealthRollup == "OK" {
+	if dlm.MemorySummary.Status.HealthRollup == "OK" || dlm.MemorySummary.Status.Health == "OK" {
 		state = OK
+	} else if dlm.MemorySummary.Status.HealthRollup == "" {
+		return nil
 	} else {
 		state = BAD
 	}
@@ -632,6 +644,33 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	}
 	(*proc)["processorStatus"].WithLabelValues(pm.Id, e.ChassisSerialNumber, e.Model, pm.Socket, pm.Model, totCores).Set(state)
 
+	return nil
+}
+
+// exportFirmwareInventoryMetrics collects the inventory component's firmware metrics in json format and sets the prometheus guages
+func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
+	var fwcomponent oem.ILO4Firmware
+	var component = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
+
+	err := json.Unmarshal(body, &fwcomponent)
+	if err != nil {
+		return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
+	}
+	// Export for iLO4 since it has a different structure
+	if len(fwcomponent.Current.Firmware) > 0 {
+		for _, firmware := range fwcomponent.Current.Firmware {
+			(*component)["componentFirmware"].WithLabelValues(firmware.Id, firmware.Name, firmware.Location, firmware.VersionString).Set(1.0)
+		}
+	} else {
+		// Export for iLO5, since it's structure matches the GenericFirmware struct
+		var fwcomponent oem.GenericFirmware
+		err := json.Unmarshal(body, &fwcomponent)
+		if err != nil {
+			return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
+		}
+
+		(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, fwcomponent.Name, fwcomponent.Description, fwcomponent.Version).Set(1.0)
+	}
 	return nil
 }
 

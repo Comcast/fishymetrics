@@ -114,6 +114,8 @@ func BuildRequest(uri, host string) *retryablehttp.Request {
 
 	req, _ := retryablehttp.NewRequest(http.MethodGet, uri, nil)
 	req.SetBasicAuth(user, password)
+	// this header is required by iDRAC9 with FW ver. 3.xx and 4.xx
+	req.Header.Add("Accept", "application/json")
 
 	return req
 }

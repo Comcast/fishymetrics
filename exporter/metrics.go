@@ -73,7 +73,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"nvmeDriveStatus": newServerMetric("redfish_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"chassisSerialNumber", "chassisModel", "protocol", "id", "serviceLabel"}),
 		}
 
-		// Phyiscal Storage Disk Drive Metrics
+		// Physical Storage Disk Drive Metrics
 		DiskDriveMetrics = &metrics{
 			"driveStatus": newServerMetric("redfish_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "chassisSerialNumber", "chassisModel", "id", "location", "serialnumber", "capacityMiB"}),
 		}
@@ -84,7 +84,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		StorageControllerMetrics = &metrics{
-			"storageControllerStatus": newServerMetric("redfish_storage_controller_status", "Current storage controller status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel", "firmwareVersion", "model"}),
+			"storageControllerStatus": newServerMetric("redfish_storage_controller_status", "Current storage controller status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel", "firmwareVersion", "model", "location"}),
 		}
 
 		MemoryMetrics = &metrics{
@@ -92,23 +92,29 @@ func NewDeviceMetrics() *map[string]*metrics {
 			"memoryDimmStatus": newServerMetric("redfish_memory_dimm_status", "Current dimm status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel", "capacityMiB", "manufacturer", "partNumber"}),
 		}
 
+		// Component Firmware Metrics
+		FirmwareInventoryMetrics = &metrics{
+			"componentFirmware": newServerMetric("redfish_component_firmware", "Current firmware component status 1 = OK, 0 = BAD", nil, []string{"id", "name", "description", "version"}),
+		}
+
 		DeviceMetrics = &metrics{
 			"deviceInfo": newServerMetric("redfish_device_info", "Current snapshot of device firmware information", nil, []string{"name", "chassisSerialNumber", "chassisModel", "firmwareVersion", "biosVersion"}),
 		}
 
 		Metrics = &map[string]*metrics{
-			"up":                  UpMetric,
-			"thermalMetrics":      ThermalMetrics,
-			"powerMetrics":        PowerMetrics,
-			"processorMetrics":    ProcessorMetrics,
-			"nvmeMetrics":         NVMeDriveMetrics,
-			"diskDriveMetrics":    DiskDriveMetrics,
-			"logicalDriveMetrics": LogicalDriveMetrics,
-			"storBatteryMetrics":  StorageBatteryMetrics,
-			"storageCtrlMetrics":  StorageControllerMetrics,
-			"iloSelfTestMetrics":  IloSelfTestMetrics,
-			"memoryMetrics":       MemoryMetrics,
-			"deviceInfo":          DeviceMetrics,
+			"up":                       UpMetric,
+			"thermalMetrics":           ThermalMetrics,
+			"powerMetrics":             PowerMetrics,
+			"processorMetrics":         ProcessorMetrics,
+			"nvmeMetrics":              NVMeDriveMetrics,
+			"diskDriveMetrics":         DiskDriveMetrics,
+			"logicalDriveMetrics":      LogicalDriveMetrics,
+			"storBatteryMetrics":       StorageBatteryMetrics,
+			"storageCtrlMetrics":       StorageControllerMetrics,
+			"iloSelfTestMetrics":       IloSelfTestMetrics,
+			"firmwareInventoryMetrics": FirmwareInventoryMetrics,
+			"memoryMetrics":            MemoryMetrics,
+			"deviceInfo":               DeviceMetrics,
 		}
 	)
 

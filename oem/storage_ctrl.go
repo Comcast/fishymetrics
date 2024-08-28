@@ -23,22 +23,24 @@ import (
 // /redfish/v1/Systems/WZPXXXXX/Storage/MRAID
 
 type StorageControllerMetrics struct {
+	ControllerFirmware FirmwareVersionWrapper   `json:"FirmwareVersion"`
+	Drives             []Drive                  `json:"Drives"`
+	Location           StorCtrlLocationWrapper  `json:"Location"`
+	Model              string                   `json:"Model"`
 	Name               string                   `json:"Name"`
 	StorageController  StorageControllerWrapper `json:"StorageControllers"`
-	Drives             []Drive                  `json:"Drives"`
 	Status             Status                   `json:"Status"`
-	Model              string                   `json:"Model"`
-	ControllerFirmware FirmwareVersionWrapper   `json:"FirmwareVersion"`
 }
 
 // StorageController contains status metadata of the C220 chassis storage controller
 type StorageController struct {
-	Status          Status `json:"Status"`
-	MemberId        string `json:"MemberId"`
-	Manufacturer    string `json:"Manufacturer,omitempty"`
-	Model           string `json:"Model"`
-	Name            string `json:"Name"`
-	FirmwareVersion string `json:"FirmwareVersion"`
+	Status          Status                  `json:"Status"`
+	MemberId        string                  `json:"MemberId"`
+	Manufacturer    string                  `json:"Manufacturer,omitempty"`
+	Model           string                  `json:"Model"`
+	Name            string                  `json:"Name"`
+	FirmwareVersion string                  `json:"FirmwareVersion"`
+	Location        StorCtrlLocationWrapper `json:"Location,omitempty"`
 }
 
 type StorageControllerSlice struct {
@@ -107,4 +109,20 @@ type ExtendedInfo struct {
 	Message    string   `json:"Message"`
 	MessageArg []string `json:"MessageArgs"`
 	Severity   string   `json:"Severity"`
+}
+
+type StorCtrlLocationWrapper struct {
+	Location string
+}
+
+func (w *StorCtrlLocationWrapper) UnmarshalJSON(data []byte) error {
+	var location PhysicalLocation
+	err := json.Unmarshal(data, &location)
+	if err == nil {
+		w.Location = location.PartLocation.ServiceLabel
+	} else {
+		return json.Unmarshal(data, &w.Location)
+	}
+
+	return nil
 }
