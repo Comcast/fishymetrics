@@ -63,7 +63,7 @@ const (
 	GoodStorageControllerExpected = `
         # HELP redfish_storage_controller_status Current storage controller status 1 = OK, 0 = BAD
         # TYPE redfish_storage_controller_status gauge
-        redfish_storage_controller_status{chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xxx.xx-xxxx",model="raid model",name="SBMezz1"} 1
+        redfish_storage_controller_status{chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xxx.xx-xxxx",location="",model="raid model",name="SBMezz1"} 1
 	`
 	GoodILOSelfTestExpected = `
         # HELP redfish_ilo_selftest_status Current ilo selftest status 1 = OK, 0 = BAD
