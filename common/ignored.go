@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/comcast/fishymetrics/config"
 	"go.uber.org/zap"
 )
 
@@ -112,7 +113,7 @@ func TestConn(w http.ResponseWriter, r *http.Request) {
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: config.GetConfig().SSLVerify,
 		},
 		TLSHandshakeTimeout: 10 * time.Second,
 	}

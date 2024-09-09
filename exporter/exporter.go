@@ -119,7 +119,7 @@ type Plugin interface {
 }
 
 // NewExporter returns an initialized Exporter for a redfish API capable device.
-func NewExporter(ctx context.Context, target, uri, profile, model string, excludes Excludes, plugins ...Plugin) (*Exporter, error) {
+func NewExporter(ctx context.Context, insecureskipverify bool, target, uri, profile, model string, excludes Excludes, plugins ...Plugin) (*Exporter, error) {
 	var u *url.URL
 	var tasks []*pool.Task
 	var exp = Exporter{
@@ -141,7 +141,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: insecureskipverify,
 		},
 		TLSHandshakeTimeout: 10 * time.Second,
 	}

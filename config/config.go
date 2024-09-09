@@ -26,6 +26,7 @@ type Config struct {
 	BMCTimeout time.Duration
 	User       string
 	Pass       string
+	SSLVerify  bool
 }
 
 var (
