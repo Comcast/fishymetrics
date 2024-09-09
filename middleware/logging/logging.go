@@ -26,10 +26,10 @@ import (
 )
 
 var (
-	log *zap.Logger
+	log         *zap.Logger
 	generate, _ = cuid2.Init(
-        cuid2.WithLength(32),
-    )
+		cuid2.WithLength(32),
+	)
 )
 
 // LoggingHandler accepts an http.Handler and wraps it with a
@@ -49,7 +49,7 @@ func LoggingHandler(h http.Handler) http.Handler {
 
 		defer func(start time.Time) {
 			log.Info("finished handling",
-				zap.String("model", query.Get("model")),
+				zap.String("model", query.Get("module")),
 				zap.String("target", query.Get("target")),
 				zap.String("sourceAddr", req.RemoteAddr),
 				zap.String("method", req.Method),
