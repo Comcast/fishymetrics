@@ -21,6 +21,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Added support for metrics collection from Dell servers [#77](https://github.com/Comcast/fishymetrics/issues/77)
 - Added support for firmware metrics collection from all supported servers and iLO versions from a single universal exporter [#83](https://github.com/Comcast/fishymetrics/issues/83)
 - Added support for Supermicro models metrics collection [#87](https://github.com/Comcast/fishymetrics/issues/87)
+- Added option to skip/unskip TLS verification [#94](https://github.com/Comcast/fishymetrics/issues/94)
 
 ## Fixed
 
