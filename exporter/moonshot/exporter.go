@@ -76,7 +76,7 @@ type Exporter struct {
 }
 
 // NewExporter returns an initialized Exporter for HPE Moonshot device.
-func NewExporter(ctx context.Context, insecureskipverify bool, target, uri, profile string) (*Exporter, error) {
+func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, error) {
 	var fqdn *url.URL
 	var tasks []*pool.MoonshotTask
 	var exp = Exporter{
@@ -97,7 +97,7 @@ func NewExporter(ctx context.Context, insecureskipverify bool, target, uri, prof
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: insecureskipverify,
+			InsecureSkipVerify: config.GetConfig().SSLVerify,
 		},
 		TLSHandshakeTimeout: 10 * time.Second,
 	}

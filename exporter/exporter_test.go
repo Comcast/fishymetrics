@@ -24,7 +24,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/comcast/fishymetrics/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -224,7 +223,7 @@ func Test_Exporter(t *testing.T) {
 			var exporter prometheus.Collector
 			var err error
 			var mockExcludes = make(map[string]interface{})
-			exporter, err = NewExporter(ctx, config.GetConfig().SSLVerify, server.URL, test.uri, "", "model a", mockExcludes)
+			exporter, err = NewExporter(ctx, server.URL, test.uri, "", "model a", mockExcludes)
 			assert.Nil(err)
 			assert.NotNil(exporter)
 

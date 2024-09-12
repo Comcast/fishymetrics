@@ -161,10 +161,10 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	if model == "moonshot" {
 		uri = "/rest/v1/chassis/1"
-		exp, err = moonshot.NewExporter(r.Context(), config.GetConfig().SSLVerify, target, uri, credProf)
+		exp, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
 	} else {
 		uri = "/redfish/v1"
-		exp, err = exporter.NewExporter(r.Context(), config.GetConfig().SSLVerify, target, uri, credProf, model, excludes, plugs...)
+		exp, err = exporter.NewExporter(r.Context(), target, uri, credProf, model, excludes, plugs...)
 	}
 
 	if err != nil {
