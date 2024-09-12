@@ -61,7 +61,7 @@ var (
 	password           = a.Flag("password", "BMC static password").Default("").Envar("BMC_PASSWORD").String()
 	bmcTimeout         = a.Flag("timeout", "BMC scrape timeout").Default("15s").Envar("BMC_TIMEOUT").Duration()
 	bmcScheme          = a.Flag("scheme", "BMC Scheme to use").Default("https").Envar("BMC_SCHEME").String()
-	insecureSkipVerify = a.Flag("insecure-skip-verify", "Skip TLS verification").Default("false").Envar("INSECURE_SKIP_VERIFY").Bool()
+	insecureSkipVerify = a.Flag("insecure-skip-verify", "Skip TLS verification").Default("true").Envar("INSECURE_SKIP_VERIFY").Bool()
 	logLevel           = a.Flag("log.level", "log level verbosity").PlaceHolder("[debug|info|warn|error]").Default("info").Envar("LOG_LEVEL").String()
 	logMethod          = a.Flag("log.method", "alternative method for logging in addition to stdout").PlaceHolder("[file|vector]").Default("").Envar("LOG_METHOD").String()
 	logFilePath        = a.Flag("log.file-path", "directory path where log files are written if log-method is file").Default("/var/log/fishymetrics").Envar("LOG_FILE_PATH").String()
