@@ -58,7 +58,7 @@ spec:
           {{- if .Values.collector.firmware.modulesExclude }}
             - --collector.firmware.modules-exclude={{ .Values.collector.firmware.modulesExclude }}
           {{- end }}
-          {{- if .Values.insecureskipverify.enabled }}
+          {{- if .Values.bmc.insecureSkipVerify }}
             - --insecure-skip-verify
           {{- end }}
           env:
