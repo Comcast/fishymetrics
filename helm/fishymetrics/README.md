@@ -51,7 +51,8 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | `vault.kv2Path`                                             | vault path where kv2 secrets will be retreived                                             | `"path/to/secret"`        |
 | `vault.kv2UserField`                                        | vault kv2 secret field where we get the username                                           | `"user"`                  |
 | `vault.kv2PasswordField`                                    | vault kv2 secret field where we get the password                                           | `"password"`              |
-| `collectors.drives.modulesExclude`                          | drive module(s) to exclude from the scrape                                                 | `""`                      |
+| `collector.drives.modulesExclude`                           | drive module(s) to exclude from the scrape                                                 | `""`                      |
+| `collector.firmware.modulesExclude`                         | firmware module(s) to exclude from the scrape                                                 | `""`                      |
 | `credentials.profiles`                                      | profile(s) with all necessary parameters to obtain BMC credential from secrets backend     | `[]`                      |
 | `vector.enabled`                                            | boolean flag to enable/disable vector log forwarding                                       | `false`                   |
 | `vector.endpoint`                                           | vector client endpoint, in most cases this is deployed to localhost                        | `"http://localhost:4444"` |
