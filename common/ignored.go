@@ -113,7 +113,7 @@ func TestConn(w http.ResponseWriter, r *http.Request) {
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.GetConfig().SSLVerify,
+			InsecureSkipVerify: config.GetSSLVerifyConfig().SSLVerify,
 		},
 		TLSHandshakeTimeout: 10 * time.Second,
 	}

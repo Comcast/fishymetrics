@@ -299,8 +299,12 @@ func main() {
 		BMCScheme: *bmcScheme,
 		User:      *username,
 		Pass:      *password,
+	})
+
+	config.NewSSLVerifyConfig(&config.SSLVerifyConfig{
 		SSLVerify: *insecureSkipVerify,
 	})
+	log.Info("ssl verify is set to " + strconv.FormatBool(config.GetSSLVerifyConfig().SSLVerify))
 
 	mux := http.NewServeMux()
 
