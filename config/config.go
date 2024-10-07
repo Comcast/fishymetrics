@@ -24,19 +24,14 @@ import (
 type Config struct {
 	BMCScheme  string
 	BMCTimeout time.Duration
+	SSLVerify  bool
 	User       string
 	Pass       string
 }
 
-type SSLVerifyConfig struct {
-	SSLVerify bool
-}
-
 var (
-	config        *Config
-	sslconfig     *SSLVerifyConfig
-	once          sync.Once
-	sslverifyonce sync.Once
+	config *Config
+	once   sync.Once
 )
 
 func NewConfig(c *Config) {
@@ -49,16 +44,6 @@ func NewConfig(c *Config) {
 	})
 }
 
-func NewSSLVerifyConfig(c *SSLVerifyConfig) {
-	sslverifyonce.Do(func() {
-		if c != nil {
-			sslconfig = c
-		} else {
-			sslconfig = &SSLVerifyConfig{}
-		}
-	})
-}
-
 func GetConfig() *Config {
 	if config != nil {
 		return config
@@ -66,13 +51,4 @@ func GetConfig() *Config {
 
 	NewConfig(nil)
 	return config
-}
-
-func GetSSLVerifyConfig() *SSLVerifyConfig {
-	if sslconfig != nil {
-		return sslconfig
-	}
-
-	NewSSLVerifyConfig(nil)
-	return sslconfig
 }

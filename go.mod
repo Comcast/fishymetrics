@@ -1,6 +1,6 @@
 module github.com/comcast/fishymetrics
 
-go 1.22
+go 1.23
 
 require (
 	github.com/hashicorp/go-hclog v1.6.3

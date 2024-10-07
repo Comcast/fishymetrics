@@ -46,7 +46,7 @@ func newVectorSink(u *url.URL) vectorSink {
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.GetSSLVerifyConfig().SSLVerify,
+			InsecureSkipVerify: config.GetConfig().SSLVerify,
 		},
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
