@@ -57,7 +57,7 @@ const indexTmpl string = `<html>
     </div>
     <form action="scrape">
       <label>Target:</label> <input type="text" name="target" placeholder="ip or fdqn"><br>
-      <label>Module:</label> <input type="text" name="module" placeholder="chassis model i.e. dl360"><br>
+      <label>Model:</label> <input type="text" name="model" placeholder="chassis model i.e. dl360"><br>
       <input type="submit" value="Submit">
     </form>
   </body>

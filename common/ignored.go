@@ -40,7 +40,7 @@ type host struct {
 type IgnoredDevice struct {
 	Name              string
 	Endpoint          string
-	Module            string
+	Model             string
 	CredentialProfile string
 }
 

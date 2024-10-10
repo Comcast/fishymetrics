@@ -49,7 +49,7 @@ func LoggingHandler(h http.Handler) http.Handler {
 
 		defer func(start time.Time) {
 			log.Info("finished handling",
-				zap.String("model", query.Get("module")),
+				zap.String("model", query.Get("model")),
 				zap.String("target", query.Get("target")),
 				zap.String("sourceAddr", req.RemoteAddr),
 				zap.String("method", req.Method),

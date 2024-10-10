@@ -190,7 +190,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 			common.IgnoredDevices[exp.host] = common.IgnoredDevice{
 				Name:              exp.host,
 				Endpoint:          "https://" + exp.host + "/redfish/v1/Chassis/",
-				Module:            model,
+				Model:             model,
 				CredentialProfile: exp.credProfile,
 			}
 			log.Info("added host "+exp.host+" to ignored list", zap.Any("trace_id", exp.ctx.Value("traceID")))
@@ -543,7 +543,7 @@ func (e *Exporter) scrape() {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis/",
-					Module:            e.Model,
+					Model:             e.Model,
 					CredentialProfile: e.credProfile,
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))

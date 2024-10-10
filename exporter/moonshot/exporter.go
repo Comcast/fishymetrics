@@ -270,7 +270,7 @@ func (e *Exporter) scrape() {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/rest/v1/chassis/1",
-					Module:            MOONSHOT,
+					Model:             MOONSHOT,
 					CredentialProfile: e.credProfile,
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))

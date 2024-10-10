@@ -110,12 +110,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: deprecate module query param in favor of model
-	moduleName := query.Get("module")
 	model := query.Get("model")
-	if model == "" {
-		model = moduleName
-	}
 
 	// optional query param is used to tell us which credential profile to use when retrieving that hosts username and password
 	credProf := query.Get("credential_profile")
@@ -131,9 +126,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// TODO: deprecate module log entry
 	log.Info("started scrape",
-		zap.String("module", model),
 		zap.String("model", model),
 		zap.String("target", target),
 		zap.String("credential_profile", credProf),

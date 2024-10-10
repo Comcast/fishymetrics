@@ -51,6 +51,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Avoid collecting firmware metrics if count of endpoints are 75 or greater [#77](https://github.com/Comcast/fishymetrics/issues/77)
 - Support for physical disk, logical drive and storage controller metrics collection from iLO5 fw ver.3.0.x [#91](https://github.com/Comcast/fishymetrics/issues/91)
 - Updated vault api, sdk and containerd packages to fix known security issues [#94](https://github.com/Comcast/fishymetrics/issues/94)
+- Deprecate module query param in favor of model [#94](https://github.com/Comcast/fishymetrics/issues/94)
 
 ## [0.7.1]
 
