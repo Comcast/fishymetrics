@@ -13,6 +13,7 @@ build:
 
 docker:
 	docker build \
+	--platform linux/amd64 \
 	--build-arg VERSION=${REPO_VERSION} \
 	--build-arg REPO_REV=${REPO_REV} \
 	--build-arg DATE=${BUILD_DATE} \

@@ -26,10 +26,10 @@ import (
 )
 
 var (
-	log *zap.Logger
+	log         *zap.Logger
 	generate, _ = cuid2.Init(
-        cuid2.WithLength(32),
-    )
+		cuid2.WithLength(32),
+	)
 )
 
 // LoggingHandler accepts an http.Handler and wraps it with a

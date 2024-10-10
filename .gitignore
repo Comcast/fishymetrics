@@ -98,6 +98,7 @@ bh_unicode_properties.cache
 GitHub.sublime-settings
 
 ### VisualStudioCode ###
+.dccache
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json

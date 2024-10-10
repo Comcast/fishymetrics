@@ -97,7 +97,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 		IdleConnTimeout:       90 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: config.GetConfig().SSLVerify,
 		},
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
@@ -270,7 +270,7 @@ func (e *Exporter) scrape() {
 				common.IgnoredDevices[e.host] = common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/rest/v1/chassis/1",
-					Module:            MOONSHOT,
+					Model:             MOONSHOT,
 					CredentialProfile: e.credProfile,
 				}
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))

@@ -21,15 +21,22 @@ bmc:
   password: ""
   timeout: 15s
   scheme: "https"
+  insecureSkipVerify: false
 
 vault:
   address: "https://vault.com"
   roleId: ""
   secretId: ""
 
-collector: {}
+collector:
+  drives:
+    modulesExclude: ""
+  firmware:
+    modulesExclude: ""
 # drives:
 #   modulesExclude: "(?i)(FlexUtil|(SBMezz|IOEMezz)[0-9]+)"
+# firmware:
+#   modulesExclude: "(?i)(BIOS2|BMC2|Disk|HDD|Installed|Previous)"
 
 credentials: {}
 # profiles:

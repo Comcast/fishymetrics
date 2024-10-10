@@ -24,6 +24,7 @@ import (
 type Config struct {
 	BMCScheme  string
 	BMCTimeout time.Duration
+	SSLVerify  bool
 	User       string
 	Pass       string
 }

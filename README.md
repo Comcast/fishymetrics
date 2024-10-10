@@ -21,6 +21,7 @@ Flags:
       --password=""             BMC static password
       --timeout=15s             BMC scrape timeout
       --scheme="https"          BMC Scheme to use
+      --insecure-skip-verify     Skip TLS verification
       --log.level=[debug|info|warn|error]
                                 log level verbosity
       --log.method=[file|vector]
