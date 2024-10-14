@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.22 as build
+FROM golang:1.23 AS build
 COPY . /go/src/github.com/comcast/fishymetrics
 WORKDIR /go/src/github.com/comcast/fishymetrics
 
@@ -27,7 +27,7 @@ COPY vendor /sources/vendor/
 # Build the sources tarball outside of /deps so it has to be copied explicitly
 RUN cd /; tar -czf /sources.tgz sources
 
-FROM alpine:latest as certs
+FROM alpine:latest AS certs
 RUN apk --update --no-cache add ca-certificates
 
 # 'bin' stage, copy in only the binary and dependencies

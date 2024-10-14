@@ -61,6 +61,7 @@ var (
 	password           = a.Flag("password", "BMC static password").Default("").Envar("BMC_PASSWORD").String()
 	bmcTimeout         = a.Flag("timeout", "BMC scrape timeout").Default("15s").Envar("BMC_TIMEOUT").Duration()
 	bmcScheme          = a.Flag("scheme", "BMC Scheme to use").Default("https").Envar("BMC_SCHEME").String()
+	insecureSkipVerify = a.Flag("insecure-skip-verify", "Skip TLS verification").Default("false").Envar("INSECURE_SKIP_VERIFY").Bool()
 	logLevel           = a.Flag("log.level", "log level verbosity").PlaceHolder("[debug|info|warn|error]").Default("info").Envar("LOG_LEVEL").String()
 	logMethod          = a.Flag("log.method", "alternative method for logging in addition to stdout").PlaceHolder("[file|vector]").Default("").Envar("LOG_METHOD").String()
 	logFilePath        = a.Flag("log.file-path", "directory path where log files are written if log-method is file").Default("/var/log/fishymetrics").Envar("LOG_FILE_PATH").String()
@@ -109,12 +110,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: deprecate module query param in favor of model
-	moduleName := query.Get("module")
 	model := query.Get("model")
-	if model == "" {
-		model = moduleName
-	}
 
 	// optional query param is used to tell us which credential profile to use when retrieving that hosts username and password
 	credProf := query.Get("credential_profile")
@@ -130,9 +126,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// TODO: deprecate module log entry
 	log.Info("started scrape",
-		zap.String("module", model),
 		zap.String("model", model),
 		zap.String("target", target),
 		zap.String("credential_profile", credProf),
@@ -236,6 +230,16 @@ func main() {
 		panic(fmt.Errorf("error converting arg --log.file-max-age to int - %s", err.Error()))
 	}
 
+	c := &config.Config{
+		BMCScheme:  *bmcScheme,
+		BMCTimeout: *bmcTimeout,
+		SSLVerify:  *insecureSkipVerify,
+		User:       *username,
+		Pass:       *password,
+	}
+
+	config.NewConfig(c)
+
 	// init logger config
 	logConfig := logger.LoggerConfig{
 		LogLevel:  *logLevel,
@@ -293,12 +297,6 @@ func main() {
 			go vault.RenewToken(ctx, doneRenew, tokenLifecycle, &wg)
 		}
 	}
-
-	config.NewConfig(&config.Config{
-		BMCScheme: *bmcScheme,
-		User:      *username,
-		Pass:      *password,
-	})
 
 	mux := http.NewServeMux()
 
