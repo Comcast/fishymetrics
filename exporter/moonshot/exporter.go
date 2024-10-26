@@ -212,6 +212,9 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 				for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
 					time.Sleep(client.RetryWaitMin)
 					resp, err = common.DoRequest(client, req)
+					if err != nil {
+						return nil, device, metricType, err
+					}
 					retryCount = retryCount + 1
 				}
 				if err != nil {
