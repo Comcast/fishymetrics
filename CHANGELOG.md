@@ -36,6 +36,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Firmware metrics and request headers update for Dell iDRAC9 with FW ver.3.xx and 4.xx [#77](https://github.com/Comcast/fishymetrics/issues/77)
 - Power supply status duplicate bay number metrics [#85](https://github.com/Comcast/fishymetrics/issues/85)
 - Capturing Model field in finished scrape log message [#94](https://github.com/Comcast/fishymetrics/issues/94)
+- Removed trailing spaces in label values [#96](https://github.com/Comcast/fishymetrics/issues/96)
 
 ## Updated
 
