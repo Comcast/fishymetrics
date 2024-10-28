@@ -10,6 +10,11 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 - nil pointer dereference during a scrape [#97](https://github.com/Comcast/fishymetrics/issues/97)
 
+## Updated
+
+ - Removed trailing spaces in label values [#96](https://github.com/Comcast/fishymetrics/issues/96)
+ - Add missing language fences to README [#95](https://github.com/Comcast/fishymetrics/pull/95)
+
 ## [0.12.0]
 
 ## Added

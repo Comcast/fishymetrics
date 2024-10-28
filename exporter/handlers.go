@@ -166,7 +166,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			}
 
 			if watts != 9999 {
-				(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(watts)
+				(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), strings.TrimRight(ps.Model, " ")).Set(watts)
 			}
 			if ps.Status.Health == "OK" || ps.Status.Health == "Ok" {
 				state = OK
@@ -180,7 +180,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 		}
 
 		if ps.Status.State != "Absent" {
-			(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), ps.SerialNumber, ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), ps.Model).Set(state)
+			(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), strings.TrimRight(ps.Model, " ")).Set(state)
 		}
 	}
 
@@ -309,7 +309,7 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 
 	// Physical drives need to have a unique identifier like location so as to not overwrite data
 	// physical drives can have the same ID, but belong to a different ArrayController, therefore need more than just the ID as a unique identifier.
-	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, e.ChassisSerialNumber, e.Model, dlphysical.Id, loc, dlphysical.SerialNumber, strconv.Itoa(cap)).Set(state)
+	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, e.ChassisSerialNumber, e.Model, dlphysical.Id, loc, strings.TrimRight(dlphysical.SerialNumber, " "), strconv.Itoa(cap)).Set(state)
 	return nil
 }
 
@@ -347,7 +347,7 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dllogicaldrive)["raidStatus"].WithLabelValues(dllogical.Name, e.ChassisSerialNumber, e.Model, ldName, volIdentifier, raidType).Set(state)
+	(*dllogicaldrive)["raidStatus"].WithLabelValues(strings.TrimRight(dllogical.Name, " "), e.ChassisSerialNumber, e.Model, strings.TrimRight(ldName, " "), volIdentifier, raidType).Set(state)
 	return nil
 }
 
@@ -420,7 +420,7 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 			} else {
 				state = BAD
 			}
-			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, sc.FirmwareVersion, sc.Model, sc.Location.Location).Set(state)
+			(*drv)["storageControllerStatus"].WithLabelValues(strings.TrimRight(scm.Name, " "), e.ChassisSerialNumber, e.Model, sc.FirmwareVersion, strings.TrimRight(sc.Model, " "), sc.Location.Location).Set(state)
 		}
 	}
 
@@ -431,7 +431,7 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 			} else {
 				state = BAD
 			}
-			(*drv)["storageControllerStatus"].WithLabelValues(scm.Name, e.ChassisSerialNumber, e.Model, scm.ControllerFirmware.FirmwareVersion, scm.Model, scm.Location.Location).Set(state)
+			(*drv)["storageControllerStatus"].WithLabelValues(strings.TrimRight(scm.Name, " "), e.ChassisSerialNumber, e.Model, scm.ControllerFirmware.FirmwareVersion, strings.TrimRight(scm.Model, " "), scm.Location.Location).Set(state)
 		}
 	}
 
@@ -642,7 +642,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	} else {
 		state = BAD
 	}
-	(*proc)["processorStatus"].WithLabelValues(pm.Id, e.ChassisSerialNumber, e.Model, pm.Socket, pm.Model, totCores).Set(state)
+	(*proc)["processorStatus"].WithLabelValues(pm.Id, e.ChassisSerialNumber, e.Model, pm.Socket, strings.TrimRight(pm.Model, " "), totCores).Set(state)
 
 	return nil
 }
@@ -659,7 +659,7 @@ func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 	// Export for iLO4 since it has a different structure
 	if len(fwcomponent.Current.Firmware) > 0 {
 		for _, firmware := range fwcomponent.Current.Firmware {
-			(*component)["componentFirmware"].WithLabelValues(firmware.Id, firmware.Name, firmware.Location, firmware.VersionString).Set(1.0)
+			(*component)["componentFirmware"].WithLabelValues(firmware.Id, strings.TrimRight(firmware.Name, " "), firmware.Location, firmware.VersionString).Set(1.0)
 		}
 	} else {
 		// Export for iLO5, since it's structure matches the GenericFirmware struct
@@ -669,7 +669,7 @@ func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 			return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
 		}
 
-		(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, fwcomponent.Name, fwcomponent.Description, fwcomponent.Version).Set(1.0)
+		(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, strings.TrimRight(fwcomponent.Name, " "), fwcomponent.Description, fwcomponent.Version).Set(1.0)
 	}
 	return nil
 }
