@@ -6,6 +6,8 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.12.1]
+
 ## Fixed
 
 - nil pointer dereference during a scrape [#97](https://github.com/Comcast/fishymetrics/issues/97)
@@ -14,6 +16,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
  - Removed trailing spaces in label values [#96](https://github.com/Comcast/fishymetrics/issues/96)
  - Add missing language fences to README [#95](https://github.com/Comcast/fishymetrics/pull/95)
+ - Set Fishymetrics port default to 10023 [#100](https://github.com/Comcast/fishymetrics/issues/100)
 
 ## [0.12.0]
 

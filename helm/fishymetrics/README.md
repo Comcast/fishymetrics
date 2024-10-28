@@ -30,10 +30,10 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | Parameter                                                   | Description                                                                                | Default                   |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------- |
 | `image.repo`                                                | container image repo for fishymetrics                                                      | `"comcast/fishymetrics"`  |
-| `image.tag`                                                 | container image tag for fishymetrics                                                       | `"0.12.0"`                |
+| `image.tag`                                                 | container image tag for fishymetrics                                                       | `"0.12.1"`                |
 | `image.pullPolicy`                                          | container image pull policy                                                                | `"IfNotPresent"`          |
 | `replicas`                                                  | number of replica sets to initially deploy                                                 | `1`                       |
-| `exporter.port`                                             | exporter port to listen on                                                                 | `9533`                    |
+| `exporter.port`                                             | exporter port to listen on                                                                 | `10023`                    |
 | `log.level`                                                 | log level verbosity                                                                        | `"info"`                  |
 | `log.method`                                                | alternative method for logging in addition to stdout                                       | `""`                      |
 | `log.filePath`                                              | directory path where log files are written                                                 | `"/var/log/fishymetrics"` |
