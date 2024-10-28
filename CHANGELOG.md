@@ -6,6 +6,12 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## Fixed
+
+- nil pointer dereference during a scrape [#97](https://github.com/Comcast/fishymetrics/issues/97)
+
+## [0.12.0]
+
 ## Added
 
 - Add ability to reference different vault paths for credential retrieval [#25](https://github.com/Comcast/fishymetrics/issues/25)

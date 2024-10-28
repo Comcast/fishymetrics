@@ -9,7 +9,7 @@ This app can support any chassis that has the redfish API available. If one need
 
 To run it:
 
-```
+```console
 $ ./fishymetrics --help
 usage: fishymetrics [<flags>]
 
@@ -209,13 +209,13 @@ make build
 
 #### docker image
 
-```
+```bash
 make docker
 ```
 
 ### Testing
 
-```
+```bash
 make test
 ```
 
