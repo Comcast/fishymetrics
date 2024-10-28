@@ -69,7 +69,7 @@ var (
 	logFileMaxBackups  = a.Flag("log.file-max-backups", "max file backups before they are rotated if log-method is file").Default("1").Envar("LOG_FILE_MAX_BACKUPS").String()
 	logFileMaxAge      = a.Flag("log.file-max-age", "max file age in days before they are rotated if log-method is file").Default("1").Envar("LOG_FILE_MAX_AGE").String()
 	vectorEndpoint     = a.Flag("vector.endpoint", "vector endpoint to send structured json logs to").Default("http://0.0.0.0:4444").Envar("VECTOR_ENDPOINT").String()
-	exporterPort       = a.Flag("port", "exporter port").Default("9533").Envar("EXPORTER_PORT").String()
+	exporterPort       = a.Flag("port", "exporter port").Default("10023").Envar("EXPORTER_PORT").String()
 	vaultAddr          = a.Flag("vault.addr", "Vault instance address to get chassis credentials from").Default("https://vault.com").Envar("VAULT_ADDRESS").String()
 	vaultRoleId        = a.Flag("vault.role-id", "Vault Role ID for AppRole").Default("").Envar("VAULT_ROLE_ID").String()
 	vaultSecretId      = a.Flag("vault.secret-id", "Vault Secret ID for AppRole").Default("").Envar("VAULT_SECRET_ID").String()
