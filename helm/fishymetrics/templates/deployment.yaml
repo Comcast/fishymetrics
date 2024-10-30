@@ -48,6 +48,15 @@ spec:
           ports:
             - containerPort: {{ .Values.exporter.port }}
               name: exporter
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+              add: ["NET_BIND_SERVICE"]
           args:
           {{- if .Values.credentials }}
             - --credentials.profiles={{ toJson .Values.credentials }}
