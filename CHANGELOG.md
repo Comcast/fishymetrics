@@ -9,6 +9,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 ## Updated
 
 - increase security context for kubernetes helm chart deployment [#102](https://github.com/Comcast/fishymetrics/issues/102)
+- metric names in moonshot exporter to generic names as seen in other models [#106](https://github.com/Comcast/fishymetrics/issues/106)
 
 ## [0.12.1]
 
