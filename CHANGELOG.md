@@ -6,6 +6,8 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.13.0]
+
 ## Updated
 
 - increase security context for kubernetes helm chart deployment [#102](https://github.com/Comcast/fishymetrics/issues/102)
