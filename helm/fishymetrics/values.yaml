@@ -96,6 +96,8 @@ ingress:
   enabled: false
   hosts:
     - chart-example.local
+  paths:
+   - "/"
   annotations: {}
   # kubernetes.io/ingress.class: nginx
   # kubernetes.io/tls-acme: "true"
@@ -120,3 +122,6 @@ tolerations: []
 # - key: "node-role.kubernetes.io/master"
 #   operator: "Exists"
 #   effect: "NoSchedule"
+
+service:
+ type: ClusterIP

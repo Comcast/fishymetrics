@@ -6,7 +6,7 @@ metadata:
     {{- include "fishymetrics.common.metaLabels" . | nindent 4 }}
     {{- include "fishymetrics.common.matchLabels" . | nindent 4 }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.exporter.port }}
       targetPort: {{ .Values.exporter.port }}

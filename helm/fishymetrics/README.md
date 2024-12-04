@@ -73,6 +73,7 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | `horizontalPodAutoscaler.targetMemoryUtilizationPercentage` | percentage of pod memory utilization the app must reach before another pod is deployed     | `80`                      |
 | `ingress.enabled`                                           | boolean flag to enable/disable the kubernetes ingress resource to the fishymetrics service | `false`                   |
 | `ingress.hosts`                                             | list of host(s) to listen for fishymetrics requests                                        | `[]`                      |
+| `ingress.paths`                                             | list of path(s) to listen for fishymetrics requests                                        | `[]`                      |
 | `ingress.annotations`                                       | annotation labels to add to the ingress kubernetes resource                                | `{}`                      |
 | `ingress.tls`                                               | list of tls certificates to be applied to the ingress host(s)                              | `[]`                      |
 | `affinity`                                                  | affinity to apply to the kubernetes deployment                                             | `{}`                      |
