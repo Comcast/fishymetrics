@@ -253,6 +253,9 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Colle
 			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
+				if err != nil {
+					return dimms, err
+				}
 				retryCount = retryCount + 1
 			}
 			if err != nil {
@@ -297,6 +300,9 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
+				if err != nil {
+					return drive, err
+				}
 				retryCount = retryCount + 1
 			}
 			if err != nil {
@@ -473,6 +479,9 @@ func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.
 			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
+				if err != nil {
+					return processors, err
+				}
 				retryCount = retryCount + 1
 			}
 			if err != nil {

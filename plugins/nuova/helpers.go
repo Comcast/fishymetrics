@@ -85,6 +85,9 @@ func checkRaidController(url, host string, client *retryablehttp.Client) (bool, 
 			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
+				if err != nil {
+					return false, nil
+				}
 				retryCount = retryCount + 1
 			}
 			if err != nil {
