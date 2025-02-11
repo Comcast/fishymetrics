@@ -82,12 +82,13 @@ func checkRaidController(url, host string, client *retryablehttp.Client) (bool, 
 	defer resp.Body.Close()
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
 				if err != nil {
 					return false, nil
 				}
+				defer common.EmptyAndCloseBody(resp)
 				retryCount = retryCount + 1
 			}
 			if err != nil {
@@ -133,7 +134,7 @@ func IMCPost(uri, classId, cookie string, client *retryablehttp.Client) ([]byte,
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer common.EmptyAndCloseBody(resp)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -151,7 +152,7 @@ func IMCLogin(uri, target string, client *retryablehttp.Client) (string, error) 
 	if err != nil {
 		return aaaLogin.OutCookie, err
 	}
-	defer resp.Body.Close()
+	defer common.EmptyAndCloseBody(resp)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -177,7 +178,7 @@ func IMCLogout(uri, cookie string, client *retryablehttp.Client) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer common.EmptyAndCloseBody(resp)
 
 	return nil
 }

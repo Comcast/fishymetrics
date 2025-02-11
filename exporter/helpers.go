@@ -40,7 +40,7 @@ func getMemberUrls(url, host string, client *retryablehttp.Client) ([]string, er
 	if err != nil {
 		return urls, err
 	}
-	defer resp.Body.Close()
+	defer common.EmptyAndCloseBody(resp)
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		if resp.StatusCode == http.StatusUnauthorized {
 			return urls, common.ErrInvalidCredential
@@ -77,7 +77,7 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 		if err != nil {
 			return sysEnd, err
 		}
-		defer resp.Body.Close()
+		defer common.EmptyAndCloseBody(resp)
 		if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 			if resp.StatusCode == http.StatusUnauthorized {
 				return sysEnd, common.ErrInvalidCredential
@@ -218,7 +218,7 @@ func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.Sys
 	if err != nil {
 		return sys, err
 	}
-	defer resp.Body.Close()
+	defer common.EmptyAndCloseBody(resp)
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		return sys, fmt.Errorf("HTTP status %d", resp.StatusCode)
 	}
@@ -247,15 +247,16 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Colle
 	if err != nil {
 		return dimms, err
 	}
-	defer resp.Body.Close()
+	defer common.EmptyAndCloseBody(resp)
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 1 && resp.StatusCode == http.StatusNotFound {
+			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
 				if err != nil {
 					return dimms, err
 				}
+				defer common.EmptyAndCloseBody(resp)
 				retryCount = retryCount + 1
 			}
 			if err != nil {
@@ -294,7 +295,7 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 	if err != nil {
 		return drive, err
 	}
-	defer resp.Body.Close()
+	defer common.EmptyAndCloseBody(resp)
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		if resp.StatusCode == http.StatusNotFound {
 			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
@@ -303,6 +304,7 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 				if err != nil {
 					return drive, err
 				}
+				defer common.EmptyAndCloseBody(resp)
 				retryCount = retryCount + 1
 			}
 			if err != nil {
@@ -473,7 +475,7 @@ func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.
 	if err != nil {
 		return processors, err
 	}
-	defer resp.Body.Close()
+	defer common.EmptyAndCloseBody(resp)
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		if resp.StatusCode == http.StatusNotFound {
 			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
@@ -482,6 +484,7 @@ func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.
 				if err != nil {
 					return processors, err
 				}
+				defer common.EmptyAndCloseBody(resp)
 				retryCount = retryCount + 1
 			}
 			if err != nil {

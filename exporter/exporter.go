@@ -142,9 +142,12 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: config.GetConfig().SSLVerify,
+			Renegotiation:      tls.RenegotiateOnceAsClient,
 		},
 		TLSHandshakeTimeout: 10 * time.Second,
 	}
+
+	defer tr.CloseIdleConnections()
 
 	retryClient := retryablehttp.NewClient()
 	retryClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
@@ -526,11 +529,7 @@ func (e *Exporter) collectMetrics(metrics chan<- prometheus.Metric) {
 }
 
 func (e *Exporter) scrape() {
-
-	var result uint8
 	state := uint8(1)
-	scrapes := len(e.pool.Tasks)
-	scrapeChan := make(chan uint8, scrapes)
 
 	// Concurrently call the endpoints to help prevent reaching the maxiumum number of 4 simultaneous sessions
 	e.pool.Run()
@@ -562,22 +561,14 @@ func (e *Exporter) scrape() {
 		}
 
 		if err != nil {
+			state = 0
 			log.Error("error exporting metrics", zap.Error(err), zap.String("url", task.URL), zap.Any("trace_id", e.ctx.Value("traceID")))
 			continue
 		}
-		scrapeChan <- 1
-	}
-
-	// Get scrape results from goroutine(s) and perform bitwise AND, any failures should
-	// result in a scrape failure
-	for i := 0; i < scrapes; i++ {
-		result = <-scrapeChan
-		state &= result
 	}
 
 	var upMetric = (*e.DeviceMetrics)["up"]
 	(*upMetric)["up"].WithLabelValues().Set(float64(state))
-
 }
 
 func (e *Exporter) GetContext() context.Context {

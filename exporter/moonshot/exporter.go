@@ -206,7 +206,7 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 		if err != nil {
 			return nil, device, metricType, err
 		}
-		defer resp.Body.Close()
+		defer common.EmptyAndCloseBody(resp)
 		if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 			if resp.StatusCode == http.StatusNotFound {
 				for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
@@ -215,6 +215,7 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 					if err != nil {
 						return nil, device, metricType, err
 					}
+					defer common.EmptyAndCloseBody(resp)
 					retryCount = retryCount + 1
 				}
 				if err != nil {
@@ -239,6 +240,7 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
+				defer common.EmptyAndCloseBody(resp)
 				if err != nil {
 					return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
 				}
