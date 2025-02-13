@@ -6,6 +6,17 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.13.1]
+
+## Fixed
+
+- include nil reference check during retires [#114](https://github.com/Comcast/fishymetrics/pull/114)
+- Fix leaks in go routines and handling of response body [#115](https://github.com/Comcast/fishymetrics/pull/115)
+
+## Updated
+- Bump golang.org/x/net from 0.25.0 to 0.33.0 [#113](https://github.com/Comcast/fishymetrics/pull/113)
+- Bump golang.org/x/crypto from 0.23.0 to 0.31.0 [#110](https://github.com/Comcast/fishymetrics/pull/110)
+
 ## [0.13.0]
 
 ## Updated
