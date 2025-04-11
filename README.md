@@ -42,6 +42,7 @@ Flags:
                                 regex of drive module(s) to exclude from the scrape
       --collector.firmware.modules-exclude=""
                                 regex of firmware module to exclude from the scrape
+      --url.extra-params=""      extra query parameters to parse in JSON format. --url.extra-params='{"credential": "short_hostname"}'
       --credentials.profiles=CREDENTIALS.PROFILES
                                 profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
 
