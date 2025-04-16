@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	fishy_vault "github.com/comcast/fishymetrics/vault"
@@ -58,6 +59,19 @@ type ProfileFlag struct {
 	PasswordField string `json:"passwordField" yaml:"passwordField"`
 	SecretName    string `json:"secretName,omitempty" yaml:"secretName,omitempty"`
 	UserName      string `json:"userName,omitempty" yaml:"userName,omitempty"`
+}
+
+type CredProfileFunc func(*fishy_vault.SecretProperties)
+
+func UpdateCredProfilePath(aliases map[string]string) CredProfileFunc {
+	return func(sp *fishy_vault.SecretProperties) {
+		for key, value := range aliases {
+			if strings.Contains(sp.Path, fmt.Sprintf("%%%s%%", key)) {
+				sp.Path = strings.Replace(sp.Path, fmt.Sprintf("%%%s%%", key), value, -1)
+				return
+			}
+		}
+	}
 }
 
 type CredentialProfilesFlag struct {
@@ -118,7 +132,7 @@ func (c *ChassisCredentials) populateProfiles(profiles *CredentialProfilesFlag) 
 	}
 }
 
-func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target string) (*Credential, error) {
+func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target string, credProfFuncs ...CredProfileFunc) (*Credential, error) {
 	var credential *Credential
 	var ok bool
 	var user, pass string
@@ -144,6 +158,13 @@ func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target
 	} else {
 		// if profile is empty string we use the default profile
 		credProf = c.Profiles[c.DefaultProfile]
+	}
+
+	// a credential profile may contain a path with an '%alias' template
+	// this should replace the alias with the actual value passed in from
+	// the initial scrape URL call
+	for _, credFunc := range credProfFuncs {
+		credFunc(credProf)
 	}
 
 	secret, err := c.Vault.GetKVSecret(ctx, credProf, target)

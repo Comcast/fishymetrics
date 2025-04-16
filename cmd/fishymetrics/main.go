@@ -75,7 +75,7 @@ var (
 	vaultSecretId      = a.Flag("vault.secret-id", "Vault Secret ID for AppRole").Default("").Envar("VAULT_SECRET_ID").String()
 	driveModExclude    = a.Flag("collector.drives.modules-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
 	firmwareModExclude = a.Flag("collector.firmware.modules-exclude", "regex of firmware module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_FIRMWARE_MODULE_EXCLUDE").String()
-	urlExtraParams     = a.Flag("url.extra-params", `extra query parameters to parse in JSON format. --url.extra-params='{"credential": "short_hostname"}'`).Default("").Envar("URL_EXTRA_PARAMS").String()
+	urlExtraParams     = a.Flag("url.extra-params", `extra parameter(s) to parse from the URL. --url.extra-params="param1:alias1,param2:alias2"`).Default("").Envar("URL_EXTRA_PARAMS").String()
 	credProfiles       = common.CredentialProf(a.Flag("credentials.profiles",
 		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
   --credentials.profiles="
@@ -91,10 +91,11 @@ var (
 
 	log *zap.Logger
 
-	vault             *fishy_vault.Vault
-	excludes          = make(map[string]interface{})
-	urlExtraParamsMap = make(map[string]interface{})
-	counter           int
+	vault              *fishy_vault.Vault
+	excludes           = make(map[string]interface{})
+	urlExtraParamsMap  = make(map[string]string)
+	extraParamsAliases = make(map[string]string)
+	counter            int
 )
 
 var wg = sync.WaitGroup{}
@@ -104,7 +105,6 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	var uri string
 	var exp prometheus.Collector
 	var err error
-	var targetShortHostname string
 
 	target := query.Get("target")
 	if len(query["target"]) != 1 || target == "" {
@@ -135,11 +135,15 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		zap.String("credential_profile", credProf),
 		zap.Any("trace_id", r.Context().Value("traceID")))
 
-	// get value of short_hostname param from query if it is passed in url extra params
-	if paramVal, ok := urlExtraParamsMap["credential"]; ok {
-		if val, ok := paramVal.(string); ok {
-			if val == "short_hostname" {
-				targetShortHostname = query.Get("short_hostname")
+	// extract value of extra url param(s) from url query string if they are present.
+	// we'll want to assign the key of the kv pair as the variable alias and the value as the
+	// unique identifier for the alias
+	if len(urlExtraParamsMap) > 0 {
+		for k, v := range urlExtraParamsMap {
+			// check if url contains a valid key
+			param := query.Get(k)
+			if param != "" {
+				extraParamsAliases[v] = param
 			}
 		}
 	}
@@ -152,20 +156,11 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		if c, ok := common.ChassisCreds.Get(target); ok {
 			credential = c
 		} else {
-			if targetShortHostname != "" {
-				credential, err = common.ChassisCreds.GetCredentials(ctx, credProf, targetShortHostname)
-				if err != nil {
-					log.Error("issue retrieving credentials from vault using target "+targetShortHostname, zap.Error(err), zap.Any("trace_id", r.Context().Value("traceID")))
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-			} else {
-				credential, err = common.ChassisCreds.GetCredentials(ctx, credProf, target)
-				if err != nil {
-					log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), zap.Any("trace_id", r.Context().Value("traceID")))
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
+			credential, err = common.ChassisCreds.GetCredentials(ctx, credProf, target, common.UpdateCredProfilePath(extraParamsAliases))
+			if err != nil {
+				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), zap.Any("trace_id", r.Context().Value("traceID")))
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
 			}
 			common.ChassisCreds.Set(target, credential)
 		}
@@ -294,12 +289,16 @@ func main() {
 			zap.Int("log_file_max_age", logfileMaxAge))
 	}
 
-	// parse url extra params if provided
+	// populate urlExtraParamsMap if url extra params are passed
 	if *urlExtraParams != "" {
-		err := json.Unmarshal([]byte(*urlExtraParams), &urlExtraParamsMap)
-		if err != nil {
-			log.Error("error parsing url extra params", zap.Error(err), zap.String("url_extra_params", *urlExtraParams))
-			return
+		// --url.extra.params="short_hostname:shortname,param2:alias1,param3:alias2"
+		for _, param := range strings.Split(*urlExtraParams, ",") {
+			kv := strings.Split(param, ":")
+			if len(kv) != 2 {
+				log.Error("error parsing url extra params", zap.Error(err), zap.String("url_extra_params", *urlExtraParams))
+				return
+			}
+			urlExtraParamsMap[kv[0]] = kv[1]
 		}
 	}
 
