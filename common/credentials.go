@@ -160,7 +160,7 @@ func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target
 		credProf = c.Profiles[c.DefaultProfile]
 	}
 
-	// a credential profile may contain a path with an '%alias' template
+	// a credential profile may contain a path with an '%alias%' templated string,
 	// this should replace the alias with the actual value passed in from
 	// the initial scrape URL call
 	for _, credFunc := range credProfFuncs {
