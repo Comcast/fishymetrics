@@ -68,7 +68,6 @@ func UpdateCredProfilePath(aliases map[string]string) CredProfileFunc {
 		for key, value := range aliases {
 			if strings.Contains(sp.Path, fmt.Sprintf("%%%s%%", key)) {
 				sp.Path = strings.Replace(sp.Path, fmt.Sprintf("%%%s%%", key), value, -1)
-				return
 			}
 		}
 	}
