@@ -6,6 +6,8 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+- Added option to parse extra parameter(s) from URL [#122](https://github.com/Comcast/fishymetrics/issues/122)
+
 ## [0.13.1]
 
 ## Fixed
