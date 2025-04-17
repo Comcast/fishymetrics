@@ -33,7 +33,7 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | `image.tag`                                                 | container image tag for fishymetrics                                                       | `"0.12.1"`                |
 | `image.pullPolicy`                                          | container image pull policy                                                                | `"IfNotPresent"`          |
 | `replicas`                                                  | number of replica sets to initially deploy                                                 | `1`                       |
-| `exporter.port`                                             | exporter port to listen on                                                                 | `10023`                    |
+| `exporter.port`                                             | exporter port to listen on                                                                 | `10023`                   |
 | `log.level`                                                 | log level verbosity                                                                        | `"info"`                  |
 | `log.method`                                                | alternative method for logging in addition to stdout                                       | `""`                      |
 | `log.filePath`                                              | directory path where log files are written                                                 | `"/var/log/fishymetrics"` |
@@ -53,6 +53,7 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | `vault.kv2UserField`                                        | vault kv2 secret field where we get the username                                           | `"user"`                  |
 | `vault.kv2PasswordField`                                    | vault kv2 secret field where we get the password                                           | `"password"`              |
 | `collector.drives.modulesExclude`                           | drive module(s) to exclude from the scrape                                                 | `""`                      |
+| `url.extraParams`                                           | extra parameter(s) to parse from the URL                                                   | `""`                      |
 | `collector.firmware.modulesExclude`                         | firmware module(s) to exclude from the scrape                                              | `""`                      |
 | `credentials.profiles`                                      | profile(s) with all necessary parameters to obtain BMC credential from secrets backend     | `[]`                      |
 | `vector.enabled`                                            | boolean flag to enable/disable vector log forwarding                                       | `false`                   |

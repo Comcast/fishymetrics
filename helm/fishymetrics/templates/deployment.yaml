@@ -70,6 +70,9 @@ spec:
           {{- if .Values.bmc.insecureSkipVerify }}
             - --insecure-skip-verify
           {{- end }}
+          {{- if .Values.url.extraParams }}
+            - --url.extra-params={{ .Values.url.extraParams }}
+          {{- end }}
           env:
             - name: BMC_USERNAME
               valueFrom:
