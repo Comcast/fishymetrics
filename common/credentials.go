@@ -135,9 +135,7 @@ func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target
 	var credential *Credential
 	var ok bool
 	var user, pass string
-	var credProf *fishy_vault.SecretProperties
-
-	log = zap.L()
+	var credProfCopy *fishy_vault.SecretProperties
 
 	if c.Vault == nil {
 		return nil, fmt.Errorf("vault client not configured")
@@ -150,38 +148,43 @@ func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target
 
 	// if profile is set but not in hashmap we will error
 	if profile != "" {
-		credProf, ok = c.Profiles[profile]
+		credProf, ok := c.Profiles[profile]
 		if !ok {
 			return nil, fmt.Errorf("profile \"%s\" not found", profile)
 		}
+		// make a copy of the profile
+		copy := *credProf
+		credProfCopy = &copy
 	} else {
-		// if profile is empty string we use the default profile
-		credProf = c.Profiles[c.DefaultProfile]
+		// if profile is empty string we make a copy of the default profile
+		copy := *c.Profiles[c.DefaultProfile]
+		credProfCopy = &copy
 	}
 
 	// a credential profile may contain a path with an '%alias%' templated string,
 	// this should replace the alias with the actual value passed in from
 	// the initial scrape URL call
 	for _, credFunc := range credProfFuncs {
-		credFunc(credProf)
+		credFunc(credProfCopy)
 	}
 
-	secret, err := c.Vault.GetKVSecret(ctx, credProf, target)
+	secret, err := c.Vault.GetKVSecret(ctx, credProfCopy, target)
 	if err != nil {
 		return nil, err
 	}
 
-	if credProf.UserName != "" {
-		user = credProf.UserName
+	if credProfCopy.UserName != "" {
+		user = credProfCopy.UserName
 	} else {
-		if user, ok = secret.Data[credProf.UserField].(string); !ok {
-			return nil, fmt.Errorf("missing the \"%q\" user field", credProf.UserField)
+		if user, ok = secret.Data[credProfCopy.UserField].(string); !ok {
+			return nil, fmt.Errorf("missing the \"%q\" user field", credProfCopy.UserField)
 		}
 	}
 
-	if pass, ok = secret.Data[credProf.PasswordField].(string); !ok {
-		return nil, fmt.Errorf("missing the \"%q\" password field", credProf.PasswordField)
+	if pass, ok = secret.Data[credProfCopy.PasswordField].(string); !ok {
+		return nil, fmt.Errorf("missing the \"%q\" password field", credProfCopy.PasswordField)
 	}
+
 	credential = &Credential{
 		User: user,
 		Pass: pass,
