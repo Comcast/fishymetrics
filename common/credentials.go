@@ -65,7 +65,6 @@ type CredProfileFunc func(*fishy_vault.SecretProperties)
 
 func UpdateCredProfilePath(aliases map[string]string) CredProfileFunc {
 	return func(sp *fishy_vault.SecretProperties) {
-		fmt.Printf("%v+\n", sp)
 		for key, value := range aliases {
 			if strings.Contains(sp.Path, fmt.Sprintf("%%%s%%", key)) {
 				sp.Path = strings.Replace(sp.Path, fmt.Sprintf("%%%s%%", key), value, -1)
