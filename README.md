@@ -100,9 +100,8 @@ Example:
 
 Responds with the application's `version`, `build_date`, `go_version`, `etc`
 
-<aside class="notice">
+
 _if deployed on ones localhost_
-</aside>
 
 ```bash
 curl http://localhost:10023/info
@@ -112,9 +111,7 @@ curl http://localhost:10023/info
 
 Responds with the application's runtime metrics
 
-<aside class="notice">
 _if deployed on ones localhost_
-</aside>
 
 ```bash
 curl http://localhost:10023/metrics
