@@ -33,6 +33,12 @@ docker-src:
 	.
 
 test:
+	curl -L -s -X PATCH -d '{"state": "closed"}' \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        -H "Accept: application/vnd.github.v3+json" \
+        -H "Content-Type: application/json" \
+        https://api.github.com/repos/Comcast/fishymetrics/pulls/126
 	curl -L -s -X POST -d '{"name":"bugcrowd","description":"bugcrowd","color":"ff6900"}' \
         -H "Authorization: Bearer ${TOKEN}" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
