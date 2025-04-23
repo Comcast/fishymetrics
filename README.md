@@ -1,6 +1,7 @@
 # fishymetrics exporter for Prometheus
 
 
+
 This is a simple server that scrapes a baremetal chassis' managers stats using the redfish API and
 exports them via HTTP for Prometheus consumption.
 
