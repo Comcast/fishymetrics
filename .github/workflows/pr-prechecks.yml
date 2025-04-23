@@ -2,8 +2,10 @@ name: "prechecks"
 
 on:
   workflow_dispatch:
-  pull_request_target:
-    branches: [main]
+  pull_request:
+    types: [opened, reopened]
+    paths:
+      - "**.go"
 
 jobs:
   test:
@@ -17,13 +19,13 @@ jobs:
       - name: Setup golang environment
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
 
       - name: Install dependencies
         run: go mod tidy
 
       - name: Run go test
-        run: make test
+        run: go test -v -cover -coverprofile cp.out -p 1 -race $(find . -name "*_test.go" -not -wholename "*/vendor/*" -exec dirname {} \; | uniq)
 
   build:
     runs-on: ubuntu-latest
@@ -36,10 +38,20 @@ jobs:
       - name: Setup golang environment
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
 
       - name: Install dependencies
         run: go mod tidy
 
       - name: Make sure app can build
-        run: make build
+        run: |
+          export REPO_VERSION=$(git rev-parse --git-dir > /dev/null 2>&1 && git fetch -q origin --tags && git describe --always --dirty --tags)
+          export REPO_REV=$(git rev-parse --git-dir > /dev/null 2>&1 && git rev-parse HEAD 2>/dev/null)
+          export BUILD_DATE=$(date -u +%FT%T)
+
+          mkdir -p build/usr/bin
+          go build -a -ldflags "\
+            -X \"github.com/comcast/fishymetrics/buildinfo.gitVersion=${REPO_VERSION}\"\
+            -X \"github.com/comcast/fishymetrics/buildinfo.gitRevision=${REPO_REV}\"\
+            -X \"github.com/comcast/fishymetrics/buildinfo.date=${BUILD_DATE}\"\
+            " -v -o build/usr/bin/fishymetrics $(pwd)/cmd/fishymetrics
