@@ -1,0 +1,22 @@
+name: "security-checks"
+
+on:
+  push:
+    paths:
+      - "**.go"
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/golang@v4
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
