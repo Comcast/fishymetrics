@@ -71,7 +71,7 @@ func (e *Exporter) exportFirmwareMetrics(body []byte) error {
 	var dm = (*e.DeviceMetrics)["deviceInfo"]
 	err := json.Unmarshal(body, &mgr)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling FirmwareMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling FirmwareMetrics - %s", err.Error())
 	}
 
 	(*dm)["deviceInfo"].WithLabelValues(e.systemHostname, e.ChassisSerialNumber, e.Model, mgr.FirmwareVersion, e.biosVersion).Set(1.0)
@@ -87,7 +87,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	var bay int
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling PowerMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling PowerMetrics - %s", err.Error())
 	}
 
 	for _, pc := range pm.PowerControl.PowerControl {
@@ -195,7 +195,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	var therm = (*e.DeviceMetrics)["thermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling ThermalMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling ThermalMetrics - %s", err.Error())
 	}
 
 	if tm.Status.State == "Enabled" {
@@ -277,7 +277,7 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 	var cap int
 	err := json.Unmarshal(body, &dlphysical)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - %s", err.Error())
 	}
 	// Check physical drive is enabled then check status and convert string to numeric values
 	if dlphysical.Status.State == "Absent" {
@@ -323,7 +323,7 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	var volIdentifier string
 	err := json.Unmarshal(body, &dllogical)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling LogicalDriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling LogicalDriveMetrics - %s", err.Error())
 	}
 	if dllogical.Raid == "" {
 		ldName = dllogical.DisplayName
@@ -358,7 +358,7 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	var dlnvmedrive = (*e.DeviceMetrics)["nvmeMetrics"]
 	err := json.Unmarshal(body, &dlnvme)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling NVMeDriveMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling NVMeDriveMetrics - %s", err.Error())
 	}
 
 	// Check nvme drive is enabled then check status and convert string to numeric values
@@ -382,18 +382,18 @@ func (e *Exporter) exportUnknownDriveMetrics(body []byte) error {
 	var protocol oem.DriveProtocol
 	err := json.Unmarshal(body, &protocol)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling for drive protocol - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling for drive protocol - %s", err.Error())
 	}
 
 	if protocol.Protocol == "NVMe" {
 		err = e.exportNVMeDriveMetrics(body)
 		if err != nil {
-			return fmt.Errorf("Error Unmarshalling NVMeDriveMetrics - " + err.Error())
+			return fmt.Errorf("Error Unmarshalling NVMeDriveMetrics - %s", err.Error())
 		}
 	} else {
 		err = e.exportPhysicalDriveMetrics(body)
 		if err != nil {
-			return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - " + err.Error())
+			return fmt.Errorf("Error Unmarshalling DiskDriveMetrics - %s", err.Error())
 		}
 	}
 
@@ -408,7 +408,7 @@ func (e *Exporter) exportStorageControllerMetrics(body []byte) error {
 	var drv = (*e.DeviceMetrics)["storageCtrlMetrics"]
 	err := json.Unmarshal(body, &scm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling StorageControllerMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling StorageControllerMetrics - %s", err.Error())
 	}
 
 	for _, sc := range scm.StorageController.StorageController {
@@ -447,7 +447,7 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 	var totalSystemMemoryGiB string
 	err := json.Unmarshal(body, &dlm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling MemorySummaryMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling MemorySummaryMetrics - %s", err.Error())
 	}
 	// Check memory status and convert string to numeric values
 	// Ignore memory summary if status is not present
@@ -479,7 +479,7 @@ func (e *Exporter) exportStorageBattery(body []byte) error {
 	var storBattery = (*e.DeviceMetrics)["storBatteryMetrics"]
 	err := json.Unmarshal(body, &chasStorBatt)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling Storage Battery Metrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling Storage Battery Metrics - %s", err.Error())
 	}
 
 	if fmt.Sprint(chasStorBatt.Oem.Hp.Battery) != "null" && len(chasStorBatt.Oem.Hp.Battery) > 0 {
@@ -540,7 +540,7 @@ func (e *Exporter) exportMemoryMetrics(body []byte) error {
 	var mem = (*e.DeviceMetrics)["memoryMetrics"]
 	err := json.Unmarshal(body, &mm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling MemoryMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling MemoryMetrics - %s", err.Error())
 	}
 
 	if mm.DIMMStatus != "" {
@@ -620,7 +620,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	var proc = (*e.DeviceMetrics)["processorMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling ProcessorMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling ProcessorMetrics - %s", err.Error())
 	}
 
 	switch pm.TotalCores.(type) {
@@ -654,7 +654,7 @@ func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 
 	err := json.Unmarshal(body, &fwcomponent)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - %s", err.Error())
 	}
 	// Export for iLO4 since it has a different structure
 	if len(fwcomponent.Current.Firmware) > 0 {
@@ -666,7 +666,7 @@ func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 		var fwcomponent oem.GenericFirmware
 		err := json.Unmarshal(body, &fwcomponent)
 		if err != nil {
-			return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - " + err.Error())
+			return fmt.Errorf("Error Unmarshalling FirmwareInventoryMetrics - %s", err.Error())
 		}
 
 		(*component)["componentFirmware"].WithLabelValues(fwcomponent.Id, strings.TrimRight(fwcomponent.Name, " "), fwcomponent.Description, fwcomponent.Version).Set(1.0)
@@ -682,7 +682,7 @@ func (e *Exporter) exportIloSelfTest(body []byte) error {
 	var iloSelfTst = (*e.DeviceMetrics)["iloSelfTestMetrics"]
 	err := json.Unmarshal(body, &sysm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling iLO Self Test Metrics - " + err.Error())
+		return fmt.Errorf("Error Unmarshalling iLO Self Test Metrics - %s", err.Error())
 	}
 
 	if fmt.Sprint(sysm.Oem.Hp.IloSelfTest) != "null" && len(sysm.Oem.Hp.IloSelfTest) > 0 {
