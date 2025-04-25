@@ -19,6 +19,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Bump github.com/containerd/containerd from 1.7.20 to 1.7.27 [#120](https://github.com/Comcast/fishymetrics/pull/120)
 - Bump golang.org/x/crypto from 0.31.0 to 0.35.0 [#121](https://github.com/Comcast/fishymetrics/pull/121)
 - Bump golang.org/x/net from 0.33.0 to 0.38.0 [#123](https://github.com/Comcast/fishymetrics/pull/123)
+- Bump golang from 1.23 to 1.24 [#127](https://github.com/Comcast/fishymetrics/pull/127)
 
 
 ## [0.13.1]
