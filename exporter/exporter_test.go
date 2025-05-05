@@ -33,7 +33,7 @@ const (
 	up2Expected = `
         # HELP up was the last scrape of fishymetrics successful.
         # TYPE up gauge
-        up 2
+        redfish_up 2
 	`
 	GoodDeviceInfoExpected = `
         # HELP redfish_device_info Current snapshot of device firmware information
