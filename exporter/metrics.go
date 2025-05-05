@@ -36,7 +36,7 @@ func newServerMetric(metricName string, docString string, constLabels prometheus
 func NewDeviceMetrics() *map[string]*metrics {
 	var (
 		UpMetric = &metrics{
-			"up": newServerMetric("up", "was the last scrape of fishymetrics successful.", nil, []string{}),
+			"up": newServerMetric("redfish_up", "was the last scrape of fishymetrics successful.", nil, []string{}),
 		}
 
 		ThermalMetrics = &metrics{
