@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Comcast Cable Communications Management, LLC
+ * Copyright 2025 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,9 +31,9 @@ import (
 
 const (
 	up2Expected = `
-        # HELP up was the last scrape of fishymetrics successful.
-        # TYPE up gauge
-        up 2
+        # HELP redfish_up was the last scrape of fishymetrics successful.
+        # TYPE redfish_up gauge
+        redfish_up 2
 	`
 	GoodDeviceInfoExpected = `
         # HELP redfish_device_info Current snapshot of device firmware information

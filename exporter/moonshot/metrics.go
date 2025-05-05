@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Comcast Cable Communications Management, LLC
+ * Copyright 2025 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ func newServerMetric(metricName string, docString string, constLabels prometheus
 func NewDeviceMetrics() *map[string]*metrics {
 	var (
 		UpMetric = &metrics{
-			"up": newServerMetric("up", "was the last scrape of fishymetrics successful.", nil, []string{}),
+			"up": newServerMetric("redfish_up", "was the last scrape of fishymetrics successful.", nil, []string{}),
 		}
 
 		ThermalMetrics = &metrics{
