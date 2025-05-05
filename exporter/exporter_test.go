@@ -31,8 +31,8 @@ import (
 
 const (
 	up2Expected = `
-        # HELP up was the last scrape of fishymetrics successful.
-        # TYPE up gauge
+        # HELP redfish_up was the last scrape of fishymetrics successful.
+        # TYPE redfish_up gauge
         redfish_up 2
 	`
 	GoodDeviceInfoExpected = `
