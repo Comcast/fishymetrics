@@ -6,6 +6,8 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.15.0]
+
 ## Updated
 
 - Rename up metric to redfish_up to follow Prometheus naming conventions [#134](https://github.com/Comcast/fishymetrics/pull/134)
