@@ -75,7 +75,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 
 		// Physical Storage Disk Drive Metrics
 		DiskDriveMetrics = &metrics{
-			"driveStatus": newServerMetric("redfish_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "chassisSerialNumber", "chassisModel", "id", "location", "serialnumber", "capacityMiB"}),
+			"driveStatus": newServerMetric("redfish_disk_drive_status", "Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "chassisSerialNumber", "chassisModel", "id", "location", "serialnumber", "capacityMiB", "failurePredicted"}),
 		}
 
 		// Logical Disk Drive Metrics

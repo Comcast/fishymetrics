@@ -83,6 +83,7 @@ type DiskDriveMetrics struct {
 	Status           Status           `json:"Status"`
 	LocationWrap     LocationWrapper  `json:"Location"`
 	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
+	FailurePredicted *bool            `json:"FailurePredicted"`
 	SerialNumber     string           `json:"SerialNumber"`
 }
 

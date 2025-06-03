@@ -274,6 +274,7 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 	var dlphysical oem.DiskDriveMetrics
 	var dlphysicaldrive = (*e.DeviceMetrics)["diskDriveMetrics"]
 	var loc string
+	var diskpredictfail string
 	var cap int
 	err := json.Unmarshal(body, &dlphysical)
 	if err != nil {
@@ -307,9 +308,20 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		cap = ((dlphysical.CapacityBytes / 1024) / 1024)
 	}
 
+	// if FailurePredicted is present in response, set the result, else set to empty string
+	if dlphysical.FailurePredicted != nil {
+		if *dlphysical.FailurePredicted {
+			diskpredictfail = "true"
+		} else {
+			diskpredictfail = "false"
+		}
+	} else {
+		diskpredictfail = ""
+	}
+
 	// Physical drives need to have a unique identifier like location so as to not overwrite data
 	// physical drives can have the same ID, but belong to a different ArrayController, therefore need more than just the ID as a unique identifier.
-	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, e.ChassisSerialNumber, e.Model, dlphysical.Id, loc, strings.TrimRight(dlphysical.SerialNumber, " "), strconv.Itoa(cap)).Set(state)
+	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, e.ChassisSerialNumber, e.Model, dlphysical.Id, loc, strings.TrimRight(dlphysical.SerialNumber, " "), strconv.Itoa(cap), diskpredictfail).Set(state)
 	return nil
 }
 

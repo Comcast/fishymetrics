@@ -40,7 +40,7 @@ func (n *NuovaPlugin) exportXMLDriveMetrics(body []byte) error {
 			} else {
 				state = BAD
 			}
-			(*drv)["driveStatus"].WithLabelValues(drive.Name, n.ChassisSerialNumber, n.Model, drive.Id, "", "", "").Set(state)
+			(*drv)["driveStatus"].WithLabelValues(drive.Name, n.ChassisSerialNumber, n.Model, drive.Id, "", "", "", "").Set(state)
 		}
 	}
 
