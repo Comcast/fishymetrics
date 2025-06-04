@@ -70,12 +70,12 @@ type AaaLogoutPayload struct {
 }
 
 func checkRaidController(url, host string, client *retryablehttp.Client) (bool, error) {
-	var resp *http.Response
-	var err error
 	retryCount := 0
-	req := common.BuildRequest(url, host)
-
-	resp, err = common.DoRequest(client, req)
+	req, err := common.BuildRequest(url, host)
+	if err != nil {
+		return false, nil
+	}
+	resp, err := common.DoRequest(client, req)
 	if err != nil {
 		return false, nil
 	}
@@ -89,7 +89,7 @@ func checkRaidController(url, host string, client *retryablehttp.Client) (bool, 
 					return false, nil
 				}
 				defer common.EmptyAndCloseBody(resp)
-				retryCount = retryCount + 1
+				retryCount++
 			}
 			if err != nil {
 				return false, nil

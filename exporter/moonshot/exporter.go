@@ -195,14 +195,14 @@ func (e *Exporter) collectMetrics(metrics chan<- prometheus.Metric) {
 }
 
 func fetch(uri, device, metricType, host, profile string, client *retryablehttp.Client) func() ([]byte, string, string, error) {
-	var resp *http.Response
-	var credential *common.Credential
-	var err error
 	retryCount := 0
 
 	return func() ([]byte, string, string, error) {
-		req := common.BuildRequest(uri, host)
-		resp, err = common.DoRequest(client, req)
+		req, err := common.BuildRequest(uri, host)
+		if err != nil {
+			return nil, device, metricType, err
+		}
+		resp, err := common.DoRequest(client, req)
 		if err != nil {
 			return nil, device, metricType, err
 		}
@@ -216,7 +216,7 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 						return nil, device, metricType, err
 					}
 					defer common.EmptyAndCloseBody(resp)
-					retryCount = retryCount + 1
+					retryCount++
 				}
 				if err != nil {
 					return nil, device, metricType, err
@@ -226,7 +226,7 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 			} else if resp.StatusCode == http.StatusUnauthorized {
 				if common.ChassisCreds.Vault != nil {
 					// Credentials may have rotated, go to vault and get the latest
-					credential, err = common.ChassisCreds.GetCredentials(context.Background(), profile, host)
+					credential, err := common.ChassisCreds.GetCredentials(context.Background(), profile, host)
 					if err != nil {
 						return nil, device, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
 					}
@@ -236,7 +236,10 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 				}
 
 				// build new request with updated credentials
-				req = common.BuildRequest(uri, host)
+				req, err = common.BuildRequest(uri, host)
+				if err != nil {
+					return nil, device, metricType, err
+				}
 
 				time.Sleep(client.RetryWaitMin)
 				resp, err = common.DoRequest(client, req)
