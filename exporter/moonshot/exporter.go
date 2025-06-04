@@ -251,7 +251,7 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, device, metricType, fmt.Errorf("Error reading Response Body - " + err.Error())
+			return nil, device, metricType, fmt.Errorf("error reading Response Body - %v", err)
 		}
 		return body, device, metricType, nil
 	}
@@ -352,7 +352,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	var msPower = (*e.deviceMetrics)["powerMetrics"]
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling PowerMetrics - " + err.Error())
+		return fmt.Errorf("error Unmarshalling PowerMetrics - %v", err)
 	}
 
 	(*msPower)["supplyTotalConsumed"].WithLabelValues().Set(float64(pm.PowerConsumedWatts))
@@ -378,7 +378,7 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 	var msThermal = (*e.deviceMetrics)["thermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling ThermalMetrics - " + err.Error())
+		return fmt.Errorf("error Unmarshalling ThermalMetrics - %v", err)
 	}
 
 	// Iterate through fans
@@ -415,7 +415,7 @@ func (e *Exporter) exportSwitchMetrics(body []byte) error {
 	var msSw = (*e.deviceMetrics)["swMetrics"]
 	err := json.Unmarshal(body, &sm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling Sw - " + err.Error())
+		return fmt.Errorf("error Unmarshalling Sw - %v", err)
 	}
 
 	if sm.Status.State == "OK" {
@@ -436,7 +436,7 @@ func (e *Exporter) exportSwitchThermalMetrics(namePrefix string, body []byte) er
 	var msSwThermal = (*e.deviceMetrics)["swThermalMetrics"]
 	err := json.Unmarshal(body, &tm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling ThermalMetrics - " + err.Error())
+		return fmt.Errorf("error Unmarshalling ThermalMetrics - %v", err)
 	}
 
 	// Iterate through sensors
@@ -461,7 +461,7 @@ func (e *Exporter) exportSwitchPowerMetrics(namePrefix string, body []byte) erro
 	var msSwPower = (*e.deviceMetrics)["swPowerMetrics"]
 	err := json.Unmarshal(body, &spm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling SwPowerMetrics - " + err.Error())
+		return fmt.Errorf("error Unmarshalling SwPowerMetrics - %v", err)
 	}
 
 	(*msSwPower)["moonshotSwitchSupplyOutput"].WithLabelValues(namePrefix + "-" + spm.Name).Set(float64(spm.Oem.Hp.InstantWattage))

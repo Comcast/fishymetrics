@@ -85,7 +85,7 @@ func Fetch(uri, host, profile string, client *retryablehttp.Client) func() ([]by
 				time.Sleep(client.RetryWaitMin)
 				resp, err = DoRequest(client, req)
 				if err != nil {
-					return nil, fmt.Errorf("Retry DoRequest failed - " + err.Error())
+					return nil, fmt.Errorf("retry DoRequest failed - %v", err)
 				}
 				defer EmptyAndCloseBody(resp)
 				if resp.StatusCode == http.StatusUnauthorized {
@@ -98,7 +98,7 @@ func Fetch(uri, host, profile string, client *retryablehttp.Client) func() ([]by
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("Error reading Response Body - " + err.Error())
+			return nil, fmt.Errorf("error reading Response Body - %v", err)
 		}
 		return body, err
 	}

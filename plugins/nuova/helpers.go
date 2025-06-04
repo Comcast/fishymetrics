@@ -103,7 +103,7 @@ func checkRaidController(url, host string, client *retryablehttp.Client) (bool, 
 
 	_, err = io.ReadAll(resp.Body)
 	if err != nil {
-		return true, fmt.Errorf("Error reading Response Body - " + err.Error())
+		return true, fmt.Errorf("error reading Response Body - %s", err)
 	}
 
 	return true, nil
@@ -138,7 +138,7 @@ func IMCPost(uri, classId, cookie string, client *retryablehttp.Client) ([]byte,
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Error reading Response Body - " + err.Error())
+		return nil, fmt.Errorf("error reading Response Body - %v", err)
 	}
 
 	return body, nil
@@ -156,12 +156,12 @@ func IMCLogin(uri, target string, client *retryablehttp.Client) (string, error) 
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return aaaLogin.OutCookie, fmt.Errorf("Error reading Response Body - " + err.Error())
+		return aaaLogin.OutCookie, fmt.Errorf("error reading Response Body - %v", err)
 	}
 
 	err = xml.Unmarshal(body, &aaaLogin)
 	if err != nil {
-		return aaaLogin.OutCookie, fmt.Errorf("error unmarshalling UCS chassis aaaLogin struct - " + err.Error())
+		return aaaLogin.OutCookie, fmt.Errorf("error unmarshalling UCS chassis aaaLogin struct - %v", err)
 	}
 
 	if aaaLogin.ErrorCode != "" {

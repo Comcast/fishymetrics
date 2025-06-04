@@ -76,18 +76,6 @@ var (
 	driveModExclude    = a.Flag("collector.drives.modules-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
 	firmwareModExclude = a.Flag("collector.firmware.modules-exclude", "regex of firmware module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_FIRMWARE_MODULE_EXCLUDE").String()
 	urlExtraParams     = a.Flag("url.extra-params", `extra parameter(s) to parse from the URL. --url.extra-params="param1:alias1,param2:alias2"`).Default("").Envar("URL_EXTRA_PARAMS").String()
-	credProfiles       = common.CredentialProf(a.Flag("credentials.profiles",
-		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
-  --credentials.profiles="
-    profiles:
-      - name: profile1
-        mountPath: "kv2"
-        path: "path/to/secret"
-        userField: "user"
-        passwordField: "password"
-      ...
-  "
---credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'`))
 
 	log *zap.Logger
 
@@ -95,7 +83,6 @@ var (
 	excludes           = make(map[string]interface{})
 	urlExtraParamsMap  = make(map[string]string)
 	extraParamsAliases = make(map[string]string)
-	counter            int
 )
 
 var wg = sync.WaitGroup{}
@@ -150,13 +137,9 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	// check if vault is configured
 	if vault != nil {
-		var credential *common.Credential
-		var err error
 		// check if ChassisCredentials hashmap contains the credentials we need otherwise get them from vault
-		if c, ok := common.ChassisCreds.Get(target); ok {
-			credential = c
-		} else {
-			credential, err = common.ChassisCreds.GetCredentials(ctx, credProf, target, common.UpdateCredProfilePath(extraParamsAliases))
+		if _, ok := common.ChassisCreds.Get(target); !ok {
+			credential, err := common.ChassisCreds.GetCredentials(ctx, credProf, target, common.UpdateCredProfilePath(extraParamsAliases))
 			if err != nil {
 				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), zap.Any("trace_id", r.Context().Value("traceID")))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
