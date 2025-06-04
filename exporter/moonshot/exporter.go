@@ -267,7 +267,7 @@ func (e *Exporter) scrape() {
 	scrapes := len(e.pool.Tasks)
 	scrapeChan := make(chan uint8, scrapes)
 
-	// Concurrently call the endpoints to help prevent reaching the maxiumum number of 4 simultaneous sessions
+	// Concurrently call the endpoints to help prevent reaching the maximum number of 4 simultaneous sessions
 	e.pool.Run()
 	for _, task := range e.pool.Tasks {
 		var err error

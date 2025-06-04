@@ -49,7 +49,7 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | `vault.roleId`                                              | vault Role ID for AppRole                                                                  | `""`                      |
 | `vault.secretId`                                            | vault Secret ID for AppRole                                                                | `""`                      |
 | `vault.kv2MountPath`                                        | vault config path where kv2 secrets are mounted                                            | `"kv2"`                   |
-| `vault.kv2Path`                                             | vault path where kv2 secrets will be retreived                                             | `"path/to/secret"`        |
+| `vault.kv2Path`                                             | vault path where kv2 secrets will be retrieved                                             | `"path/to/secret"`        |
 | `vault.kv2UserField`                                        | vault kv2 secret field where we get the username                                           | `"user"`                  |
 | `vault.kv2PasswordField`                                    | vault kv2 secret field where we get the password                                           | `"password"`              |
 | `collector.drives.modulesExclude`                           | drive module(s) to exclude from the scrape                                                 | `""`                      |

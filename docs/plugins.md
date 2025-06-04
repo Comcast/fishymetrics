@@ -1,6 +1,6 @@
 # plugins
 
-Plugins are a way to extend the capabilities of fishymetrics, by allowing the exporter to execute custom code after all the initializations are complete for a devices standard redfish metrics scrape. The main purpose for plugins is to collect component metrics data that is inaccessible using the prefered redfish API endpoints. Below is an example of how to create a custom plugin.
+Plugins are a way to extend the capabilities of fishymetrics, by allowing the exporter to execute custom code after all the initializations are complete for a devices standard redfish metrics scrape. The main purpose for plugins is to collect component metrics data that is inaccessible using the preferred redfish API endpoints. Below is an example of how to create a custom plugin.
 
 ## directory location
 

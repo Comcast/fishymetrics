@@ -471,7 +471,7 @@ func (e *Exporter) exportMemorySummaryMetrics(body []byte) error {
 	return nil
 }
 
-// exportStorageBattery collects the smart storge battery metrics in json format and sets the prometheus guage
+// exportStorageBattery collects the smart storage battery metrics in json format and sets the prometheus gauge
 func (e *Exporter) exportStorageBattery(body []byte) error {
 
 	var state float64
@@ -647,7 +647,7 @@ func (e *Exporter) exportProcessorMetrics(body []byte) error {
 	return nil
 }
 
-// exportFirmwareInventoryMetrics collects the inventory component's firmware metrics in json format and sets the prometheus guages
+// exportFirmwareInventoryMetrics collects the inventory component's firmware metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 	var fwcomponent oem.ILO4Firmware
 	var component = (*e.DeviceMetrics)["firmwareInventoryMetrics"]
@@ -674,7 +674,7 @@ func (e *Exporter) exportFirmwareInventoryMetrics(body []byte) error {
 	return nil
 }
 
-// exportIloSelfTest collects the iLO Self Test Results metrics in json format and sets the prometheus guage
+// exportIloSelfTest collects the iLO Self Test Results metrics in json format and sets the prometheus gauge
 func (e *Exporter) exportIloSelfTest(body []byte) error {
 
 	var state float64
