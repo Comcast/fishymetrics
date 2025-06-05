@@ -53,7 +53,7 @@ const (
 	GoodDiskDriveExpected = `
         # HELP redfish_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
         # TYPE redfish_disk_drive_status gauge
-        redfish_disk_drive_status{capacityMiB="915715",chassisModel="model a",chassisSerialNumber="SN98765",id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
+        redfish_disk_drive_status{capacityMiB="915715",chassisModel="model a",chassisSerialNumber="SN98765",failurePredicted="",id="0",location="1I:1:1",name="HpeSmartStorageDiskDrive",serialnumber="ABC123"} 1
 	`
 	GoodNvmeDriveExpected = `
         # HELP redfish_nvme_drive_status Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED
