@@ -37,8 +37,9 @@ type NVMeDriveMetrics struct {
 	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
 	Protocol         string           `json:"Protocol"`
 	Status           Status           `json:"Status"`
-	FailurePredicted bool             `json:"FailurePredicted"`
+	FailurePredicted *bool            `json:"FailurePredicted"`
 	CapacityBytes    int              `json:"CapacityBytes"`
+	SerialNumber     string           `json:"SerialNumber"`
 }
 
 // Logical Drives

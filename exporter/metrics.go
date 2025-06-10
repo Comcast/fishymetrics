@@ -70,7 +70,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 		// Splitting out the three different types of drives to gather metrics on each (NVMe, Disk Drive, and Logical Drive)
 		// NVMe Drive Metrics
 		NVMeDriveMetrics = &metrics{
-			"nvmeDriveStatus": newServerMetric("redfish_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"chassisSerialNumber", "chassisModel", "protocol", "id", "serviceLabel"}),
+			"nvmeDriveStatus": newServerMetric("redfish_nvme_drive_status", "Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"chassisSerialNumber", "chassisModel", "protocol", "id", "serviceLabel", "serialnumber", "capacityMiB", "failurePredicted"}),
 		}
 
 		// Physical Storage Disk Drive Metrics

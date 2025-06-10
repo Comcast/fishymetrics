@@ -58,7 +58,7 @@ const (
 	GoodNvmeDriveExpected = `
         # HELP redfish_nvme_drive_status Current NVME status 1 = OK, 0 = BAD, -1 = DISABLED
         # TYPE redfish_nvme_drive_status gauge
-        redfish_nvme_drive_status{chassisModel="model a",chassisSerialNumber="SN98765",id="DA000000",protocol="NVMe",serviceLabel="Box 3:Bay 7"} 1
+        redfish_nvme_drive_status{capacityMiB="1526185",chassisModel="model a",chassisSerialNumber="SN98765",failurePredicted="false",id="DA000000",protocol="NVMe",serialnumber="ABC123",serviceLabel="Box 3:Bay 7"} 1
 	`
 	GoodStorageControllerExpected = `
         # HELP redfish_storage_controller_status Current storage controller status 1 = OK, 0 = BAD
@@ -506,7 +506,8 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
   			    "ServiceLabel": "Box 3:Bay 7"
   			  }
   			},
-  			"Protocol": "NVMe"
+				"Protocol": "NVMe",
+				"SerialNumber": "ABC123"
 		}`)
 	var GoodStorageControllerResponse = []byte(`{
   			"Name": "SBMezz1",
