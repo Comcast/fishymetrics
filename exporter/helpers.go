@@ -34,8 +34,10 @@ import (
 func getMemberUrls(url, host string, client *retryablehttp.Client) ([]string, error) {
 	var coll oem.Collection
 	var urls []string
-	req := common.BuildRequest(url, host)
-
+	req, err := common.BuildRequest(url, host)
+	if err != nil {
+		return urls, err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return urls, err
@@ -71,8 +73,10 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 	var sysEnd SystemEndpoints
 
 	for _, url := range chassisUrls {
-		req := common.BuildRequest(url, host)
-
+		req, err := common.BuildRequest(url, host)
+		if err != nil {
+			return sysEnd, err
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			return sysEnd, err
@@ -212,8 +216,10 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 
 func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.System, error) {
 	var sys oem.System
-	req := common.BuildRequest(url, host)
-
+	req, err := common.BuildRequest(url, host)
+	if err != nil {
+		return sys, err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return sys, err
@@ -238,12 +244,12 @@ func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.Sys
 
 func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
 	var dimms oem.Collection
-	var resp *http.Response
-	var err error
 	retryCount := 0
-	req := common.BuildRequest(url, host)
-
-	resp, err = common.DoRequest(client, req)
+	req, err := common.BuildRequest(url, host)
+	if err != nil {
+		return dimms, err
+	}
+	resp, err := common.DoRequest(client, req)
 	if err != nil {
 		return dimms, err
 	}
@@ -257,7 +263,7 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Colle
 					return dimms, err
 				}
 				defer common.EmptyAndCloseBody(resp)
-				retryCount = retryCount + 1
+				retryCount++
 			}
 			if err != nil {
 				return dimms, err
@@ -287,11 +293,12 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Colle
 // This is used to find the final drive endpoints to append to the task pool for final scraping.
 func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.GenericDrive, error) {
 	var drive oem.GenericDrive
-	var resp *http.Response
-	var err error
 	retryCount := 0
-	req := common.BuildRequest(url, host)
-	resp, err = common.DoRequest(client, req)
+	req, err := common.BuildRequest(url, host)
+	if err != nil {
+		return drive, err
+	}
+	resp, err := common.DoRequest(client, req)
 	if err != nil {
 		return drive, err
 	}
@@ -305,7 +312,7 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 					return drive, err
 				}
 				defer common.EmptyAndCloseBody(resp)
-				retryCount = retryCount + 1
+				retryCount++
 			}
 			if err != nil {
 				return drive, err
@@ -466,12 +473,12 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 
 func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
 	var processors oem.Collection
-	var resp *http.Response
-	var err error
 	retryCount := 0
-	req := common.BuildRequest(url, host)
-
-	resp, err = common.DoRequest(client, req)
+	req, err := common.BuildRequest(url, host)
+	if err != nil {
+		return processors, err
+	}
+	resp, err := common.DoRequest(client, req)
 	if err != nil {
 		return processors, err
 	}
@@ -485,7 +492,7 @@ func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.
 					return processors, err
 				}
 				defer common.EmptyAndCloseBody(resp)
-				retryCount = retryCount + 1
+				retryCount++
 			}
 			if err != nil {
 				return processors, err

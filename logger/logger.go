@@ -29,13 +29,8 @@ import (
 
 var (
 	logger      *zap.Logger
-	path        string
 	atomicLevel zap.AtomicLevel
 )
-
-type lumberjackSink struct {
-	*lumberjack.Logger
-}
 
 type LoggerConfig struct {
 	LogLevel       string
@@ -49,10 +44,6 @@ type LogFile struct {
 	MaxSize    int
 	MaxBackups int
 	MaxAge     int
-}
-
-func (lumberjackSink) Sync() error {
-	return nil
 }
 
 func Initialize(svc, hostname string, config LoggerConfig) error {
@@ -178,10 +169,6 @@ func ProdEncoderConf() zapcore.EncoderConfig {
 }
 
 func Verbosity(w http.ResponseWriter, r *http.Request) {
-	type Results struct {
-		Level string `json:"verbosity"`
-	}
-
 	log := zap.L()
 	level := GetLevel()
 	log.Info("current logging level", zap.String("level", level))
