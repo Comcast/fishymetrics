@@ -6,6 +6,10 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## Updated
+
+- Include predictive failure label to SATA and NVMe disk metrics [#137](https://github.com/Comcast/fishymetrics/issues/137)
+
 ## [0.15.0]
 
 ## Updated

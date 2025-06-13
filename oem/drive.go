@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Comcast Cable Communications Management, LLC
+ * Copyright 2025 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,8 +37,9 @@ type NVMeDriveMetrics struct {
 	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
 	Protocol         string           `json:"Protocol"`
 	Status           Status           `json:"Status"`
-	FailurePredicted bool             `json:"FailurePredicted"`
+	FailurePredicted *bool            `json:"FailurePredicted"`
 	CapacityBytes    int              `json:"CapacityBytes"`
+	SerialNumber     string           `json:"SerialNumber"`
 }
 
 // Logical Drives
@@ -83,6 +84,7 @@ type DiskDriveMetrics struct {
 	Status           Status           `json:"Status"`
 	LocationWrap     LocationWrapper  `json:"Location"`
 	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
+	FailurePredicted *bool            `json:"FailurePredicted"`
 	SerialNumber     string           `json:"SerialNumber"`
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Comcast Cable Communications Management, LLC
+ * Copyright 2025 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -274,6 +274,7 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 	var dlphysical oem.DiskDriveMetrics
 	var dlphysicaldrive = (*e.DeviceMetrics)["diskDriveMetrics"]
 	var loc string
+	var failpredict string
 	var cap int
 	err := json.Unmarshal(body, &dlphysical)
 	if err != nil {
@@ -307,9 +308,20 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 		cap = ((dlphysical.CapacityBytes / 1024) / 1024)
 	}
 
+	// if FailurePredicted is present in response, set the result, else set to empty string
+	if dlphysical.FailurePredicted != nil {
+		if *dlphysical.FailurePredicted {
+			failpredict = "true"
+		} else {
+			failpredict = "false"
+		}
+	} else {
+		failpredict = ""
+	}
+
 	// Physical drives need to have a unique identifier like location so as to not overwrite data
 	// physical drives can have the same ID, but belong to a different ArrayController, therefore need more than just the ID as a unique identifier.
-	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, e.ChassisSerialNumber, e.Model, dlphysical.Id, loc, strings.TrimRight(dlphysical.SerialNumber, " "), strconv.Itoa(cap)).Set(state)
+	(*dlphysicaldrive)["driveStatus"].WithLabelValues(dlphysical.Name, e.ChassisSerialNumber, e.Model, dlphysical.Id, loc, strings.TrimRight(dlphysical.SerialNumber, " "), strconv.Itoa(cap), failpredict).Set(state)
 	return nil
 }
 
@@ -354,6 +366,8 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 // exportNVMeDriveMetrics collects the NVME drive metrics in json format and sets the prometheus gauges
 func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 	var state float64
+	var cap int
+	var failpredict string
 	var dlnvme oem.NVMeDriveMetrics
 	var dlnvmedrive = (*e.DeviceMetrics)["nvmeMetrics"]
 	err := json.Unmarshal(body, &dlnvme)
@@ -372,7 +386,23 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(e.ChassisSerialNumber, e.Model, dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel).Set(state)
+	if dlnvme.CapacityBytes != 0 {
+		// convert to MiB
+		cap = ((dlnvme.CapacityBytes / 1024) / 1024)
+	}
+
+	// if FailurePredicted is present in response, set the result, else set to empty string
+	if dlnvme.FailurePredicted != nil {
+		if *dlnvme.FailurePredicted {
+			failpredict = "true"
+		} else {
+			failpredict = "false"
+		}
+	} else {
+		failpredict = ""
+	}
+
+	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(e.ChassisSerialNumber, e.Model, dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel, dlnvme.SerialNumber, strconv.Itoa(cap), failpredict).Set(state)
 	return nil
 }
 
