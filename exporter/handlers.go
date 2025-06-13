@@ -84,7 +84,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	var state float64
 	var pm oem.PowerMetrics
 	var pow = (*e.DeviceMetrics)["powerMetrics"]
-	var bay int
+	var bay string
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling PowerMetrics - %s", err.Error())
@@ -147,11 +147,15 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	}
 
 	for _, ps := range pm.PowerSupplies {
-		// if power supply status state is present, capture the bay number
+		// Consider the MemberID the identifier of the power supply. On HPE and Dell platform at least, the index starts at 0
+		if ps.MemberID != "" {
+			bay = ps.MemberID
+		}
+		// legacy HPE handling. The index usually starts at 1
 		if ps.Oem.Hp.PowerSupplyStatus.State != "" {
-			bay = ps.Oem.Hp.BayNumber
+			bay = strconv.Itoa(ps.Oem.Hp.BayNumber)
 		} else if ps.Oem.Hpe.PowerSupplyStatus.State != "" {
-			bay = ps.Oem.Hpe.BayNumber
+			bay = strconv.Itoa(ps.Oem.Hpe.BayNumber)
 		}
 
 		if ps.Status.State == "Enabled" {
@@ -166,7 +170,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 			}
 
 			if watts != 9999 {
-				(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), strings.TrimRight(ps.Model, " ")).Set(watts)
+				(*pow)["supplyOutput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, bay, strings.TrimRight(ps.Model, " ")).Set(watts)
 			}
 			if ps.Status.Health == "OK" || ps.Status.Health == "Ok" {
 				state = OK
@@ -180,7 +184,7 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 		}
 
 		if ps.Status.State != "Absent" {
-			(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, strconv.Itoa(bay), strings.TrimRight(ps.Model, " ")).Set(state)
+			(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, bay, strings.TrimRight(ps.Model, " ")).Set(state)
 		}
 	}
 

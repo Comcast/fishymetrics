@@ -80,7 +80,7 @@ type PowerSupply struct {
 	LineInputVoltageType string       `json:"LineInputVoltageType,omitempty"`
 	InputRanges          []InputRange `json:"InputRanges,omitempty"`
 	Manufacturer         string       `json:"Manufacturer"`
-	MemberID             interface{}  `json:"MemberId"`
+	MemberID             string       `json:"MemberId"`
 	Model                string       `json:"Model"`
 	Name                 string       `json:"Name"`
 	Oem                  OemPower     `json:"Oem,omitempty"`
