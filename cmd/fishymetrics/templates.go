@@ -16,10 +16,6 @@
 
 package main
 
-type indexAppData struct {
-	Hostname string
-}
-
 const postPayload string = "`{\"host\": \"${host}\"}`"
 
 const indexTmpl string = `<html>

@@ -58,7 +58,7 @@ func NewDefaultInstrumentation() *Instrumentation {
 	return &i
 }
 
-// Middleware satisifies the mux middleware interface
+// Middleware satisfies the mux middleware interface
 func (i *Instrumentation) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
@@ -77,7 +77,7 @@ func (i *Instrumentation) Middleware(next http.Handler) http.Handler {
 		i.reqSizeBytes.WithLabelValues(defaultLabelVals...).Observe(float64(estimateRequestSize(r)))
 		i.reqTotal.WithLabelValues(defaultLabelVals...).Inc()
 		i.resSizeBytes.WithLabelValues(defaultLabelVals...).Observe(float64(sResponseWriter.size))
-		i.reqDurationSecs.WithLabelValues(defaultLabelVals...).Observe(time.Now().Sub(startTime).Seconds())
+		i.reqDurationSecs.WithLabelValues(defaultLabelVals...).Observe(time.Since(startTime).Seconds())
 	})
 }
 

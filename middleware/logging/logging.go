@@ -32,6 +32,9 @@ var (
 	)
 )
 
+// TraceIDKey is used to store traceID values to the HTTP request context
+type TraceIDKey string
+
 // LoggingHandler accepts an http.Handler and wraps it with a
 // handler that logs the request and response information.
 func LoggingHandler(h http.Handler) http.Handler {
@@ -42,8 +45,7 @@ func LoggingHandler(h http.Handler) http.Handler {
 	log = zap.L()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		newCtx := context.WithValue(req.Context(), "traceID", generate())
-		req = req.WithContext(newCtx)
+		req = req.WithContext(context.WithValue(req.Context(), TraceIDKey("traceID"), generate()))
 		srw := statusResponseWriter{ResponseWriter: w, status: http.StatusOK}
 		query := req.URL.Query()
 
