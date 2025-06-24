@@ -531,7 +531,7 @@ func (e *Exporter) collectMetrics(metrics chan<- prometheus.Metric) {
 func (e *Exporter) scrape() {
 	state := uint8(1)
 
-	// Concurrently call the endpoints to help prevent reaching the maxiumum number of 4 simultaneous sessions
+	// Concurrently call the endpoints to help prevent reaching the maximum number of 4 simultaneous sessions
 	e.pool.Run()
 	for _, task := range e.pool.Tasks {
 		var err error

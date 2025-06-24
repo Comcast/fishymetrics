@@ -141,7 +141,7 @@ func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target
 		return nil, fmt.Errorf("vault client not configured")
 	}
 
-	// check that atleast 1 profile is present
+	// check that at least 1 profile is present
 	if len(c.Profiles) < 1 {
 		return nil, fmt.Errorf("no credential profiles configured")
 	}

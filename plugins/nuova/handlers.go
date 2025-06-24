@@ -30,7 +30,7 @@ func (n *NuovaPlugin) exportXMLDriveMetrics(body []byte) error {
 	var drv = (*n.DeviceMetrics)["diskDriveMetrics"]
 	err := xml.Unmarshal(body, &dm)
 	if err != nil {
-		return fmt.Errorf("Error Unmarshalling XMLDriveMetrics - " + err.Error())
+		return fmt.Errorf("error Unmarshalling XMLDriveMetrics - %v", err)
 	}
 
 	for _, drive := range dm.OutConfigs.Drives {
