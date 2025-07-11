@@ -5,10 +5,10 @@ exports them via HTTP for Prometheus consumption.
 
 ## Installing the Chart
 
-To install the chart with the release name `my-release`:
+To install the chart with the release name `fishymetrics`:
 
 ```console
-$ helm install --name my-release <repo>/fishymetrics
+helm upgrade --install --name fishymetrics --version 0.12.0 oci://registry-1.docker.io/comcast/fishymetrics
 ```
 
 The command deploys fishymetrics on the Kubernetes cluster in the default configuration. The [configuration](#configuration) section lists the parameters that can be configured during installation.
@@ -17,10 +17,10 @@ The command deploys fishymetrics on the Kubernetes cluster in the default config
 
 ## Uninstalling the Chart
 
-To uninstall/delete the `my-release` deployment:
+To uninstall/delete the `fishymetrics` deployment:
 
 ```console
-$ helm delete my-release
+helm delete fishymetrics
 ```
 
 ## Configuration
