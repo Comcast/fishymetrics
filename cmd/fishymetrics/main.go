@@ -107,7 +107,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	target := query.Get("target")
 	if len(query["target"]) != 1 || target == "" {
-		log.Error("'target' parameter not set correctly", zap.String("target", target), zap.Any("trace_id", r.Context().Value("traceID")))
+		log.Error("'target' parameter not set correctly", zap.String("target", target), zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
 		http.Error(w, "'target' parameter not set correctly", http.StatusBadRequest)
 		return
 	}
@@ -124,7 +124,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	for _, p := range plugins {
 		if p == "nuova" {
 			plugs = append(plugs, &nuova.NuovaPlugin{})
-			log.Debug("nuova plugin added", zap.Any("trace_id", r.Context().Value("traceID")))
+			log.Debug("nuova plugin added", zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
 		}
 	}
 
@@ -132,7 +132,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		zap.String("model", model),
 		zap.String("target", target),
 		zap.String("credential_profile", credProf),
-		zap.Any("trace_id", r.Context().Value("traceID")))
+		zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
 
 	// extract value of extra url param(s) from url query string if they are present.
 	// we'll want to assign the key of the kv pair as the variable alias and the value as the
@@ -153,7 +153,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		if _, ok := common.ChassisCreds.Get(target); !ok {
 			credential, err := common.ChassisCreds.GetCredentials(ctx, credProf, target, common.UpdateCredProfilePath(extraParamsAliases))
 			if err != nil {
-				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), zap.Any("trace_id", r.Context().Value("traceID")))
+				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -172,7 +172,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		log.Error("failed to create chassis exporter", zap.Error(err), zap.Any("trace_id", r.Context().Value("traceID")))
+		log.Error("failed to create chassis exporter", zap.Error(err), zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
 		http.Error(w, fmt.Sprintf("failed to create chassis exporter - %s", err.Error()), http.StatusInternalServerError)
 		return
 	}

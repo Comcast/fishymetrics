@@ -33,6 +33,7 @@ import (
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	"github.com/comcast/fishymetrics/middleware/logging"
 	"github.com/comcast/fishymetrics/oem/moonshot"
 	"github.com/comcast/fishymetrics/pool"
 	"go.uber.org/zap"
@@ -113,7 +114,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 	retryClient.RequestLogHook = func(l retryablehttp.Logger, r *http.Request, i int) {
 		retryCount := i
 		if retryCount > 0 {
-			log.Error("api call "+r.URL.String()+" failed, retry #"+strconv.Itoa(retryCount), zap.Any("trace_id", ctx.Value("traceID")))
+			log.Error("api call "+r.URL.String()+" failed, retry #"+strconv.Itoa(retryCount), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		}
 	}
 
@@ -281,14 +282,14 @@ func (e *Exporter) scrape() {
 					Model:             MOONSHOT,
 					CredentialProfile: e.credProfile,
 				}
-				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value("traceID")))
+				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value(logging.TraceIDKey("traceID"))))
 				deviceState = 2
 			} else {
 				deviceState = 0
 			}
 			var upMetric = (*e.deviceMetrics)["up"]
 			(*upMetric)["up"].WithLabelValues().Set(float64(deviceState))
-			log.Error("error from "+task.Device, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error from "+task.Device, zap.Error(task.Err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value(logging.TraceIDKey("traceID"))))
 			return
 		}
 
@@ -329,7 +330,7 @@ func (e *Exporter) scrape() {
 
 		if err != nil {
 			scrapeChan <- 0
-			log.Error("error exporting metrics - from "+task.Device, zap.Error(err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value("traceID")))
+			log.Error("error exporting metrics - from "+task.Device, zap.Error(err), zap.String("api", task.MetricType), zap.Any("trace_id", e.ctx.Value(logging.TraceIDKey("traceID"))))
 			continue
 		}
 		scrapeChan <- 1
