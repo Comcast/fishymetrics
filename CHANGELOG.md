@@ -6,6 +6,8 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.16.1]
+
 ## Fixed
 
 - null trace_id in logging output [#143](https://github.com/Comcast/fishymetrics/issues/143)
