@@ -8,7 +8,7 @@ exports them via HTTP for Prometheus consumption.
 To install the chart with the release name `fishymetrics`:
 
 ```console
-helm upgrade --install --name fishymetrics --version 0.12.0 oci://registry-1.docker.io/comcast/fishymetrics
+helm upgrade --install --name fishymetrics --version 0.13.0 oci://registry-1.docker.io/comcast/fishymetrics
 ```
 
 The command deploys fishymetrics on the Kubernetes cluster in the default configuration. The [configuration](#configuration) section lists the parameters that can be configured during installation.
@@ -30,7 +30,7 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | Parameter                                                   | Description                                                                                | Default                   |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------- |
 | `image.repo`                                                | container image repo for fishymetrics                                                      | `"comcast/fishymetrics"`  |
-| `image.tag`                                                 | container image tag for fishymetrics                                                       | `"0.12.1"`                |
+| `image.tag`                                                 | container image tag for fishymetrics                                                       | `"0.16.0"`                |
 | `image.pullPolicy`                                          | container image pull policy                                                                | `"IfNotPresent"`          |
 | `replicas`                                                  | number of replica sets to initially deploy                                                 | `1`                       |
 | `exporter.port`                                             | exporter port to listen on                                                                 | `10023`                   |
@@ -60,7 +60,7 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | `vector.endpoint`                                           | vector client endpoint, in most cases this is deployed to localhost                        | `"http://localhost:4444"` |
 | `vector.port`                                               | vector client port                                                                         | `4444`                    |
 | `vector.image.repo`                                         | container image repo for datadog vector image                                              | `"timberio/vector"`       |
-| `vector.image.tag`                                          | container image tag for datadog vector image                                               | `"0.26.0-alpine"`         |
+| `vector.image.tag`                                          | container image tag for datadog vector image                                               | `"0.32.2-alpine"`         |
 | `vector.image.pullPolicy`                                   | container image pull policy                                                                | `"IfNotPresent"`          |
 | `vector.elasticsearch.user`                                 | username authorization to external elastic instance                                        | `""`                      |
 | `vector.elasticsearch.pass`                                 | password authorization to external elastic instance                                        | `""`                      |
