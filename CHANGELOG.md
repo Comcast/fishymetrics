@@ -6,9 +6,17 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.16.0]
+
+## Fixed
+
+- nil pointer dereference [#118](https://github.com/Comcast/fishymetrics/issues/118)
+- power: fix PSU index for everything other than HPE [#140](https://github.com/Comcast/fishymetrics/pull/140)
+
 ## Updated
 
 - Include predictive failure label to SATA and NVMe disk metrics [#137](https://github.com/Comcast/fishymetrics/issues/137)
+- linter, spelling nits + panic fix [#138](https://github.com/Comcast/fishymetrics/pull/138)
 
 ## [0.15.0]
 
