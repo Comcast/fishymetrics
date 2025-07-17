@@ -19,6 +19,7 @@ package nuova
 import (
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/exporter"
+	"github.com/comcast/fishymetrics/middleware/logging"
 	"github.com/comcast/fishymetrics/pool"
 	"go.uber.org/zap"
 )
@@ -50,7 +51,7 @@ func (n *NuovaPlugin) Apply(e *exporter.Exporter) error {
 		// check raid controller
 		isPresent, err := checkRaidController(e.GetUrl()+"/redfish/v1/Systems/"+e.ChassisSerialNumber+"/Storage/MRAID", e.GetHost(), e.GetClient())
 		if err != nil {
-			log.Error("error when getting raid controller from "+e.Model, zap.Error(err), zap.Any("trace_id", e.GetContext().Value("traceID")))
+			log.Error("error when getting raid controller from "+e.Model, zap.Error(err), zap.Any("trace_id", e.GetContext().Value(logging.TraceIDKey("traceID"))))
 			return err
 		}
 		if !isPresent {

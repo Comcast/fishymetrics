@@ -59,7 +59,7 @@ func LoggingHandler(h http.Handler) http.Handler {
 				zap.String("proto", req.Proto),
 				zap.Int("status", srw.status),
 				zap.Float64("elapsed_time_sec", time.Since(start).Seconds()),
-				zap.Any("trace_id", req.Context().Value("traceID")),
+				zap.Any("trace_id", req.Context().Value(TraceIDKey("traceID"))),
 			)
 		}(time.Now())
 

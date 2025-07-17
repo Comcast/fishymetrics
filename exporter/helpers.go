@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/comcast/fishymetrics/common"
+	"github.com/comcast/fishymetrics/middleware/logging"
 	"github.com/comcast/fishymetrics/oem"
 	"github.com/hashicorp/go-retryablehttp"
 	"go.uber.org/zap"
@@ -345,7 +346,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 	// Get initial JSON return of /redfish/v1/Systems/XXXX/SmartStorage/ArrayControllers/ set to output
 	driveResp, err := getDriveEndpoint(initialUrl, host, client)
 	if err != nil {
-		log.Error("api call "+initialUrl+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+		log.Error("api call "+initialUrl+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		return driveEndpoints, err
 	}
 
@@ -355,7 +356,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 		// /redfish/v1/Systems/XXXX/SmartStorage/ArrayControllers/X/
 		arrayCtrlResp, err := getDriveEndpoint(fqdn+member.URL, host, client)
 		if err != nil {
-			log.Error("api call "+fqdn+member.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+			log.Error("api call "+fqdn+member.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 			return driveEndpoints, err
 		}
 
@@ -378,7 +379,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 					url := appendSlash(volume)
 					volumeOutput, err := getDriveEndpoint(fqdn+url, host, client)
 					if err != nil {
-						log.Error("api call "+fqdn+url+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+						log.Error("api call "+fqdn+url+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 						return driveEndpoints, err
 					}
 
@@ -397,7 +398,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 			if arrayCtrlResp.Controllers.URL != "" {
 				controllerOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.Controllers.URL, host, client)
 				if err != nil {
-					log.Error("api call "+fqdn+arrayCtrlResp.Controllers.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+					log.Error("api call "+fqdn+arrayCtrlResp.Controllers.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 					return driveEndpoints, err
 				}
 
@@ -415,7 +416,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 		if arrayCtrlResp.LinksUpper.LogicalDrives.URL != "" {
 			logicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksUpper.LogicalDrives.URL, host, client)
 			if err != nil {
-				log.Error("api call "+fqdn+arrayCtrlResp.LinksUpper.LogicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				log.Error("api call "+fqdn+arrayCtrlResp.LinksUpper.LogicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return driveEndpoints, err
 			}
 
@@ -430,7 +431,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 		if arrayCtrlResp.LinksUpper.PhysicalDrives.URL != "" {
 			physicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksUpper.PhysicalDrives.URL, host, client)
 			if err != nil {
-				log.Error("api call "+fqdn+arrayCtrlResp.LinksUpper.PhysicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				log.Error("api call "+fqdn+arrayCtrlResp.LinksUpper.PhysicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return driveEndpoints, err
 			}
 
@@ -443,7 +444,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 		if arrayCtrlResp.LinksLower.LogicalDrives.URL != "" {
 			logicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksLower.LogicalDrives.URL, host, client)
 			if err != nil {
-				log.Error("api call "+fqdn+arrayCtrlResp.LinksLower.LogicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				log.Error("api call "+fqdn+arrayCtrlResp.LinksLower.LogicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return driveEndpoints, err
 			}
 
@@ -458,7 +459,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 		if arrayCtrlResp.LinksLower.PhysicalDrives.URL != "" {
 			physicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksLower.PhysicalDrives.URL, host, client)
 			if err != nil {
-				log.Error("api call "+fqdn+arrayCtrlResp.LinksLower.PhysicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value("traceID")))
+				log.Error("api call "+fqdn+arrayCtrlResp.LinksLower.PhysicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return driveEndpoints, err
 			}
 
