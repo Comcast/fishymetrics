@@ -74,7 +74,7 @@ type PowerMetricsWrapper struct {
 
 func (w *PowerMetricsWrapper) UnmarshalJSON(data []byte) error {
 	// because of a change in output between firmware versions we need to account for this
-	// PowerControl can either be []PowerControl or a singular PowerControl
+	// PowerMetric can either be []PowerMetric or a singular PowerMetric
 	var powMet PowerMetric
 	err := json.Unmarshal(data, &powMet)
 	if err == nil {
