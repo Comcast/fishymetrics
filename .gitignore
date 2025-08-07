@@ -1,6 +1,14 @@
 
 # Created by https://www.gitignore.io/api/go,osx,linux,sublimetext,visualstudiocode
 
+# local dev environment files
+prometheus/
+compose.yml
+*.key
+*.crt
+*.pem
+values.*
+
 ### Go ###
 # Binaries for programs and plugins
 *.exe
