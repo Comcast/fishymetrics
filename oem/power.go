@@ -27,17 +27,17 @@ type PowerMetrics struct {
 	ID            string              `json:"Id"`
 	Name          string              `json:"Name"`
 	PowerControl  PowerControlWrapper `json:"PowerControl"`
-	PowerSupplies []PowerSupply       `json:"PowerSupplies"`
+	PowerSupplies []PowerSupply       `json:"PowerSupplies,omitempty"`
 	Voltages      []Voltages          `json:"Voltages,omitempty"`
 	Url           string              `json:"@odata.id"`
 }
 
 // PowerControl is the top level json object for metadata on power supply consumption
 type PowerControl struct {
-	MemberID           string      `json:"MemberId"`
-	PowerCapacityWatts interface{} `json:"PowerCapacityWatts,omitempty"`
-	PowerConsumedWatts interface{} `json:"PowerConsumedWatts"`
-	PowerMetrics       PowerMetric `json:"PowerMetrics"`
+	MemberID           string              `json:"MemberId"`
+	PowerCapacityWatts interface{}         `json:"PowerCapacityWatts,omitempty"`
+	PowerConsumedWatts interface{}         `json:"PowerConsumedWatts"`
+	PowerMetrics       PowerMetricsWrapper `json:"PowerMetrics"`
 }
 
 type PowerControlSlice struct {
@@ -64,6 +64,30 @@ func (w *PowerControlWrapper) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type PowerMetricsSlice struct {
+	PowerMetric []PowerMetric
+}
+
+type PowerMetricsWrapper struct {
+	PowerMetricsSlice
+}
+
+func (w *PowerMetricsWrapper) UnmarshalJSON(data []byte) error {
+	// because of a change in output between firmware versions we need to account for this
+	// PowerControl can either be []PowerControl or a singular PowerControl
+	var powMet PowerMetric
+	err := json.Unmarshal(data, &powMet)
+	if err == nil {
+		s := make([]PowerMetric, 0)
+		s = append(s, powMet)
+		w.PowerMetric = s
+	} else {
+		return json.Unmarshal(data, &w.PowerMetric)
+	}
+
+	return nil
+}
+
 // PowerMetric contains avg/min/max power metadata
 type PowerMetric struct {
 	AverageConsumedWatts interface{} `json:"AverageConsumedWatts"`
@@ -80,7 +104,7 @@ type PowerSupply struct {
 	LineInputVoltageType string       `json:"LineInputVoltageType,omitempty"`
 	InputRanges          []InputRange `json:"InputRanges,omitempty"`
 	Manufacturer         string       `json:"Manufacturer"`
-	MemberID             string       `json:"MemberId"`
+	MemberID             interface{}  `json:"MemberId"`
 	Model                string       `json:"Model"`
 	Name                 string       `json:"Name"`
 	Oem                  OemPower     `json:"Oem,omitempty"`

@@ -84,7 +84,6 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 	var state float64
 	var pm oem.PowerMetrics
 	var pow = (*e.DeviceMetrics)["powerMetrics"]
-	var bay string
 	err := json.Unmarshal(body, &pm)
 	if err != nil {
 		return fmt.Errorf("Error Unmarshalling PowerMetrics - %s", err.Error())
@@ -102,12 +101,14 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 				watts, _ = strconv.ParseFloat(pc.PowerConsumedWatts.(string), 32)
 			}
 		default:
-			// use the AverageConsumedWatts if PowerConsumedWatts is not present
-			switch pc.PowerMetrics.AverageConsumedWatts.(type) {
-			case float64:
-				watts = pc.PowerMetrics.AverageConsumedWatts.(float64)
-			case string:
-				watts, _ = strconv.ParseFloat(pc.PowerMetrics.AverageConsumedWatts.(string), 32)
+			for _, pm := range pc.PowerMetrics.PowerMetric {
+				// use the AverageConsumedWatts if PowerConsumedWatts is not present
+				switch pm.AverageConsumedWatts.(type) {
+				case float64:
+					watts = pm.AverageConsumedWatts.(float64)
+				case string:
+					watts, _ = strconv.ParseFloat(pm.AverageConsumedWatts.(string), 32)
+				}
 			}
 		}
 		(*pow)["supplyTotalConsumed"].WithLabelValues(pm.Url, e.ChassisSerialNumber, e.Model).Set(watts)
@@ -148,9 +149,14 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 	for _, ps := range pm.PowerSupplies {
 		// Consider the MemberID the identifier of the power supply. On HPE and Dell platform at least, the index starts at 0
-		if ps.MemberID != "" {
-			bay = ps.MemberID
+		bay := ""
+		switch ps.MemberID.(type) {
+		case string:
+			bay = ps.MemberID.(string)
+		case int:
+			bay = strconv.Itoa(ps.MemberID.(int))
 		}
+
 		// legacy HPE handling. The index usually starts at 1
 		if ps.Oem.Hp.PowerSupplyStatus.State != "" {
 			bay = strconv.Itoa(ps.Oem.Hp.BayNumber)
