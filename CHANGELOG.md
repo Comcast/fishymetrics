@@ -6,6 +6,12 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.16.2]
+
+## Fixed
+
+- cannot unmarshal array into Go struct field PowerMetrics.PowerControl.PowerMetrics [#146](https://github.com/Comcast/fishymetrics/issues/146)
+
 ## [0.16.1]
 
 ## Fixed
