@@ -42,6 +42,7 @@ import (
 	"github.com/comcast/fishymetrics/middleware/logging"
 	"github.com/comcast/fishymetrics/middleware/muxprom"
 	"github.com/comcast/fishymetrics/plugins/nuova"
+	"github.com/comcast/fishymetrics/raft"
 	fishy_vault "github.com/comcast/fishymetrics/vault"
 	"go.uber.org/zap"
 
@@ -76,6 +77,19 @@ var (
 	driveModExclude    = a.Flag("collector.drives.modules-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
 	firmwareModExclude = a.Flag("collector.firmware.modules-exclude", "regex of firmware module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_FIRMWARE_MODULE_EXCLUDE").String()
 	urlExtraParams     = a.Flag("url.extra-params", `extra parameter(s) to parse from the URL. --url.extra-params="param1:alias1,param2:alias2"`).Default("").Envar("URL_EXTRA_PARAMS").String()
+	
+	// Cluster configuration flags
+	clusterEnabled    = a.Flag("cluster.enabled", "Enable clustering with Raft consensus").Default("false").Envar("CLUSTER_ENABLED").Bool()
+	clusterNodeID     = a.Flag("cluster.node-id", "Unique node ID for this instance").Default("").Envar("CLUSTER_NODE_ID").String()
+	clusterBindAddr   = a.Flag("cluster.bind-addr", "Address to bind Raft listener").Default("0.0.0.0").Envar("CLUSTER_BIND_ADDR").String()
+	clusterAdvAddr    = a.Flag("cluster.advertise-addr", "Address to advertise to other nodes").Default("").Envar("CLUSTER_ADVERTISE_ADDR").String()
+	clusterRaftPort   = a.Flag("cluster.raft-port", "Port for Raft communication").Default("7000").Envar("CLUSTER_RAFT_PORT").Int()
+	clusterDiscPort   = a.Flag("cluster.discovery-port", "Port for cluster discovery API").Default("7001").Envar("CLUSTER_DISCOVERY_PORT").Int()
+	clusterDiscMode   = a.Flag("cluster.discovery-mode", "Discovery mode: kubernetes, dns, or static").Default("kubernetes").Envar("CLUSTER_DISCOVERY_MODE").String()
+	clusterService    = a.Flag("cluster.service-name", "Kubernetes service name or DNS name for discovery").Default("fishymetrics-headless").Envar("CLUSTER_SERVICE_NAME").String()
+	clusterNamespace  = a.Flag("cluster.namespace", "Kubernetes namespace").Default("").Envar("CLUSTER_NAMESPACE").String()
+	clusterPeers      = a.Flag("cluster.static-peers", "Static list of peers for static discovery mode").Default("").Envar("CLUSTER_STATIC_PEERS").String()
+	clusterDataDir    = a.Flag("cluster.data-dir", "Directory for Raft data").Default("/var/lib/fishymetrics/raft").Envar("CLUSTER_DATA_DIR").String()
 	_                  = common.CredentialProf(a.Flag("credentials.profiles",
 		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
   --credentials.profiles="
@@ -320,10 +334,83 @@ func main() {
 			// we add this here so we can update credentials once we detect they are rotated
 			common.ChassisCreds.Vault = vault
 
-			// start go routine to continuously renew vault token
-			wg.Add(1)
-			go vault.RenewToken(ctx, doneRenew, tokenLifecycle, &wg)
+			// Only start individual token renewal if clustering is disabled
+			if !*clusterEnabled {
+				// start go routine to continuously renew vault token
+				wg.Add(1)
+				go vault.RenewToken(ctx, doneRenew, tokenLifecycle, &wg)
+			}
 		}
+	}
+
+	// Initialize cluster manager if clustering is enabled
+	if *clusterEnabled {
+		log.Info("initializing cluster manager")
+		
+		// Parse static peers if provided
+		var staticPeers []string
+		if *clusterPeers != "" {
+			staticPeers = strings.Split(*clusterPeers, ",")
+		}
+		
+		// Determine discovery mode
+		var discoveryMode raft.DiscoveryMode
+		switch *clusterDiscMode {
+		case "kubernetes":
+			discoveryMode = raft.DiscoveryModeKubernetes
+		case "dns":
+			discoveryMode = raft.DiscoveryModeDNS
+		case "static":
+			discoveryMode = raft.DiscoveryModeStatic
+		default:
+			log.Fatal("invalid cluster discovery mode", zap.String("mode", *clusterDiscMode))
+		}
+		
+		// Get advertise address
+		advertiseAddr := *clusterAdvAddr
+		if advertiseAddr == "" {
+			// Try to detect the pod IP in Kubernetes
+			advertiseAddr = os.Getenv("POD_IP")
+			if advertiseAddr == "" {
+				advertiseAddr = *clusterBindAddr
+			}
+		}
+		
+		clusterConfig := raft.ClusterConfig{
+			NodeID:        *clusterNodeID,
+			DataDir:       *clusterDataDir,
+			BindAddr:      *clusterBindAddr,
+			AdvertiseAddr: advertiseAddr,
+			RaftPort:      *clusterRaftPort,
+			DiscoveryPort: *clusterDiscPort,
+			DiscoveryMode: discoveryMode,
+			ServiceName:   *clusterService,
+			Namespace:     *clusterNamespace,
+			StaticPeers:   staticPeers,
+			Logger:        log,
+		}
+		
+		clusterManager, err := raft.NewClusterManager(clusterConfig, vault)
+		if err != nil {
+			log.Fatal("failed to create cluster manager", zap.Error(err))
+		}
+		
+		if err := clusterManager.Start(ctx); err != nil {
+			log.Fatal("failed to start cluster manager", zap.Error(err))
+		}
+		
+		common.ClusterManager = clusterManager
+		
+		log.Info("cluster manager started", 
+			zap.String("node_id", *clusterNodeID),
+			zap.Bool("is_leader", clusterManager.IsLeader()))
+		
+		// Add cleanup for cluster manager
+		defer func() {
+			if err := clusterManager.Stop(); err != nil {
+				log.Error("failed to stop cluster manager", zap.Error(err))
+			}
+		}()
 	}
 
 	mux := http.NewServeMux()
@@ -355,7 +442,18 @@ func main() {
 	})
 
 	mux.HandleFunc("POST /ignored/test-conn", common.TestConn)
-	mux.HandleFunc("POST /ignored/remove", common.RemoveHost)
+	
+	// Use cluster-aware handler if clustering is enabled
+	if *clusterEnabled {
+		mux.HandleFunc("POST /ignored/remove", common.ClusterAwareRemoveHost)
+		mux.HandleFunc("POST /ignored/add", common.ClusterAwareAddHost)
+		
+		// Add cluster status endpoints
+		mux.HandleFunc("GET /cluster/status", common.ClusterStatus)
+		mux.HandleFunc("GET /cluster/health", common.ClusterHealth)
+	} else {
+		mux.HandleFunc("POST /ignored/remove", common.RemoveHost)
+	}
 
 	mux.HandleFunc("GET /verbosity", logger.Verbosity)
 	mux.HandleFunc("PUT /verbosity", logger.SetVerbosity)
