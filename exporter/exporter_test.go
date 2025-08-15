@@ -126,7 +126,7 @@ const (
         redfish_power_voltage_status{chassisModel="model a",chassisSerialNumber="SN98765",name="PSU1_VOUT"} 1
 	`
 	GoodPowerSupplyOutputOemHpeExpected = `
-        # HELP redfish_power_supply_output Power supply output in watts
+        # HELP redfish_power_supply_output The average power output of Power Supply in watts
         # TYPE redfish_power_supply_output gauge
         redfish_power_supply_output{bayNumber="1",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 91
 	`
@@ -136,7 +136,7 @@ const (
         redfish_power_supply_status{bayNumber="1",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 1
 	`
 	GoodPowerSupplyOutputOemHpExpected = `
-        # HELP redfish_power_supply_output Power supply output in watts
+        # HELP redfish_power_supply_output The average power output of Power Supply in watts
         # TYPE redfish_power_supply_output gauge
         redfish_power_supply_output{bayNumber="2",chassisModel="model a",chassisSerialNumber="SN98765",firmwareVersion="x.xx",manufacturer="DELTA",model="psmodel",name="HpeServerPowerSupply",powerSupplyType="AC",serialNumber="999999"} 91
 	`
