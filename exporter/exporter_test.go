@@ -116,7 +116,7 @@ const (
         redfish_thermal_sensor_temperature{chassisModel="model a",chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 22
 	`
 	GoodPowerVoltageOutputExpected = `
-        # HELP redfish_power_voltage_output Power voltage output in watts
+        # HELP redfish_power_voltage_output Power voltage output in volts
         # TYPE redfish_power_voltage_output gauge
         redfish_power_voltage_output{chassisModel="model a",chassisSerialNumber="SN98765",name="PSU1_VOUT"} 12.2
 	`
