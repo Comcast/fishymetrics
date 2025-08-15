@@ -100,7 +100,7 @@ type PowerMetric struct {
 type PowerSupply struct {
 	FirmwareVersion      string       `json:"FirmwareVersion"`
 	LastPowerOutputWatts interface{}  `json:"LastPowerOutputWatts"`
-	LineInputVoltage     interface{}  `json:"LineInputVoltage"`
+	LineInputVoltage     interface{}  `json:"LineInputVoltage,omitempty"`
 	LineInputVoltageType string       `json:"LineInputVoltageType,omitempty"`
 	InputRanges          []InputRange `json:"InputRanges,omitempty"`
 	Manufacturer         string       `json:"Manufacturer"`

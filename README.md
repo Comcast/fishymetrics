@@ -5,6 +5,14 @@ exports them via HTTP for Prometheus consumption.
 
 This app can support any chassis that has the redfish API available. If one needs to query any non-redfish API calls this app can be extended to support that. Please see the [`plugins`](https://github.com/Comcast/fishymetrics/tree/main/docs/plugins.md) documentation for more information.
 
+## Features
+
+- **Full Scraping**: Collect all available metrics from a Redfish-enabled device
+- **Partial Scraping**: Selectively collect metrics from specific components for faster, more targeted monitoring (see [`partial-scraping`](https://github.com/Comcast/fishymetrics/tree/main/docs/partial-scraping.md))
+- **Distributed Mode**: Run multiple instances with shared state using Raft consensus (see [`clustering`](https://github.com/Comcast/fishymetrics/tree/main/docs/clustering.md))
+- **Vault Integration**: Secure credential management with HashiCorp Vault
+- **Plugin Support**: Extend functionality with custom plugins
+
 ## Getting Started
 
 To run it:
@@ -197,6 +205,26 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: fishymetrics.example.com  # Kubernetes cluster nginx-ingress FQDN or any host IP/FQDN you deployed with
+
+  # Example partial scrape configuration for thermal monitoring
+  - job_name: 'fishymetrics-thermal'
+    static_configs:
+      - targets:
+        - bmc-fdqn-p1.example.com
+        - bmc-fdqn-p2.example.com
+    metrics_path: /scrape/partial
+    scrape_interval: 1m
+    scrape_timeout: 30s
+    params:
+      model: ["dl360"]
+      components: ["thermal,power"]  # Only collect thermal and power metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: fishymetrics.example.com
 ```
 
 ## Development

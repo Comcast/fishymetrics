@@ -19,6 +19,7 @@ docker:
 	--build-arg DATE=${BUILD_DATE} \
 	--target bin \
 	-t comcast/fishymetrics:${REPO_VERSION} \
+	-t comcast/fishymetrics:latest \
 	.
 
 docker-src:

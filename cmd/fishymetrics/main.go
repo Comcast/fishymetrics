@@ -36,16 +36,13 @@ import (
 	"github.com/comcast/fishymetrics/buildinfo"
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
-	"github.com/comcast/fishymetrics/exporter"
-	"github.com/comcast/fishymetrics/exporter/moonshot"
+	"github.com/comcast/fishymetrics/http/handlers"
 	"github.com/comcast/fishymetrics/logger"
 	"github.com/comcast/fishymetrics/middleware/logging"
 	"github.com/comcast/fishymetrics/middleware/muxprom"
-	"github.com/comcast/fishymetrics/plugins/nuova"
 	fishy_vault "github.com/comcast/fishymetrics/vault"
 	"go.uber.org/zap"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -98,90 +95,6 @@ var (
 )
 
 var wg = sync.WaitGroup{}
-
-func handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	var uri string
-	var exp prometheus.Collector
-	var err error
-
-	target := query.Get("target")
-	if len(query["target"]) != 1 || target == "" {
-		log.Error("'target' parameter not set correctly", zap.String("target", target), zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
-		http.Error(w, "'target' parameter not set correctly", http.StatusBadRequest)
-		return
-	}
-
-	model := query.Get("model")
-
-	// optional query param is used to tell us which credential profile to use when retrieving that hosts username and password
-	credProf := query.Get("credential_profile")
-
-	// optional query param for external plugins which executes non redfish API calls to the device.
-	// this is a comma separated list of strings
-	plugins := strings.Split(query.Get("plugins"), ",")
-	var plugs []exporter.Plugin
-	for _, p := range plugins {
-		if p == "nuova" {
-			plugs = append(plugs, &nuova.NuovaPlugin{})
-			log.Debug("nuova plugin added", zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
-		}
-	}
-
-	log.Info("started scrape",
-		zap.String("model", model),
-		zap.String("target", target),
-		zap.String("credential_profile", credProf),
-		zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
-
-	// extract value of extra url param(s) from url query string if they are present.
-	// we'll want to assign the key of the kv pair as the variable alias and the value as the
-	// unique identifier for the alias
-	if len(urlExtraParamsMap) > 0 {
-		for k, v := range urlExtraParamsMap {
-			// check if url contains a valid key
-			param := query.Get(k)
-			if param != "" {
-				extraParamsAliases[v] = param
-			}
-		}
-	}
-
-	// check if vault is configured
-	if vault != nil {
-		// check if ChassisCredentials hashmap contains the credentials we need otherwise get them from vault
-		if _, ok := common.ChassisCreds.Get(target); !ok {
-			credential, err := common.ChassisCreds.GetCredentials(ctx, credProf, target, common.UpdateCredProfilePath(extraParamsAliases))
-			if err != nil {
-				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			common.ChassisCreds.Set(target, credential)
-		}
-	}
-
-	registry := prometheus.NewRegistry()
-
-	if model == "moonshot" {
-		uri = "/rest/v1/chassis/1"
-		exp, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
-	} else {
-		uri = "/redfish/v1"
-		exp, err = exporter.NewExporter(r.Context(), target, uri, credProf, model, excludes, plugs...)
-	}
-
-	if err != nil {
-		log.Error("failed to create chassis exporter", zap.Error(err), zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
-		http.Error(w, fmt.Sprintf("failed to create chassis exporter - %s", err.Error()), http.StatusInternalServerError)
-		return
-	}
-
-	registry.MustRegister(exp)
-	// Delegate http serving to Prometheus client library, which will call collector.Collect.
-	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
-	h.ServeHTTP(w, r)
-}
 
 func main() {
 	ctx := context.Background()
@@ -326,6 +239,14 @@ func main() {
 		}
 	}
 
+	// Create scrape handler configuration
+	scrapeConfig := &handlers.ScrapeConfig{
+		Vault:              vault,
+		Excludes:           excludes,
+		URLExtraParamsMap:  urlExtraParamsMap,
+		ExtraParamsAliases: extraParamsAliases,
+	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /info", func(w http.ResponseWriter, r *http.Request) {
@@ -334,9 +255,9 @@ func main() {
 
 	mux.Handle("GET /metrics", promhttp.Handler())
 
-	mux.HandleFunc("GET /scrape", func(w http.ResponseWriter, r *http.Request) {
-		handler(ctx, w, r)
-	})
+	mux.HandleFunc("GET /scrape", handlers.ScrapeHandler(scrapeConfig))
+
+	mux.HandleFunc("GET /scrape/partial", handlers.PartialScrapeHandler(scrapeConfig))
 
 	tmplIndex := template.Must(template.New("index").Parse(indexTmpl))
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {

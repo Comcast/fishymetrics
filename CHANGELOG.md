@@ -6,6 +6,16 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.17.0]
+
+## Added
+
+- Add /scrape/partial endpoint for component-specific metric collection [#148](https://github.com/Comcast/fishymetrics/issues/148)
+
+## Updated
+
+- Update Power Metrics collection to include LineInputVoltage [#149](https://github.com/Comcast/fishymetrics/issues/149)
+
 ## [0.16.2]
 
 ## Fixed
