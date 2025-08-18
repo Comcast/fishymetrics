@@ -109,6 +109,7 @@ type PowerSupply struct {
 	Name                 string       `json:"Name"`
 	Oem                  OemPower     `json:"Oem,omitempty"`
 	PowerCapacityWatts   int          `json:"PowerCapacityWatts,omitempty"`
+	PowerInputWatts      interface{}  `json:"PowerInputWatts,omitempty"`
 	PowerSupplyType      string       `json:"PowerSupplyType"`
 	SerialNumber         string       `json:"SerialNumber"`
 	SparePartNumber      string       `json:"SparePartNumber"`

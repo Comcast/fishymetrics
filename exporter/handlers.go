@@ -208,6 +208,23 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 					(*pow)["lineInputVoltage"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, bay, strings.TrimRight(ps.Model, " ")).Set(inputVolts)
 				}
 			}
+			
+			// Export power input watts if available
+			if ps.PowerInputWatts != nil {
+				var inputWatts float64
+				switch ps.PowerInputWatts.(type) {
+				case float64:
+					inputWatts = ps.PowerInputWatts.(float64)
+				case int:
+					inputWatts = float64(ps.PowerInputWatts.(int))
+				case string:
+					inputWatts, _ = strconv.ParseFloat(ps.PowerInputWatts.(string), 64)
+				}
+				
+				if inputWatts > 0 {
+					(*pow)["supplyInput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, bay, strings.TrimRight(ps.Model, " ")).Set(inputWatts)
+				}
+			}
 		}
 	}
 
