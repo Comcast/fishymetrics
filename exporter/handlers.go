@@ -191,6 +191,40 @@ func (e *Exporter) exportPowerMetrics(body []byte) error {
 
 		if ps.Status.State != "Absent" {
 			(*pow)["supplyStatus"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, bay, strings.TrimRight(ps.Model, " ")).Set(state)
+			
+			// Export line input voltage if available
+			if ps.LineInputVoltage != nil {
+				var inputVolts float64
+				switch ps.LineInputVoltage.(type) {
+				case float64:
+					inputVolts = ps.LineInputVoltage.(float64)
+				case int:
+					inputVolts = float64(ps.LineInputVoltage.(int))
+				case string:
+					inputVolts, _ = strconv.ParseFloat(ps.LineInputVoltage.(string), 64)
+				}
+				
+				if inputVolts > 0 {
+					(*pow)["lineInputVoltage"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, bay, strings.TrimRight(ps.Model, " ")).Set(inputVolts)
+				}
+			}
+			
+			// Export power input watts if available
+			if ps.PowerInputWatts != nil {
+				var inputWatts float64
+				switch ps.PowerInputWatts.(type) {
+				case float64:
+					inputWatts = ps.PowerInputWatts.(float64)
+				case int:
+					inputWatts = float64(ps.PowerInputWatts.(int))
+				case string:
+					inputWatts, _ = strconv.ParseFloat(ps.PowerInputWatts.(string), 64)
+				}
+				
+				if inputWatts > 0 {
+					(*pow)["supplyInput"].WithLabelValues(ps.Name, e.ChassisSerialNumber, e.Model, strings.TrimRight(ps.Manufacturer, " "), strings.TrimRight(ps.SerialNumber, " "), ps.FirmwareVersion, ps.PowerSupplyType, bay, strings.TrimRight(ps.Model, " ")).Set(inputWatts)
+				}
+			}
 		}
 	}
 
