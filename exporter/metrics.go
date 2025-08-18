@@ -48,9 +48,9 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		PowerMetrics = &metrics{
-			"lineInputVoltage":    newServerMetric("redfish_power_voltage_input_volts", "The line input voltage at which the Power Supply is operating in volts", nil, []string{"name", "chassisSerialNumber", "chassisModel", "manufacturer", "serialNumber", "firmwareVersion", "powerSupplyType", "bayNumber", "model"}),
 			"voltageOutput":       newServerMetric("redfish_power_voltage_output", "Power voltage output in volts", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
 			"voltageStatus":       newServerMetric("redfish_power_voltage_status", "Current power voltage status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
+			"lineInputVoltage":    newServerMetric("redfish_power_supply_input_volts", "The line input voltage at which the Power Supply is operating in volts", nil, []string{"name", "chassisSerialNumber", "chassisModel", "manufacturer", "serialNumber", "firmwareVersion", "powerSupplyType", "bayNumber", "model"}),
 			"supplyInput":         newServerMetric("redfish_power_supply_input_watts", "The power input of Power Supply in watts", nil, []string{"name", "chassisSerialNumber", "chassisModel", "manufacturer", "serialNumber", "firmwareVersion", "powerSupplyType", "bayNumber", "model"}),
 			"supplyOutput":        newServerMetric("redfish_power_supply_output", "The average power output of Power Supply in watts", nil, []string{"name", "chassisSerialNumber", "chassisModel", "manufacturer", "serialNumber", "firmwareVersion", "powerSupplyType", "bayNumber", "model"}),
 			"supplyStatus":        newServerMetric("redfish_power_supply_status", "Current power supply status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel", "manufacturer", "serialNumber", "firmwareVersion", "powerSupplyType", "bayNumber", "model"}),
