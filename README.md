@@ -9,7 +9,6 @@ This app can support any chassis that has the redfish API available. If one need
 
 - **Full Scraping**: Collect all available metrics from a Redfish-enabled device
 - **Partial Scraping**: Selectively collect metrics from specific components for faster, more targeted monitoring (see [`partial-scraping`](https://github.com/Comcast/fishymetrics/tree/main/docs/partial-scraping.md))
-- **Distributed Mode**: Run multiple instances with shared state using Raft consensus (see [`clustering`](https://github.com/Comcast/fishymetrics/tree/main/docs/clustering.md))
 - **Vault Integration**: Secure credential management with HashiCorp Vault
 - **Plugin Support**: Extend functionality with custom plugins
 
