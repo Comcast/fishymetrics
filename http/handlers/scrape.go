@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/comcast/fishymetrics/common"
@@ -65,7 +66,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 
 	target := query.Get("target")
 	if len(query["target"]) != 1 || target == "" {
-		log.Error("'target' parameter not set correctly", zap.String("target", target), zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+		log.Error("'target' parameter not set correctly", zap.String("target", target), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		http.Error(w, "'target' parameter not set correctly", http.StatusBadRequest)
 		return
 	}
@@ -82,7 +83,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 	for _, p := range plugins {
 		if p == "nuova" {
 			plugs = append(plugs, &nuova.NuovaPlugin{})
-			log.Debug("nuova plugin added", zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+			log.Debug("nuova plugin added", zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		}
 	}
 
@@ -90,7 +91,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 		zap.String("model", model),
 		zap.String("target", target),
 		zap.String("credential_profile", credProf),
-		zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+		zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 
 	// extract value of extra url param(s) from url query string if they are present.
 	// we'll want to assign the key of the kv pair as the variable alias and the value as the
@@ -116,7 +117,7 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 		if _, ok := common.ChassisCreds.Get(target); !ok {
 			credential, err := common.ChassisCreds.GetCredentials(ctx, credProf, target, common.UpdateCredProfilePath(extraParamsAliases))
 			if err != nil {
-				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -126,16 +127,30 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 
 	registry := prometheus.NewRegistry()
 
+	if proxyHost := query.Get("proxy_host"); proxyHost != "" {
+		if !strings.Contains(proxyHost, "://") {
+			proxyHost = "http://" + proxyHost
+		}
+		// Basic validation: if malformed, return 400
+		if _, err := url.Parse(proxyHost); err != nil {
+			log.Error("invalid proxy_host parameter", zap.Error(err), zap.String("proxy_host", proxyHost),
+				zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+			http.Error(w, "invalid proxy_host parameter", http.StatusBadRequest)
+			return
+		}
+		ctx = exporter.WithProxyURL(ctx, proxyHost)
+	}
+
 	if model == "moonshot" {
 		uri = "/rest/v1/chassis/1"
-		exp, err = moonshot.NewExporter(r.Context(), target, uri, credProf)
+		exp, err = moonshot.NewExporter(ctx, target, uri, credProf)
 	} else {
 		uri = "/redfish/v1"
-		exp, err = exporter.NewExporter(r.Context(), target, uri, credProf, model, cfg.Excludes, plugs...)
+		exp, err = exporter.NewExporter(ctx, target, uri, credProf, model, cfg.Excludes, plugs...)
 	}
 
 	if err != nil {
-		log.Error("failed to create chassis exporter", zap.Error(err), zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+		log.Error("failed to create chassis exporter", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		http.Error(w, fmt.Sprintf("failed to create chassis exporter - %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
@@ -156,8 +171,8 @@ func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	// Get target parameter
 	target := query.Get("target")
 	if len(query["target"]) != 1 || target == "" {
-		log.Error("'target' parameter not set correctly", zap.String("target", target), 
-			zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+		log.Error("'target' parameter not set correctly", zap.String("target", target),
+			zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		http.Error(w, "'target' parameter not set correctly", http.StatusBadRequest)
 		return
 	}
@@ -165,9 +180,9 @@ func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	// Get components parameter
 	componentsStr := query.Get("components")
 	if componentsStr == "" {
-		log.Error("'components' parameter not set", 
-			zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
-		http.Error(w, "'components' parameter is required. Valid components are: thermal, power, memory, processor, drives, storage_controller, firmware, system", 
+		log.Error("'components' parameter not set",
+			zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+		http.Error(w, "'components' parameter is required. Valid components are: thermal, power, memory, processor, drives, storage_controller, firmware, system",
 			http.StatusBadRequest)
 		return
 	}
@@ -176,7 +191,7 @@ func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	components, err := exporter.ParseComponents(componentsStr)
 	if err != nil {
 		log.Error("invalid components parameter", zap.Error(err), zap.String("components", componentsStr),
-			zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+			zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -192,7 +207,7 @@ func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	for _, p := range plugins {
 		if p == "nuova" {
 			plugs = append(plugs, &nuova.NuovaPlugin{})
-			log.Debug("nuova plugin added", zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+			log.Debug("nuova plugin added", zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		}
 	}
 
@@ -207,7 +222,7 @@ func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request,
 			}
 			return s
 		}()),
-		zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+		zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 
 	// extract value of extra url param(s) from url query string if they are present
 	extraParamsAliases := make(map[string]string)
@@ -228,11 +243,11 @@ func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	if cfg.Vault != nil {
 		// check if ChassisCredentials hashmap contains the credentials we need otherwise get them from vault
 		if _, ok := common.ChassisCreds.Get(target); !ok {
-			credential, err := common.ChassisCreds.GetCredentials(ctx, credProf, target, 
+			credential, err := common.ChassisCreds.GetCredentials(ctx, credProf, target,
 				common.UpdateCredProfilePath(extraParamsAliases))
 			if err != nil {
-				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err), 
-					zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+				log.Error("issue retrieving credentials from vault using target "+target, zap.Error(err),
+					zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -242,21 +257,35 @@ func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request,
 
 	registry := prometheus.NewRegistry()
 
+	// Optional per-request proxy override
+	if proxyHost := query.Get("proxy_host"); proxyHost != "" {
+		if !strings.Contains(proxyHost, "://") {
+			proxyHost = "http://" + proxyHost
+		}
+		if _, err := url.Parse(proxyHost); err != nil {
+			log.Error("invalid proxy_host parameter", zap.Error(err), zap.String("proxy_host", proxyHost),
+				zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+			http.Error(w, "invalid proxy_host parameter", http.StatusBadRequest)
+			return
+		}
+		ctx = exporter.WithProxyURL(ctx, proxyHost)
+	}
+
 	// Moonshot model doesn't support partial scraping yet
 	if model == "moonshot" {
-		log.Error("moonshot model does not support partial scraping", 
-			zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
+		log.Error("moonshot model does not support partial scraping",
+			zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		http.Error(w, "moonshot model does not support partial scraping", http.StatusBadRequest)
 		return
 	} else {
 		uri = "/redfish/v1"
-		exp, err = exporter.NewPartialExporter(r.Context(), target, uri, credProf, model, cfg.Excludes, components, plugs...)
+		exp, err = exporter.NewPartialExporter(ctx, target, uri, credProf, model, cfg.Excludes, components, plugs...)
 	}
 
 	if err != nil {
-		log.Error("failed to create partial chassis exporter", zap.Error(err), 
-			zap.Any("trace_id", r.Context().Value(logging.TraceIDKey("traceID"))))
-		http.Error(w, fmt.Sprintf("failed to create partial chassis exporter - %s", err.Error()), 
+		log.Error("failed to create partial chassis exporter", zap.Error(err),
+			zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+		http.Error(w, fmt.Sprintf("failed to create partial chassis exporter - %s", err.Error()),
 			http.StatusInternalServerError)
 		return
 	}

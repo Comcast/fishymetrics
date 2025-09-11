@@ -26,6 +26,11 @@ bmc:
 url:
   extraParams: ""
 
+proxy:
+  httpProxy: ""
+  httpsProxy: ""
+  noProxy: ""
+
 vault:
   address: "https://vault.com"
   roleId: ""

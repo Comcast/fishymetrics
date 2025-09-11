@@ -18,16 +18,13 @@ package exporter
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
@@ -79,7 +76,7 @@ func ParseComponents(componentsStr string) ([]ComponentType, error) {
 		if trimmed == "" {
 			continue // Skip empty strings
 		}
-		
+
 		component := ComponentType(trimmed)
 		if ValidComponents[component] {
 			components = append(components, component)
@@ -115,32 +112,7 @@ func NewPartialExporter(ctx context.Context, target, uri, profile, model string,
 		componentMap[c] = true
 	}
 
-	tr := &http.Transport{
-		Dial: (&net.Dialer{
-			Timeout: 3 * time.Second,
-		}).Dial,
-		MaxIdleConns:          1,
-		MaxConnsPerHost:       1,
-		MaxIdleConnsPerHost:   1,
-		IdleConnTimeout:       90 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.GetConfig().SSLVerify,
-			Renegotiation:      tls.RenegotiateOnceAsClient,
-		},
-		TLSHandshakeTimeout: 10 * time.Second,
-	}
-
-	defer tr.CloseIdleConnections()
-
-	retryClient := retryablehttp.NewClient()
-	retryClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
-	retryClient.HTTPClient.Transport = tr
-	retryClient.HTTPClient.Timeout = 30 * time.Second
-	retryClient.Logger = nil
-	retryClient.RetryWaitMin = 2 * time.Second
-	retryClient.RetryWaitMax = 2 * time.Second
-	retryClient.RetryMax = 2
+	retryClient := NewHTTPClient(ctx)
 	retryClient.RequestLogHook = func(l retryablehttp.Logger, r *http.Request, i int) {
 		retryCount := i
 		if retryCount > 0 {
@@ -381,7 +353,7 @@ func NewPartialExporter(ctx context.Context, target, uri, profile, model string,
 		var systemFML = GetFirmwareInventoryURL(sysResp)
 		var firmwareInventoryEndpoints []string
 		if systemFML != "" {
-			tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+systemFML, target, profile, retryClient), 
+			tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+systemFML, target, profile, retryClient),
 				exp.url+systemFML, handle(&exp, FIRMWAREINVENTORY)))
 		} else {
 			// Check for /redfish/v1/Managers/XXXX/UpdateService/ for firmware inventory URL

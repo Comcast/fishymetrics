@@ -45,6 +45,9 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | `bmc.password`                                              | password to use when logging into baseboard management controller                          | `""`                      |
 | `bmc.timeout`                                               | baseboard management controller request timeout                                            | `15s`                     |
 | `bmc.insecureSkipVerify`                                    | boolean flag to enable/disable TLS verification to baseboard management controller         | `false`                   |
+| `proxy.httpProxy`                                           | HTTP proxy URL used for outbound requests (optional)                                       | `""`                      |
+| `proxy.httpsProxy`                                          | HTTPS proxy URL used for outbound requests (optional)                                      | `""`                      |
+| `proxy.noProxy`                                             | Comma-separated hosts/CIDRs that bypass proxy (optional)                                   | `""`                      |
 | `vault.address`                                             | vault instance address to get chassis credentials from                                     | `"https://vault.com"`     |
 | `vault.roleId`                                              | vault Role ID for AppRole                                                                  | `""`                      |
 | `vault.secretId`                                            | vault Secret ID for AppRole                                                                | `""`                      |
@@ -79,3 +82,18 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | `affinity`                                                  | affinity to apply to the kubernetes deployment                                             | `{}`                      |
 | `nodeSelector`                                              | nodeSelector to apply to the kubernetes deployment                                         | `{}`                      |
 | `tolerations`                                               | tolerations to apply to the kubernetes deployment                                          | `[]`                      |
+
+## Proxy Support
+
+Some BMC endpoints are reachable only via corporate proxies or jump hosts. The chart exposes proxy settings and maps them to standard environment variables honored by the application’s HTTP client.
+
+- Values:
+
+```yaml
+proxy:
+  httpProxy: "http://proxy.example:3128"
+  httpsProxy: "http://proxy.example:3128"
+  noProxy: "127.0.0.1,localhost,.svc,.cluster.local,10.0.0.0/8"
+```
+
+These become `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` in the container. The exporter uses Go’s `http.ProxyFromEnvironment`, so all Redfish calls (including partial scrapes and Moonshot) honor these settings.

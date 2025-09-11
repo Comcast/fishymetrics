@@ -8,6 +8,7 @@ compose.yml
 *.crt
 *.pem
 values.*
+!helm/fishymetrics/values.yaml
 
 ### Go ###
 # Binaries for programs and plugins
