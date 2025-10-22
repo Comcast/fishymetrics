@@ -11,6 +11,9 @@ const proxyHostKey proxyCtxKey = "proxy-host"
 
 // WithProxyURL returns a new context that carries an override proxy URL.
 func WithProxyURL(ctx context.Context, proxy string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return context.WithValue(ctx, proxyHostKey, proxy)
 }
 
