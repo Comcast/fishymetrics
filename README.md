@@ -11,6 +11,7 @@ This app can support any chassis that has the redfish API available. If one need
 - **Partial Scraping**: Selectively collect metrics from specific components for faster, more targeted monitoring (see [`partial-scraping`](https://github.com/Comcast/fishymetrics/tree/main/docs/partial-scraping.md))
 - **Vault Integration**: Secure credential management with HashiCorp Vault
 - **Plugin Support**: Extend functionality with custom plugins
+- **Proxy Support**: Route Redfish requests through HTTP(S) proxies using standard env vars or Helm values
 
 ## Getting Started
 
@@ -78,6 +79,9 @@ LOG_PATH=<string> (Default: /var/log/fishymetrics)
 VAULT_ADDRESS=<string>
 VAULT_ROLE_ID=<string>
 VAULT_SECRET_ID=<string>
+HTTP_PROXY=<url>        # proxy for http targets
+HTTPS_PROXY=<url>       # proxy for https targets
+NO_PROXY=<hosts,...>    # comma-separated list of hosts/CIDRs to bypass proxy
 ```
 
 ```bash
@@ -225,6 +229,21 @@ scrape_configs:
       - target_label: __address__
         replacement: fishymetrics.example.com
 ```
+
+## Proxy Support
+
+- Environment variables (container or process level):
+  - `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`
+- Helm values (recommended for Kubernetes):
+
+```yaml
+proxy:
+  httpProxy: "http://proxy.example:3128"
+  httpsProxy: "http://proxy.example:3128"
+  noProxy: "127.0.0.1,localhost,.svc,.cluster.local,10.0.0.0/8"
+```
+
+The chart maps these values to the container env vars. The application’s HTTP client uses Go’s `http.ProxyFromEnvironment`, so it automatically honors these settings for all Redfish calls (full and partial scrapes, including Moonshot).
 
 ## Development
 

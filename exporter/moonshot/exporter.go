@@ -18,12 +18,10 @@ package moonshot
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -33,6 +31,7 @@ import (
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	expkg "github.com/comcast/fishymetrics/exporter"
 	"github.com/comcast/fishymetrics/middleware/logging"
 	"github.com/comcast/fishymetrics/oem/moonshot"
 	"github.com/comcast/fishymetrics/pool"
@@ -88,29 +87,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 
 	log = zap.L()
 
-	tr := &http.Transport{
-		Dial: (&net.Dialer{
-			Timeout: 3 * time.Second,
-		}).Dial,
-		MaxIdleConns:          1,
-		MaxConnsPerHost:       1,
-		MaxIdleConnsPerHost:   1,
-		IdleConnTimeout:       90 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.GetConfig().SSLVerify,
-		},
-		TLSHandshakeTimeout: 10 * time.Second,
-	}
-
-	retryClient := retryablehttp.NewClient()
-	retryClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
-	retryClient.HTTPClient.Transport = tr
-	retryClient.HTTPClient.Timeout = 30 * time.Second
-	retryClient.Logger = nil
-	retryClient.RetryWaitMin = 2 * time.Second
-	retryClient.RetryWaitMax = 2 * time.Second
-	retryClient.RetryMax = 2
+	retryClient := expkg.NewHTTPClient(ctx)
 	retryClient.RequestLogHook = func(l retryablehttp.Logger, r *http.Request, i int) {
 		retryCount := i
 		if retryCount > 0 {

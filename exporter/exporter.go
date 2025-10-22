@@ -18,16 +18,13 @@ package exporter
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
@@ -132,32 +129,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	log = zap.L()
 
-	tr := &http.Transport{
-		Dial: (&net.Dialer{
-			Timeout: 3 * time.Second,
-		}).Dial,
-		MaxIdleConns:          1,
-		MaxConnsPerHost:       1,
-		MaxIdleConnsPerHost:   1,
-		IdleConnTimeout:       90 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.GetConfig().SSLVerify,
-			Renegotiation:      tls.RenegotiateOnceAsClient,
-		},
-		TLSHandshakeTimeout: 10 * time.Second,
-	}
-
-	defer tr.CloseIdleConnections()
-
-	retryClient := retryablehttp.NewClient()
-	retryClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
-	retryClient.HTTPClient.Transport = tr
-	retryClient.HTTPClient.Timeout = 30 * time.Second
-	retryClient.Logger = nil
-	retryClient.RetryWaitMin = 2 * time.Second
-	retryClient.RetryWaitMax = 2 * time.Second
-	retryClient.RetryMax = 2
+	retryClient := NewHTTPClient(ctx)
 	retryClient.RequestLogHook = func(l retryablehttp.Logger, r *http.Request, i int) {
 		retryCount := i
 		if retryCount > 0 {

@@ -1,6 +1,6 @@
 image:
   repo: comcast/fishymetrics
-  tag: 0.16.0
+  tag: 0.18.0
   pullPolicy: IfNotPresent
 
 replicas: 1
@@ -25,6 +25,11 @@ bmc:
 
 url:
   extraParams: ""
+
+proxy:
+  httpProxy: ""
+  httpsProxy: ""
+  noProxy: ""
 
 vault:
   address: "https://vault.com"

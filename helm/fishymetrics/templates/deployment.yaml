@@ -84,6 +84,18 @@ spec:
                 secretKeyRef:
                   name: {{ template "fishymetrics.name" . }}-creds
                   key: password
+            {{- if .Values.proxy.httpProxy }}
+            - name: HTTP_PROXY
+              value: {{ .Values.proxy.httpProxy | quote }}
+            {{- end }}
+            {{- if .Values.proxy.httpsProxy }}
+            - name: HTTPS_PROXY
+              value: {{ .Values.proxy.httpsProxy | quote }}
+            {{- end }}
+            {{- if .Values.proxy.noProxy }}
+            - name: NO_PROXY
+              value: {{ .Values.proxy.noProxy | quote }}
+            {{- end }}
             - name: VAULT_ADDRESS
               value: {{ .Values.vault.address }}
             - name: VAULT_ROLE_ID
