@@ -54,12 +54,12 @@ func getMemberUrls(url, host string, client *retryablehttp.Client) ([]string, er
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return urls, fmt.Errorf("Error reading Response Body - %s", err.Error())
+		return urls, fmt.Errorf("error reading Response Body - %s", err.Error())
 	}
 
 	err = json.Unmarshal(body, &coll)
 	if err != nil {
-		return urls, fmt.Errorf("Error Unmarshalling Chassis struct - %s", err.Error())
+		return urls, fmt.Errorf("error unmarshalling Chassis struct - %s", err.Error())
 	}
 
 	for _, member := range coll.Members {
@@ -93,12 +93,12 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return sysEnd, fmt.Errorf("Error reading Response Body - %s", err.Error())
+			return sysEnd, fmt.Errorf("error reading Response Body - %s", err.Error())
 		}
 
 		err = json.Unmarshal(body, &chas)
 		if err != nil {
-			return sysEnd, fmt.Errorf("Error Unmarshalling Chassis struct - %s", err.Error())
+			return sysEnd, fmt.Errorf("error unmarshalling Chassis struct - %s", err.Error())
 		}
 
 		// parse through Links to get the System Endpoints for each Chassis and only use unique URLs
@@ -232,12 +232,12 @@ func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.Sys
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return sys, fmt.Errorf("Error reading Response Body - %s", err.Error())
+		return sys, fmt.Errorf("error reading Response Body - %s", err.Error())
 	}
 
 	err = json.Unmarshal(body, &sys)
 	if err != nil {
-		return sys, fmt.Errorf("Error Unmarshalling ServerManager struct - %s", err.Error())
+		return sys, fmt.Errorf("error unmarshalling ServerManager struct - %s", err.Error())
 	}
 
 	return sys, nil
@@ -278,12 +278,12 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Colle
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return dimms, fmt.Errorf("Error reading Response Body - %s", err.Error())
+		return dimms, fmt.Errorf("error reading Response Body - %s", err.Error())
 	}
 
 	err = json.Unmarshal(body, &dimms)
 	if err != nil {
-		return dimms, fmt.Errorf("Error Unmarshalling Memory Collection struct - %s", err.Error())
+		return dimms, fmt.Errorf("error unmarshalling Memory Collection struct - %s", err.Error())
 	}
 
 	return dimms, nil
@@ -329,12 +329,12 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return drive, fmt.Errorf("Error reading Response Body - %s", err.Error())
+		return drive, fmt.Errorf("error reading Response Body - %s", err.Error())
 	}
 
 	err = json.Unmarshal(body, &drive)
 	if err != nil {
-		return drive, fmt.Errorf("Error Unmarshalling drive struct - %s", err.Error())
+		return drive, fmt.Errorf("error unmarshalling drive struct - %s", err.Error())
 	}
 
 	return drive, nil
@@ -509,12 +509,12 @@ func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return processors, fmt.Errorf("Error reading Response Body - %s", err.Error())
+		return processors, fmt.Errorf("error reading Response Body - %s", err.Error())
 	}
 
 	err = json.Unmarshal(body, &processors)
 	if err != nil {
-		return processors, fmt.Errorf("Error Unmarshalling Processors Collection struct - %s", err.Error())
+		return processors, fmt.Errorf("error unmarshalling Processors Collection struct - %s", err.Error())
 	}
 
 	return processors, nil
