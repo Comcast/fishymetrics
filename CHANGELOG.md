@@ -6,6 +6,9 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+- Include logical drive capacity in metrics collection [#153](https://github.com/Comcast/fishymetrics/issues/153)
+- Add http proxy support feature [#152] (https://github.com/Comcast/fishymetrics/pull/152)
+
 ## [0.17.0]
 
 ## Added
