@@ -82,7 +82,7 @@ func NewDeviceMetrics() *map[string]*metrics {
 
 		// Logical Disk Drive Metrics
 		LogicalDriveMetrics = &metrics{
-			"raidStatus": newServerMetric("redfish_logical_drive_status", "Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "chassisSerialNumber", "chassisModel", "logicaldrivename", "volumeuniqueidentifier", "raid"}),
+			"raidStatus": newServerMetric("redfish_logical_drive_status", "Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED", nil, []string{"name", "chassisSerialNumber", "chassisModel", "logicaldrivename", "volumeuniqueidentifier", "raid", "capacityMiB"}),
 		}
 
 		StorageControllerMetrics = &metrics{
