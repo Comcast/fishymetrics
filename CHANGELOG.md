@@ -10,7 +10,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Added
 
-- Add http proxy support feature [#152] (https://github.com/Comcast/fishymetrics/pull/152)
+- Add http proxy support feature [#152](https://github.com/Comcast/fishymetrics/pull/152)
 
 ## Updated
 
