@@ -47,6 +47,7 @@ type NVMeDriveMetrics struct {
 type LogicalDriveMetrics struct {
 	Id                     string          `json:"Id"`
 	CapacityMiB            int             `json:"CapacityMiB"`
+	CapacityBytes          int             `json:"CapacityBytes"`
 	Description            string          `json:"Description"`
 	DisplayName            string          `json:"DisplayName"`
 	InterfaceType          string          `json:"InterfaceType"`

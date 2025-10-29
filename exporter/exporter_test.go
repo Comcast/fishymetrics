@@ -48,7 +48,7 @@ const (
 	GoodLogicalDriveExpected = `
         # HELP redfish_logical_drive_status Current Logical Drive Raid 1 = OK, 0 = BAD, -1 = DISABLED
         # TYPE redfish_logical_drive_status gauge
-        redfish_logical_drive_status{chassisModel="model a",chassisSerialNumber="SN98765",logicaldrivename="TESTDRIVE NAME 1",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="ABCDEF12345"} 1
+        redfish_logical_drive_status{capacityMiB="915683",chassisModel="model a",chassisSerialNumber="SN98765",logicaldrivename="TESTDRIVE NAME 1",name="HpeSmartStorageLogicalDrive",raid="1",volumeuniqueidentifier="ABCDEF12345"} 1
 	`
 	GoodDiskDriveExpected = `
         # HELP redfish_disk_drive_status Current Disk Drive status 1 = OK, 0 = BAD, -1 = DISABLED
