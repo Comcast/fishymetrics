@@ -11,6 +11,15 @@ build:
 		-X \"github.com/comcast/fishymetrics/buildinfo.date=${BUILD_DATE}\"\
 	" -v -o build/usr/bin/fishymetrics $(shell pwd)/cmd/fishymetrics
 
+static:
+    @mkdir -p build/usr/bin
+    CGO_ENABLED=0 go build -a -ldflags "\
+        -extldflags '-static' \
+        -X \"github.com/comcast/fishymetrics/buildinfo.gitVersion=${REPO_VERSION}\" \
+        -X \"github.com/comcast/fishymetrics/buildinfo.gitRevision=${REPO_REV}\" \
+        -X \"github.com/comcast/fishymetrics/buildinfo.date=${BUILD_DATE}\" \
+    " -v -o build/usr/bin/fishymetrics $(shell pwd)/cmd/fishymetrics
+
 docker:
 	docker build \
 	--platform linux/amd64 \
