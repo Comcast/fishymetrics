@@ -364,11 +364,11 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 		// /redfish/v1/Systems/XXXX/Storage/XXXXX/
 		if len(arrayCtrlResp.StorageDrives) > 0 {
 			for _, member := range arrayCtrlResp.StorageDrives {
-				if reg, ok := excludes["drive"]; ok {
-					if !reg.(*regexp.Regexp).MatchString(member.URL) {
-						if checkUnique(driveEndpoints.physicalDriveURLs, member.URL) {
-							driveEndpoints.physicalDriveURLs = append(driveEndpoints.physicalDriveURLs, appendSlash(member.URL))
-						}
+				// If no drive exclude pattern is defined, process all drives
+				// If drive exclude pattern is defined, only process drives that don't match the exclude pattern
+				if reg, ok := excludes["drive"]; !ok || !reg.(*regexp.Regexp).MatchString(member.URL) {
+					if checkUnique(driveEndpoints.physicalDriveURLs, member.URL) {
+						driveEndpoints.physicalDriveURLs = append(driveEndpoints.physicalDriveURLs, appendSlash(member.URL))
 					}
 				}
 			}
