@@ -273,69 +273,74 @@ func NewPartialExporter(ctx context.Context, target, uri, profile, model string,
 		}
 	}
 
-	// Drive metrics
-	if componentMap[ComponentDrives] {
-		// Check for SmartStorage endpoint
-		var ss = GetSmartStorageURL(sysResp)
-		if ss != "" {
-			driveEndpointsResp, err := getAllDriveEndpoints(ctx, exp.url, ss, target, retryClient, excludes)
-			if err != nil {
-				log.Error("error when getting drive endpoints", zap.Error(err),
-					zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
-			} else {
-				// Logical drives
-				for _, url := range driveEndpointsResp.logicalDriveURLs {
-					tasks = append(tasks,
-						pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
-							exp.url+url, handle(&exp, LOGICALDRIVE)))
-				}
-				// Physical drives
-				for _, url := range driveEndpointsResp.physicalDriveURLs {
-					tasks = append(tasks,
-						pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
-							exp.url+url, handle(&exp, UNKNOWN_DRIVE)))
-				}
-			}
-		}
-
-		// Regular drives endpoint
-		for _, url := range sysEndpoints.drives {
-			tasks = append(tasks,
-				pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
-					exp.url+url, handle(&exp, UNKNOWN_DRIVE)))
-		}
-
-		// Virtual drives
-		for _, url := range sysEndpoints.virtualDrives {
-			tasks = append(tasks,
-				pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
-					exp.url+url, handle(&exp, LOGICALDRIVE)))
-		}
-	}
-
-	// Storage controller metrics
-	if componentMap[ComponentStorageController] {
+	// Storage controller & drive metrics
+	if componentMap[ComponentStorageController] || componentMap[ComponentDrives] {
 		// From SmartStorage
 		var ss = GetSmartStorageURL(sysResp)
+		var driveEndpointsResp DriveEndpoints
+
 		if ss != "" {
-			driveEndpointsResp, err := getAllDriveEndpoints(ctx, exp.url, ss, target, retryClient, excludes)
+			driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient, excludes)
 			if err != nil {
-				log.Error("error when getting drive endpoints", zap.Error(err),
-					zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
-			} else {
-				for _, url := range driveEndpointsResp.arrayControllerURLs {
-					tasks = append(tasks,
-						pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
-							exp.url+url, handle(&exp, STORAGE_CONTROLLER)))
+				log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+				return nil, err
+			}
+		}
+
+		if (len(sysEndpoints.storageController) == 0 && ss == "") || (len(sysEndpoints.drives) == 0 && len(driveEndpointsResp.physicalDriveURLs) == 0) {
+			if sysResp.Storage.URL != "" {
+				url := appendSlash(sysResp.Storage.URL)
+				driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+url, target, retryClient, excludes)
+				if err != nil {
+					log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+					return nil, err
 				}
 			}
 		}
 
-		// Regular storage controller endpoints
-		for _, url := range sysEndpoints.storageController {
-			tasks = append(tasks,
-				pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
+		if componentMap[ComponentStorageController] {
+			log.Debug("partial storage controller endpoints", zap.Strings("array_controller_endpoints", driveEndpointsResp.arrayControllerURLs),
+				zap.Strings("storage_ctrl_endpoints", sysEndpoints.storageController), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+
+			// System Endpoints
+			for _, url := range sysEndpoints.storageController {
+				tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
 					exp.url+url, handle(&exp, STORAGE_CONTROLLER)))
+			}
+			// SmartStorage or Storage endpoints
+			for _, url := range driveEndpointsResp.arrayControllerURLs {
+				tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient), exp.url+url, handle(&exp, STORAGE_CONTROLLER)))
+			}
+		}
+
+		if componentMap[ComponentDrives] {
+			log.Debug("partial drive endpoints", zap.Strings("logical_drive_endpoints", driveEndpointsResp.logicalDriveURLs),
+				zap.Strings("virtual_drives_endpoints", sysEndpoints.virtualDrives),
+				zap.Strings("drives_endpoints", sysEndpoints.drives),
+				zap.Strings("physical_drive_endpoints", driveEndpointsResp.physicalDriveURLs),
+				zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+
+			// virtual drives
+			for _, url := range sysEndpoints.virtualDrives {
+				tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
+					exp.url+url, handle(&exp, LOGICALDRIVE)))
+			}
+			// Logical drives
+			for _, url := range driveEndpointsResp.logicalDriveURLs {
+				tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
+					exp.url+url, handle(&exp, LOGICALDRIVE)))
+			}
+
+			// System Endpoint
+			for _, url := range sysEndpoints.drives {
+				tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
+					exp.url+url, handle(&exp, UNKNOWN_DRIVE)))
+			}
+			// SmartStorage or Storage endpoints
+			for _, url := range driveEndpointsResp.physicalDriveURLs {
+				tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+url, target, profile, retryClient),
+					exp.url+url, handle(&exp, UNKNOWN_DRIVE)))
+			}
 		}
 	}
 
