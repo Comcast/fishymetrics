@@ -384,11 +384,9 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 					}
 
 					for _, member := range volumeOutput.Members {
-						if reg, ok := excludes["drive"]; ok {
-							if !reg.(*regexp.Regexp).MatchString(member.URL) {
-								if checkUnique(driveEndpoints.logicalDriveURLs, member.URL) {
-									driveEndpoints.logicalDriveURLs = append(driveEndpoints.logicalDriveURLs, appendSlash(member.URL))
-								}
+						if reg, ok := excludes["drive"]; !ok || !reg.(*regexp.Regexp).MatchString(member.URL) {
+							if checkUnique(driveEndpoints.logicalDriveURLs, member.URL) {
+								driveEndpoints.logicalDriveURLs = append(driveEndpoints.logicalDriveURLs, appendSlash(member.URL))
 							}
 						}
 					}
