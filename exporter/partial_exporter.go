@@ -368,6 +368,10 @@ func NewPartialExporter(ctx context.Context, target, uri, profile, model string,
 				if err == nil {
 					if len(updateServiceEndpoints.FirmwareInventory.LinksURLSlice) == 1 {
 						firmwareInventoryEndpoints, err = getMemberUrls(exp.url+updateServiceEndpoints.FirmwareInventory.LinksURLSlice[0], target, retryClient)
+						if err != nil {
+							log.Error("error when getting firmware inventory endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+							return nil, err
+						}
 					} else if len(updateServiceEndpoints.FirmwareInventory.LinksURLSlice) > 1 {
 						firmwareInventoryEndpoints = updateServiceEndpoints.FirmwareInventory.LinksURLSlice
 					}
