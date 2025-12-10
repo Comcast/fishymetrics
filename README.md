@@ -255,6 +255,12 @@ The chart maps these values to the container env vars. The application’s HTTP 
 make build
 ```
 
+#### linux binary statically linked
+
+```
+make static
+```
+
 #### docker image
 
 ```bash
