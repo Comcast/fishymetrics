@@ -18,6 +18,7 @@ package oem
 
 import (
 	"encoding/json"
+	"strconv"
 )
 
 // /redfish/v1/Systems/X/SmartStorage/ArrayControllers/
@@ -29,38 +30,38 @@ type DriveProtocol struct {
 // NVME's
 // /redfish/v1/chassis/X/
 type NVMeDriveMetrics struct {
-	ID               string           `json:"Id"`
-	Model            string           `json:"Model"`
-	Name             string           `json:"Name"`
-	MediaType        string           `json:"MediaType"`
-	Oem              Oem              `json:"Oem"`
-	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
-	Protocol         string           `json:"Protocol"`
-	Status           Status           `json:"Status"`
-	FailurePredicted *bool            `json:"FailurePredicted"`
-	CapacityBytes    int              `json:"CapacityBytes"`
-	SerialNumber     string           `json:"SerialNumber"`
+	ID               string                `json:"Id"`
+	Model            string                `json:"Model"`
+	Name             string                `json:"Name"`
+	MediaType        string                `json:"MediaType"`
+	Oem              Oem                   `json:"Oem"`
+	PhysicalLocation PhysicalLocation      `json:"PhysicalLocation"`
+	Protocol         string                `json:"Protocol"`
+	Status           Status                `json:"Status"`
+	FailurePredicted FailurePredictWrapper `json:"FailurePredicted"`
+	CapacityBytes    CapacityBytesWrapper  `json:"CapacityBytes"`
+	SerialNumber     string                `json:"SerialNumber"`
 }
 
 // Logical Drives
 // /redfish/v1/Systems/X/SmartStorage/ArrayControllers/X/LogicalDrives/X/
 type LogicalDriveMetrics struct {
-	Id                     string          `json:"Id"`
-	CapacityMiB            int             `json:"CapacityMiB"`
-	CapacityBytes          int             `json:"CapacityBytes"`
-	Description            string          `json:"Description"`
-	DisplayName            string          `json:"DisplayName"`
-	InterfaceType          string          `json:"InterfaceType"`
-	Identifiers            []Identifiers   `json:"Identifiers"`
-	Links                  DriveCollection `json:"Links"`
-	LogicalDriveName       string          `json:"LogicalDriveName"`
-	LogicalDriveNumber     int             `json:"LogicalDriveNumber"`
-	Name                   string          `json:"Name"`
-	Raid                   string          `json:"Raid"`
-	RaidType               string          `json:"RAIDType"`
-	Status                 Status          `json:"Status"`
-	StripeSizebytes        int             `json:"StripeSizebytes"`
-	VolumeUniqueIdentifier string          `json:"VolumeUniqueIdentifier"`
+	Id                     string               `json:"Id"`
+	CapacityMiB            int                  `json:"CapacityMiB"`
+	CapacityBytes          CapacityBytesWrapper `json:"CapacityBytes"`
+	Description            string               `json:"Description"`
+	DisplayName            string               `json:"DisplayName"`
+	InterfaceType          string               `json:"InterfaceType"`
+	Identifiers            []Identifiers        `json:"Identifiers"`
+	Links                  DriveCollection      `json:"Links"`
+	LogicalDriveName       string               `json:"LogicalDriveName"`
+	LogicalDriveNumber     int                  `json:"LogicalDriveNumber"`
+	Name                   string               `json:"Name"`
+	Raid                   string               `json:"Raid"`
+	RaidType               string               `json:"RAIDType"`
+	Status                 Status               `json:"Status"`
+	StripeSizebytes        int                  `json:"StripeSizebytes"`
+	VolumeUniqueIdentifier string               `json:"VolumeUniqueIdentifier"`
 }
 
 type DriveCollection struct {
@@ -75,18 +76,18 @@ type Identifiers struct {
 // /redfish/v1/Systems/XXXXX/SmartStorage/ArrayControllers/X/DiskDrives/X/
 // /redfish/v1/Systems/XXXXX/Storage/XXXXX/Drives/PD-XX/
 type DiskDriveMetrics struct {
-	Id               string           `json:"Id"`
-	CapacityMiB      int              `json:"CapacityMiB"`
-	CapacityBytes    int              `json:"CapacityBytes"`
-	Description      string           `json:"Description"`
-	InterfaceType    string           `json:"InterfaceType"`
-	Name             string           `json:"Name"`
-	Model            string           `json:"Model"`
-	Status           Status           `json:"Status"`
-	LocationWrap     LocationWrapper  `json:"Location"`
-	PhysicalLocation PhysicalLocation `json:"PhysicalLocation"`
-	FailurePredicted *bool            `json:"FailurePredicted"`
-	SerialNumber     string           `json:"SerialNumber"`
+	Id               string                `json:"Id"`
+	CapacityMiB      int                   `json:"CapacityMiB"`
+	CapacityBytes    CapacityBytesWrapper  `json:"CapacityBytes"`
+	Description      string                `json:"Description"`
+	InterfaceType    string                `json:"InterfaceType"`
+	Name             string                `json:"Name"`
+	Model            string                `json:"Model"`
+	Status           Status                `json:"Status"`
+	LocationWrap     LocationWrapper       `json:"Location"`
+	PhysicalLocation PhysicalLocation      `json:"PhysicalLocation"`
+	FailurePredicted FailurePredictWrapper `json:"FailurePredicted"`
+	SerialNumber     string                `json:"SerialNumber"`
 }
 
 type LocationWrapper struct {
@@ -125,6 +126,77 @@ func (w *LocationWrapper) UnmarshalJSON(data []byte) error {
 
 	return nil
 
+}
+
+// FailurePredict handles both string and bool values for FailurePredicted field
+type FailurePredictWrapper struct {
+	Value bool
+}
+
+func (f *FailurePredictWrapper) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as bool first
+	var boolVal bool
+	err := json.Unmarshal(data, &boolVal)
+	if err == nil {
+		f.Value = boolVal
+		return nil
+	}
+
+	// Try to unmarshal as string
+	var stringVal string
+	err = json.Unmarshal(data, &stringVal)
+	if err == nil {
+		// Convert string to bool
+		switch stringVal {
+		case "true", "True", "TRUE", "1", "yes", "Yes", "YES":
+			f.Value = true
+		case "false", "False", "FALSE", "0", "no", "No", "NO", "":
+			f.Value = false
+		default:
+			f.Value = false // default to false for unknown string values
+		}
+		return nil
+	}
+
+	return err
+}
+
+// CapacityBytesWrapper handles both string and int values for CapacityBytes field
+type CapacityBytesWrapper struct {
+	Value int
+}
+
+func (c *CapacityBytesWrapper) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as int first
+	var intVal int
+	err := json.Unmarshal(data, &intVal)
+	if err == nil {
+		c.Value = intVal
+		return nil
+	}
+
+	// Try to unmarshal as string
+	var stringVal string
+	err = json.Unmarshal(data, &stringVal)
+	if err == nil {
+		// Convert string to int
+		if stringVal == "" {
+			c.Value = 0
+			return nil
+		}
+
+		// Use strconv.Atoi to convert string to int
+		intVal, err := strconv.Atoi(stringVal)
+		if err != nil {
+			// If conversion fails, default to 0
+			c.Value = 0
+		} else {
+			c.Value = intVal
+		}
+		return nil
+	}
+
+	return err
 }
 
 // GenericDrive is used to iterate over differing drive endpoints
