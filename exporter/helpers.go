@@ -19,11 +19,9 @@ package exporter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"regexp"
-	"time"
 
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/middleware/logging"
@@ -35,26 +33,15 @@ import (
 func getMemberUrls(url, host string, client *retryablehttp.Client) ([]string, error) {
 	var coll oem.Collection
 	var urls []string
-	req, err := common.BuildRequest(url, host)
-	if err != nil {
-		return urls, err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return urls, err
-	}
-	defer common.EmptyAndCloseBody(resp)
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusUnauthorized {
-			return urls, common.ErrInvalidCredential
-		} else {
-			return urls, fmt.Errorf("HTTP status %d", resp.StatusCode)
-		}
-	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Use centralized HTTP client with credential rotation
+	fetch := common.Fetch(url, host, "", client)
+	body, err := fetch()
 	if err != nil {
-		return urls, fmt.Errorf("error reading Response Body - %s", err.Error())
+		if errors.Is(err, common.ErrInvalidCredential) {
+			return urls, common.ErrInvalidCredential
+		}
+		return urls, fmt.Errorf("error fetching chassis URL: %w", err)
 	}
 
 	err = json.Unmarshal(body, &coll)
@@ -74,26 +61,14 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 	var sysEnd SystemEndpoints
 
 	for _, url := range chassisUrls {
-		req, err := common.BuildRequest(url, host)
+		// Use centralized HTTP client with credential rotation
+		fetch := common.Fetch(url, host, "", client)
+		body, err := fetch()
 		if err != nil {
-			return sysEnd, err
-		}
-		resp, err := client.Do(req)
-		if err != nil {
-			return sysEnd, err
-		}
-		defer common.EmptyAndCloseBody(resp)
-		if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-			if resp.StatusCode == http.StatusUnauthorized {
+			if errors.Is(err, common.ErrInvalidCredential) {
 				return sysEnd, common.ErrInvalidCredential
-			} else {
-				return sysEnd, fmt.Errorf("HTTP status %d", resp.StatusCode)
 			}
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return sysEnd, fmt.Errorf("error reading Response Body - %s", err.Error())
+			return sysEnd, fmt.Errorf("error fetching system endpoints: %w", err)
 		}
 
 		err = json.Unmarshal(body, &chas)
@@ -217,22 +192,15 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 
 func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.System, error) {
 	var sys oem.System
-	req, err := common.BuildRequest(url, host)
-	if err != nil {
-		return sys, err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return sys, err
-	}
-	defer common.EmptyAndCloseBody(resp)
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		return sys, fmt.Errorf("HTTP status %d", resp.StatusCode)
-	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Use centralized HTTP client with credential rotation
+	fetch := common.Fetch(url, host, "", client)
+	body, err := fetch()
 	if err != nil {
-		return sys, fmt.Errorf("error reading Response Body - %s", err.Error())
+		if errors.Is(err, common.ErrInvalidCredential) {
+			return sys, common.ErrInvalidCredential
+		}
+		return sys, fmt.Errorf("error fetching systems metadata: %w", err)
 	}
 
 	err = json.Unmarshal(body, &sys)
@@ -245,40 +213,15 @@ func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.Sys
 
 func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
 	var dimms oem.Collection
-	retryCount := 0
-	req, err := common.BuildRequest(url, host)
-	if err != nil {
-		return dimms, err
-	}
-	resp, err := common.DoRequest(client, req)
-	if err != nil {
-		return dimms, err
-	}
-	defer common.EmptyAndCloseBody(resp)
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
-				time.Sleep(client.RetryWaitMin)
-				resp, err = common.DoRequest(client, req)
-				if err != nil {
-					return dimms, err
-				}
-				defer common.EmptyAndCloseBody(resp)
-				retryCount++
-			}
-			if err != nil {
-				return dimms, err
-			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-				return dimms, fmt.Errorf("HTTP status %d", resp.StatusCode)
-			}
-		} else {
-			return dimms, fmt.Errorf("HTTP status %d", resp.StatusCode)
-		}
-	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Use centralized HTTP client with credential rotation
+	fetch := common.Fetch(url, host, "", client)
+	body, err := fetch()
 	if err != nil {
-		return dimms, fmt.Errorf("error reading Response Body - %s", err.Error())
+		if errors.Is(err, common.ErrInvalidCredential) {
+			return dimms, common.ErrInvalidCredential
+		}
+		return dimms, fmt.Errorf("error fetching DIMM endpoints: %w", err)
 	}
 
 	err = json.Unmarshal(body, &dimms)
@@ -294,42 +237,15 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Colle
 // This is used to find the final drive endpoints to append to the task pool for final scraping.
 func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.GenericDrive, error) {
 	var drive oem.GenericDrive
-	retryCount := 0
-	req, err := common.BuildRequest(url, host)
-	if err != nil {
-		return drive, err
-	}
-	resp, err := common.DoRequest(client, req)
-	if err != nil {
-		return drive, err
-	}
-	defer common.EmptyAndCloseBody(resp)
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
-				time.Sleep(client.RetryWaitMin)
-				resp, err = common.DoRequest(client, req)
-				if err != nil {
-					return drive, err
-				}
-				defer common.EmptyAndCloseBody(resp)
-				retryCount++
-			}
-			if err != nil {
-				return drive, err
-			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-				return drive, fmt.Errorf("HTTP status %d", resp.StatusCode)
-			}
-		} else if resp.StatusCode == http.StatusUnauthorized {
-			return drive, common.ErrInvalidCredential
-		} else {
-			return drive, fmt.Errorf("HTTP status %d", resp.StatusCode)
-		}
-	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Use centralized HTTP client with credential rotation
+	fetch := common.Fetch(url, host, "", client)
+	body, err := fetch()
 	if err != nil {
-		return drive, fmt.Errorf("error reading Response Body - %s", err.Error())
+		if errors.Is(err, common.ErrInvalidCredential) {
+			return drive, common.ErrInvalidCredential
+		}
+		return drive, fmt.Errorf("error fetching drive endpoint: %w", err)
 	}
 
 	err = json.Unmarshal(body, &drive)
@@ -472,42 +388,15 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 
 func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
 	var processors oem.Collection
-	retryCount := 0
-	req, err := common.BuildRequest(url, host)
-	if err != nil {
-		return processors, err
-	}
-	resp, err := common.DoRequest(client, req)
-	if err != nil {
-		return processors, err
-	}
-	defer common.EmptyAndCloseBody(resp)
-	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-		if resp.StatusCode == http.StatusNotFound {
-			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
-				time.Sleep(client.RetryWaitMin)
-				resp, err = common.DoRequest(client, req)
-				if err != nil {
-					return processors, err
-				}
-				defer common.EmptyAndCloseBody(resp)
-				retryCount++
-			}
-			if err != nil {
-				return processors, err
-			} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-				return processors, fmt.Errorf("HTTP status %d", resp.StatusCode)
-			}
-		} else if resp.StatusCode == http.StatusUnauthorized {
-			return processors, common.ErrInvalidCredential
-		} else {
-			return processors, fmt.Errorf("HTTP status %d", resp.StatusCode)
-		}
-	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Use centralized HTTP client with credential rotation
+	fetch := common.Fetch(url, host, "", client)
+	body, err := fetch()
 	if err != nil {
-		return processors, fmt.Errorf("error reading Response Body - %s", err.Error())
+		if errors.Is(err, common.ErrInvalidCredential) {
+			return processors, common.ErrInvalidCredential
+		}
+		return processors, fmt.Errorf("error fetching processor endpoints: %w", err)
 	}
 
 	err = json.Unmarshal(body, &processors)
