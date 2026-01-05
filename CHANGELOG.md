@@ -6,6 +6,22 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.18.1]
+
+## Added
+
+- Add static binary build [#160](https://github.com/Comcast/fishymetrics/pull/160)
+
+## Updated
+
+- Bump github.com/containerd/containerd from 1.7.27 to 1.7.29 [#156](https://github.com/Comcast/fishymetrics/pull/156)
+- Bump golang.org/x/crypto from 0.36.0 to 0.45.0 [#158](https://github.com/Comcast/fishymetrics/pull/158)
+
+## Fixed
+
+- Storage drives not included in scrapes when collector.drives.modules-exclude flag is not passed [#157](https://github.com/Comcast/fishymetrics/issues/157)
+- Credential rotation not happening after fetching secrets from vault [#161](https://github.com/Comcast/fishymetrics/issues/161)
+
 ## [0.18.0]
 
 ## Added
