@@ -69,7 +69,11 @@ func Fetch(uri, host, profile string, client *retryablehttp.Client) func() ([]by
 				}
 			} else if resp.StatusCode == http.StatusUnauthorized {
 				if ChassisCreds.Vault != nil {
-					// Credentials may have rotated, go to vault and get the latest
+					// Credentials may have rotated, clear cache, go to vault and get the latest
+					ChassisCreds.mu.Lock()
+					delete(ChassisCreds.Creds, host)
+					ChassisCreds.mu.Unlock()
+
 					credential, err := ChassisCreds.GetCredentials(context.Background(), profile, host)
 					if err != nil {
 						return nil, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
@@ -86,6 +90,10 @@ func Fetch(uri, host, profile string, client *retryablehttp.Client) func() ([]by
 				}
 
 				time.Sleep(client.RetryWaitMin)
+
+				// Properly close the previous response before making the retry request
+				EmptyAndCloseBody(resp)
+
 				resp, err = DoRequest(client, req)
 				if err != nil {
 					return nil, fmt.Errorf("retry DoRequest failed - %v", err)

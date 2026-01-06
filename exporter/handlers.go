@@ -347,20 +347,16 @@ func (e *Exporter) exportPhysicalDriveMetrics(body []byte) error {
 
 	if dlphysical.CapacityMiB != 0 {
 		cap = dlphysical.CapacityMiB
-	} else if dlphysical.CapacityBytes != 0 {
+	} else if dlphysical.CapacityBytes.Value != 0 {
 		// convert to MiB
-		cap = ((dlphysical.CapacityBytes / 1024) / 1024)
+		cap = ((dlphysical.CapacityBytes.Value / 1024) / 1024)
 	}
 
 	// if FailurePredicted is present in response, set the result, else set to empty string
-	if dlphysical.FailurePredicted != nil {
-		if *dlphysical.FailurePredicted {
-			failpredict = "true"
-		} else {
-			failpredict = "false"
-		}
+	if dlphysical.FailurePredicted.Value {
+		failpredict = "true"
 	} else {
-		failpredict = ""
+		failpredict = "false"
 	}
 
 	// Physical drives need to have a unique identifier like location so as to not overwrite data
@@ -408,9 +404,9 @@ func (e *Exporter) exportLogicalDriveMetrics(body []byte) error {
 	// Calculate capacity in MiB
 	if dllogical.CapacityMiB > 0 {
 		capacityMiB = dllogical.CapacityMiB
-	} else if dllogical.CapacityBytes > 0 {
+	} else if dllogical.CapacityBytes.Value > 0 {
 		// Convert bytes to MiB (1 MiB = 1048576 bytes)
-		capacityMiB = dllogical.CapacityBytes / 1048576
+		capacityMiB = dllogical.CapacityBytes.Value / 1048576
 	}
 
 	(*dllogicaldrive)["raidStatus"].WithLabelValues(strings.TrimRight(dllogical.Name, " "), e.ChassisSerialNumber, e.Model, strings.TrimRight(ldName, " "), volIdentifier, raidType, strconv.Itoa(capacityMiB)).Set(state)
@@ -440,20 +436,16 @@ func (e *Exporter) exportNVMeDriveMetrics(body []byte) error {
 		state = DISABLED
 	}
 
-	if dlnvme.CapacityBytes != 0 {
+	if dlnvme.CapacityBytes.Value != 0 {
 		// convert to MiB
-		cap = ((dlnvme.CapacityBytes / 1024) / 1024)
+		cap = ((dlnvme.CapacityBytes.Value / 1024) / 1024)
 	}
 
 	// if FailurePredicted is present in response, set the result, else set to empty string
-	if dlnvme.FailurePredicted != nil {
-		if *dlnvme.FailurePredicted {
-			failpredict = "true"
-		} else {
-			failpredict = "false"
-		}
+	if dlnvme.FailurePredicted.Value {
+		failpredict = "true"
 	} else {
-		failpredict = ""
+		failpredict = "false"
 	}
 
 	(*dlnvmedrive)["nvmeDriveStatus"].WithLabelValues(e.ChassisSerialNumber, e.Model, dlnvme.Protocol, dlnvme.ID, dlnvme.PhysicalLocation.PartLocation.ServiceLabel, dlnvme.SerialNumber, strconv.Itoa(cap), failpredict).Set(state)
