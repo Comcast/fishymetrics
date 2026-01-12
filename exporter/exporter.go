@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Comcast Cable Communications Management, LLC
+ * Copyright 2026 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -159,7 +159,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		return &exp, nil
 	}
 
-	chassisEndpoints, err := getMemberUrls(exp.url+uri+"/Chassis/", target, retryClient)
+	chassisEndpoints, err := getMemberUrls(exp.url+uri+"/Chassis/", target, profile, retryClient)
 	if err != nil {
 		log.Error("error when getting chassis url", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		if errors.Is(err, common.ErrInvalidCredential) {
@@ -180,7 +180,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	log.Debug("chassis endpoints response", zap.Strings("chassis_endpoints", chassisEndpoints), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 
-	mgrEndpoints, err := getMemberUrls(exp.url+uri+"/Managers/", target, retryClient)
+	mgrEndpoints, err := getMemberUrls(exp.url+uri+"/Managers/", target, profile, retryClient)
 	if err != nil {
 		log.Error("error when getting manager endpoint", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		return nil, err
@@ -214,7 +214,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	// chassis endpoint to use for obtaining url endpoints for storage controller, NVMe drive metrics as well as the starting
 	// point for the systems and manager endpoints
-	sysEndpoints, err := getSystemEndpoints(chasUrlsFinal, target, retryClient, excludes)
+	sysEndpoints, err := getSystemEndpoints(chasUrlsFinal, target, profile, retryClient, excludes)
 	if err != nil {
 		log.Error("error when getting chassis endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		return nil, err
@@ -224,7 +224,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	if len(sysEndpoints.storageController) > 0 {
 		var controllerOutput oem.System
 		for _, controller := range sysEndpoints.storageController {
-			controllerOutput, err = getSystemsMetadata(exp.url+controller, target, retryClient)
+			controllerOutput, err = getSystemsMetadata(exp.url+controller, target, profile, retryClient)
 			if err != nil {
 				log.Error("error when getting storage controller metadata", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return nil, err
@@ -246,7 +246,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 
 	if len(sysEndpoints.volumes) > 0 {
 		for _, volume := range sysEndpoints.volumes {
-			virtualDrives, err := getMemberUrls(exp.url+volume, target, retryClient)
+			virtualDrives, err := getMemberUrls(exp.url+volume, target, profile, retryClient)
 			if err != nil {
 				log.Error("error when getting virtual drive member urls", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return nil, err
@@ -278,7 +278,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	var dimms, processors oem.Collection
 	if len(sysEndpoints.systems) > 0 {
 		// call /redfish/v1/Systems/XXXXX/ for BIOS, Serial number
-		sysResp, err = getSystemsMetadata(exp.url+sysEndpoints.systems[0], target, retryClient)
+		sysResp, err = getSystemsMetadata(exp.url+sysEndpoints.systems[0], target, profile, retryClient)
 		if err != nil {
 			log.Error("error when getting BIOS version", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 			return nil, err
@@ -297,7 +297,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		// DIMM endpoints array
 		var systemMemoryEndpoint = GetMemoryURL(sysResp)
 		if systemMemoryEndpoint != "" {
-			dimms, err = getDIMMEndpoints(exp.url+systemMemoryEndpoint, target, retryClient)
+			dimms, err = getDIMMEndpoints(exp.url+systemMemoryEndpoint, target, profile, retryClient)
 			if err != nil {
 				log.Error("error when getting DIMM endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return nil, err
@@ -305,7 +305,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		}
 
 		// CPU processor metrics
-		processors, err = getProcessorEndpoints(exp.url+sysEndpoints.systems[0]+"Processors/", target, retryClient)
+		processors, err = getProcessorEndpoints(exp.url+sysEndpoints.systems[0]+"Processors/", target, profile, retryClient)
 		if err != nil {
 			log.Error("error when getting Processors endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 			return nil, err
@@ -319,7 +319,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	var ss = GetSmartStorageURL(sysResp)
 	var driveEndpointsResp DriveEndpoints
 	if ss != "" {
-		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, retryClient, excludes)
+		driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+ss, target, profile, retryClient, excludes)
 		if err != nil {
 			log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 			return nil, err
@@ -329,7 +329,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	if (len(sysEndpoints.storageController) == 0 && ss == "") || (len(sysEndpoints.drives) == 0 && len(driveEndpointsResp.physicalDriveURLs) == 0) {
 		if sysResp.Storage.URL != "" {
 			url := appendSlash(sysResp.Storage.URL)
-			driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+url, target, retryClient, excludes)
+			driveEndpointsResp, err = getAllDriveEndpoints(ctx, exp.url, exp.url+url, target, profile, retryClient, excludes)
 			if err != nil {
 				log.Error("error when getting drive endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return nil, err
@@ -350,20 +350,20 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 		tasks = append(tasks, pool.NewTask(common.Fetch(exp.url+systemFML, target, profile, retryClient), exp.url+systemFML, handle(&exp, FIRMWAREINVENTORY)))
 	} else {
 		// Check for /redfish/v1/Managers/XXXX/UpdateService/ for firmware inventory URL
-		rootComponents, err := getSystemsMetadata(exp.url+uri, target, retryClient)
+		rootComponents, err := getSystemsMetadata(exp.url+uri, target, profile, retryClient)
 		if err != nil {
 			log.Error("error when getting root components metadata", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 			return nil, err
 		}
 		if rootComponents.UpdateService.URL != "" {
-			updateServiceEndpoints, err := getSystemsMetadata(exp.url+rootComponents.UpdateService.URL, target, retryClient)
+			updateServiceEndpoints, err := getSystemsMetadata(exp.url+rootComponents.UpdateService.URL, target, profile, retryClient)
 			if err != nil {
 				log.Error("error when getting update service metadata", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return nil, err
 			}
 
 			if len(updateServiceEndpoints.FirmwareInventory.LinksURLSlice) == 1 {
-				firmwareInventoryEndpoints, err = getMemberUrls(exp.url+updateServiceEndpoints.FirmwareInventory.LinksURLSlice[0], target, retryClient)
+				firmwareInventoryEndpoints, err = getMemberUrls(exp.url+updateServiceEndpoints.FirmwareInventory.LinksURLSlice[0], target, profile, retryClient)
 				if err != nil {
 					log.Error("error when getting firmware inventory endpoints", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 					return nil, err
