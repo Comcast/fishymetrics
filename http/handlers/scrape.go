@@ -111,6 +111,9 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 		}
 	}
 
+	// Set configurations in common package for use in credential retrieval
+	common.ExtraParamsAliases = extraParamsAliases
+
 	// check if vault is configured
 	if cfg.Vault != nil {
 		// check if ChassisCredentials hashmap contains the credentials we need otherwise get them from vault

@@ -31,6 +31,7 @@ import (
 
 var (
 	ErrInvalidCredential = errors.New("invalid credential")
+	ExtraParamsAliases   = make(map[string]string)
 )
 
 type metricHandler func([]byte) error
@@ -74,7 +75,7 @@ func Fetch(uri, host, profile string, client *retryablehttp.Client) func() ([]by
 					delete(ChassisCreds.Creds, host)
 					ChassisCreds.mu.Unlock()
 
-					credential, err := ChassisCreds.GetCredentials(context.Background(), profile, host)
+					credential, err := ChassisCreds.GetCredentials(context.Background(), profile, host, UpdateCredProfilePath(ExtraParamsAliases))
 					if err != nil {
 						return nil, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
 					}
