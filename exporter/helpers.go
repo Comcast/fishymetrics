@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Comcast Cable Communications Management, LLC
+ * Copyright 2026 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,12 +30,12 @@ import (
 	"go.uber.org/zap"
 )
 
-func getMemberUrls(url, host string, client *retryablehttp.Client) ([]string, error) {
+func getMemberUrls(url, host string, profile string, client *retryablehttp.Client) ([]string, error) {
 	var coll oem.Collection
 	var urls []string
 
 	// Use centralized HTTP client with credential rotation
-	fetch := common.Fetch(url, host, "", client)
+	fetch := common.Fetch(url, host, profile, client)
 	body, err := fetch()
 	if err != nil {
 		if errors.Is(err, common.ErrInvalidCredential) {
@@ -56,13 +56,13 @@ func getMemberUrls(url, host string, client *retryablehttp.Client) ([]string, er
 	return urls, nil
 }
 
-func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp.Client, excludes Excludes) (SystemEndpoints, error) {
+func getSystemEndpoints(chassisUrls []string, host string, profile string, client *retryablehttp.Client, excludes Excludes) (SystemEndpoints, error) {
 	var chas oem.Chassis
 	var sysEnd SystemEndpoints
 
 	for _, url := range chassisUrls {
 		// Use centralized HTTP client with credential rotation
-		fetch := common.Fetch(url, host, "", client)
+		fetch := common.Fetch(url, host, profile, client)
 		body, err := fetch()
 		if err != nil {
 			if errors.Is(err, common.ErrInvalidCredential) {
@@ -190,11 +190,11 @@ func getSystemEndpoints(chassisUrls []string, host string, client *retryablehttp
 	return sysEnd, nil
 }
 
-func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.System, error) {
+func getSystemsMetadata(url, host string, profile string, client *retryablehttp.Client) (oem.System, error) {
 	var sys oem.System
 
 	// Use centralized HTTP client with credential rotation
-	fetch := common.Fetch(url, host, "", client)
+	fetch := common.Fetch(url, host, profile, client)
 	body, err := fetch()
 	if err != nil {
 		if errors.Is(err, common.ErrInvalidCredential) {
@@ -211,11 +211,11 @@ func getSystemsMetadata(url, host string, client *retryablehttp.Client) (oem.Sys
 	return sys, nil
 }
 
-func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+func getDIMMEndpoints(url, host string, profile string, client *retryablehttp.Client) (oem.Collection, error) {
 	var dimms oem.Collection
 
 	// Use centralized HTTP client with credential rotation
-	fetch := common.Fetch(url, host, "", client)
+	fetch := common.Fetch(url, host, profile, client)
 	body, err := fetch()
 	if err != nil {
 		if errors.Is(err, common.ErrInvalidCredential) {
@@ -235,11 +235,11 @@ func getDIMMEndpoints(url, host string, client *retryablehttp.Client) (oem.Colle
 // The getDriveEndpoint function is used in a recursive fashion to get the body response
 // of any type of drive, NVMe, Physical DiskDrives, or Logical Drives, using the GenericDrive struct
 // This is used to find the final drive endpoints to append to the task pool for final scraping.
-func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.GenericDrive, error) {
+func getDriveEndpoint(url, host string, profile string, client *retryablehttp.Client) (oem.GenericDrive, error) {
 	var drive oem.GenericDrive
 
 	// Use centralized HTTP client with credential rotation
-	fetch := common.Fetch(url, host, "", client)
+	fetch := common.Fetch(url, host, profile, client)
 	body, err := fetch()
 	if err != nil {
 		if errors.Is(err, common.ErrInvalidCredential) {
@@ -256,11 +256,11 @@ func getDriveEndpoint(url, host string, client *retryablehttp.Client) (oem.Gener
 	return drive, nil
 }
 
-func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, client *retryablehttp.Client, excludes Excludes) (DriveEndpoints, error) {
+func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, profile string, client *retryablehttp.Client, excludes Excludes) (DriveEndpoints, error) {
 	var driveEndpoints DriveEndpoints
 
 	// Get initial JSON return of /redfish/v1/Systems/XXXX/SmartStorage/ArrayControllers/ set to output
-	driveResp, err := getDriveEndpoint(initialUrl, host, client)
+	driveResp, err := getDriveEndpoint(initialUrl, host, profile, client)
 	if err != nil {
 		log.Error("api call "+initialUrl+" failed - ", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		return driveEndpoints, err
@@ -270,7 +270,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 	for _, member := range driveResp.Members {
 		// for each ArrayController URL, get the JSON object
 		// /redfish/v1/Systems/XXXX/SmartStorage/ArrayControllers/X/
-		arrayCtrlResp, err := getDriveEndpoint(fqdn+member.URL, host, client)
+		arrayCtrlResp, err := getDriveEndpoint(fqdn+member.URL, host, profile, client)
 		if err != nil {
 			log.Error("api call "+fqdn+member.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 			return driveEndpoints, err
@@ -293,7 +293,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 			if len(arrayCtrlResp.Volumes.LinksURLSlice) > 0 {
 				for _, volume := range arrayCtrlResp.Volumes.LinksURLSlice {
 					url := appendSlash(volume)
-					volumeOutput, err := getDriveEndpoint(fqdn+url, host, client)
+					volumeOutput, err := getDriveEndpoint(fqdn+url, host, profile, client)
 					if err != nil {
 						log.Error("api call "+fqdn+url+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 						return driveEndpoints, err
@@ -310,7 +310,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 			}
 
 			if arrayCtrlResp.Controllers.URL != "" {
-				controllerOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.Controllers.URL, host, client)
+				controllerOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.Controllers.URL, host, profile, client)
 				if err != nil {
 					log.Error("api call "+fqdn+arrayCtrlResp.Controllers.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 					return driveEndpoints, err
@@ -328,7 +328,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 		// all other servers apart from iLO6
 		// If LogicalDrives is present, parse logical drive endpoint until all urls are found
 		if arrayCtrlResp.LinksUpper.LogicalDrives.URL != "" {
-			logicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksUpper.LogicalDrives.URL, host, client)
+			logicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksUpper.LogicalDrives.URL, host, profile, client)
 			if err != nil {
 				log.Error("api call "+fqdn+arrayCtrlResp.LinksUpper.LogicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return driveEndpoints, err
@@ -343,7 +343,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 
 		// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
 		if arrayCtrlResp.LinksUpper.PhysicalDrives.URL != "" {
-			physicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksUpper.PhysicalDrives.URL, host, client)
+			physicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksUpper.PhysicalDrives.URL, host, profile, client)
 			if err != nil {
 				log.Error("api call "+fqdn+arrayCtrlResp.LinksUpper.PhysicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return driveEndpoints, err
@@ -356,7 +356,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 
 		// If LogicalDrives is present, parse logical drive endpoint until all urls are found
 		if arrayCtrlResp.LinksLower.LogicalDrives.URL != "" {
-			logicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksLower.LogicalDrives.URL, host, client)
+			logicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksLower.LogicalDrives.URL, host, profile, client)
 			if err != nil {
 				log.Error("api call "+fqdn+arrayCtrlResp.LinksLower.LogicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return driveEndpoints, err
@@ -371,7 +371,7 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 
 		// If PhysicalDrives is present, parse physical drive endpoint until all urls are found
 		if arrayCtrlResp.LinksLower.PhysicalDrives.URL != "" {
-			physicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksLower.PhysicalDrives.URL, host, client)
+			physicalDriveOutput, err := getDriveEndpoint(fqdn+arrayCtrlResp.LinksLower.PhysicalDrives.URL, host, profile, client)
 			if err != nil {
 				log.Error("api call "+fqdn+arrayCtrlResp.LinksLower.PhysicalDrives.URL+" failed", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 				return driveEndpoints, err
@@ -386,11 +386,11 @@ func getAllDriveEndpoints(ctx context.Context, fqdn, initialUrl, host string, cl
 	return driveEndpoints, nil
 }
 
-func getProcessorEndpoints(url, host string, client *retryablehttp.Client) (oem.Collection, error) {
+func getProcessorEndpoints(url, host string, profile string, client *retryablehttp.Client) (oem.Collection, error) {
 	var processors oem.Collection
 
 	// Use centralized HTTP client with credential rotation
-	fetch := common.Fetch(url, host, "", client)
+	fetch := common.Fetch(url, host, profile, client)
 	body, err := fetch()
 	if err != nil {
 		if errors.Is(err, common.ErrInvalidCredential) {

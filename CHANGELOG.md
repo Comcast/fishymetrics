@@ -6,6 +6,12 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.18.2]
+
+## Fixed
+
+- Invalid credentials not reported when fetching secrets from vault [#162](https://github.com/Comcast/fishymetrics/issues/162)
+
 ## [0.18.1]
 
 ## Added

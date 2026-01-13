@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Comcast Cable Communications Management, LLC
+ * Copyright 2026 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,6 +110,9 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 			extraParamsAliases[k] = v
 		}
 	}
+
+	// Set configurations in common package for use in credential retrieval
+	common.ExtraParamsAliases = extraParamsAliases
 
 	// check if vault is configured
 	if cfg.Vault != nil {
