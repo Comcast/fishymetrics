@@ -73,6 +73,7 @@ var (
 	driveModExclude    = a.Flag("collector.drives.modules-exclude", "regex of drive module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_DRIVES_MODULE_EXCLUDE").String()
 	firmwareModExclude = a.Flag("collector.firmware.modules-exclude", "regex of firmware module(s) to exclude from the scrape").Default("").Envar("COLLECTOR_FIRMWARE_MODULE_EXCLUDE").String()
 	urlExtraParams     = a.Flag("url.extra-params", `extra parameter(s) to parse from the URL. --url.extra-params="param1:alias1,param2:alias2"`).Default("").Envar("URL_EXTRA_PARAMS").String()
+	credentialsScript  = a.Flag("credentials-script", "script to run to get the BMC credentials").Default("").Envar("BMC_CREDENTIALS_SCRIPT").String()
 	_                  = common.CredentialProf(a.Flag("credentials.profiles",
 		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
   --credentials.profiles="
@@ -242,6 +243,7 @@ func main() {
 	// Create scrape handler configuration
 	scrapeConfig := &handlers.ScrapeConfig{
 		Vault:              vault,
+		CredentialsScript:  *credentialsScript,
 		Excludes:           excludes,
 		URLExtraParamsMap:  urlExtraParamsMap,
 		ExtraParamsAliases: extraParamsAliases,
