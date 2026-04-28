@@ -50,6 +50,7 @@ type SecretProperties struct {
 	PasswordField string
 	SecretName    string
 	UserName      string
+	KVVersion     int
 }
 
 type Vault struct {
@@ -115,7 +116,9 @@ func (v *Vault) login(ctx context.Context) (*vault.Secret, error) {
 	return authInfo, nil
 }
 
-// GetKVSecret fetches the latest version of secret api key from kv-v1 or kv-v2
+// GetKVSecret retrieves a secret from Vault using KV v1 or KV v2.
+// MountPath is the actual Vault mount (e.g., "testing-path"),
+// while KVVersion controls which API (v1/v2) is used.
 func (v *Vault) GetKVSecret(ctx context.Context, props *SecretProperties, secret string) (*vault.KVSecret, error) {
 	var kvSecret *vault.KVSecret
 	var err error
@@ -134,12 +137,11 @@ func (v *Vault) GetKVSecret(ctx context.Context, props *SecretProperties, secret
 			secretPath = secret
 		}
 	}
-
-	// perform more checks based on profile
-	if props.MountPath != "kv2" {
-		kvSecret, err = v.client.KVv1(props.MountPath).Get(ctx, secretPath)
-	} else {
+	switch props.KVVersion {
+	case 2:
 		kvSecret, err = v.client.KVv2(props.MountPath).Get(ctx, secretPath)
+	default:
+		kvSecret, err = v.client.KVv1(props.MountPath).Get(ctx, secretPath)
 	}
 
 	if err != nil {
