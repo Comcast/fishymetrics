@@ -61,10 +61,21 @@ Flags:
                                         path: "path/to/secret"
                                         userField: "user"
                                         passwordField: "password"
+                                        kvVersion: 2
                                       ...
                                   "
 
-                                --credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'
+                                --credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password","kvVersion":2},...]}'
+
+                                Profile Fields:
+                                  - name: Profile identifier (required)
+                                  - mountPath: Vault mount path (required)
+                                  - path: Path to secret within mount (required)
+                                  - userField: Field name for username in secret (required for KV secrets without userName)
+                                  - passwordField: Field name for password in secret (required)
+                                  - kvVersion: Vault KV engine version - 1 or 2 (optional, default: 1)
+                                  - secretName: Use a fixed secret name instead of target hostname (optional)
+                                  - userName: Use a fixed username instead of reading from secret (optional)
 ```
 
 Or set the following ENV Variables:
