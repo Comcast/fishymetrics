@@ -61,6 +61,16 @@ func createVaultTestCluster(t *testing.T) (*docker.DockerCluster, string, string
 		t.Fatal(err)
 	}
 
+	// create KV V2 mount with a custom mount name
+	if err := client.Sys().Mount("custom-kv2", &vaultapi.MountInput{
+		Type: "kv",
+		Options: map[string]string{
+			"version": "2",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
 	// enable approle
 	if err := client.Sys().EnableAuthWithOptions("approle", &vaultapi.EnableAuthOptions{
 		Type: "approle",
@@ -117,6 +127,15 @@ func createVaultTestCluster(t *testing.T) (*docker.DockerCluster, string, string
 	}
 
 	if _, err := client.Logical().Write("kv2/data/morepath/testkv2secret", map[string]interface{}{
+		"data": map[string]interface{}{
+			"value": "testkv2value",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create KV2 secret under custom mount
+	if _, err := client.Logical().Write("custom-kv2/data/ipmi/testkv2secret", map[string]interface{}{
 		"data": map[string]interface{}{
 			"value": "testkv2value",
 		},
@@ -274,6 +293,7 @@ func Test_Vault_Auth(t *testing.T) {
 			loginFunc:         login,
 			secretProps: &SecretProperties{
 				MountPath:  "kv2",
+				KVVersion:  2,
 				SecretName: "missing",
 			},
 			getSecretFunc: getSecret,
@@ -289,6 +309,7 @@ func Test_Vault_Auth(t *testing.T) {
 			secretProps: &SecretProperties{
 				MountPath:  "kv2",
 				Path:       "morepath",
+				KVVersion:  2,
 				SecretName: "testkv2secret",
 			},
 			getSecretFunc: getSecret,
@@ -303,6 +324,7 @@ func Test_Vault_Auth(t *testing.T) {
 			loginFunc:         login,
 			secretProps: &SecretProperties{
 				MountPath: "kv2",
+				KVVersion: 2,
 				Path:      "morepath",
 			},
 			getSecretFunc: getSecret,
@@ -317,6 +339,7 @@ func Test_Vault_Auth(t *testing.T) {
 			loginFunc:         login,
 			secretProps: &SecretProperties{
 				MountPath:  "kv2",
+				KVVersion:  2,
 				SecretName: "testkv2secret",
 			},
 			getSecretFunc: getSecret,
@@ -331,6 +354,7 @@ func Test_Vault_Auth(t *testing.T) {
 			loginFunc:         login,
 			secretProps: &SecretProperties{
 				MountPath: "kv2",
+				KVVersion: 2,
 			},
 			getSecretFunc: getSecret,
 			cleanUpFunc:   cleanUp,
@@ -351,12 +375,29 @@ func Test_Vault_Auth(t *testing.T) {
 			expectErr:     false,
 		},
 		{
+			name:              "Get KVv2 Secret Custom Mount",
+			ctx:               ctx,
+			vaultParams:       goodParams,
+			appRoleClientFunc: createAppRoleClient,
+			loginFunc:         login,
+			secretProps: &SecretProperties{
+				MountPath:  "custom-kv2",
+				Path:       "ipmi",
+				KVVersion:  2,
+				SecretName: "testkv2secret",
+			},
+			getSecretFunc: getSecret,
+			cleanUpFunc:   cleanUp,
+			expectErr:     false,
+		},
+		{
 			name:              "Token Renewal",
 			ctx:               ctx,
 			vaultParams:       goodParams,
 			appRoleClientFunc: createAppRoleClient,
 			secretProps: &SecretProperties{
 				MountPath: "kv2",
+				KVVersion: 2,
 			},
 			validateFunc: func(t *testing.T, tc testcase) error {
 				var wg = sync.WaitGroup{}
@@ -388,6 +429,7 @@ func Test_Vault_Auth(t *testing.T) {
 			appRoleClientFunc: createAppRoleClient,
 			secretProps: &SecretProperties{
 				MountPath: "kv2",
+				KVVersion: 2,
 			},
 			validateFunc: func(t *testing.T, tc testcase) error {
 				var wg = sync.WaitGroup{}

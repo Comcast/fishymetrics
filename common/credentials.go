@@ -59,6 +59,7 @@ type ProfileFlag struct {
 	PasswordField string `json:"passwordField" yaml:"passwordField"`
 	SecretName    string `json:"secretName,omitempty" yaml:"secretName,omitempty"`
 	UserName      string `json:"userName,omitempty" yaml:"userName,omitempty"`
+	KVVersion     int    `json:"kvVersion,omitempty" yaml:"kvVersion,omitempty"`
 }
 
 type CredProfileFunc func(*fishy_vault.SecretProperties)
@@ -127,6 +128,7 @@ func (c *ChassisCredentials) populateProfiles(profiles *CredentialProfilesFlag) 
 			PasswordField: v.PasswordField,
 			SecretName:    v.SecretName,
 			UserName:      v.UserName,
+			KVVersion:     v.KVVersion,
 		}
 	}
 }
