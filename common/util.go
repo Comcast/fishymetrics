@@ -52,8 +52,13 @@ func Fetch(uri, host, profile string, client *retryablehttp.Client) func() ([]by
 			return nil, err
 		}
 		defer EmptyAndCloseBody(resp)
-		if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-			if resp.StatusCode == http.StatusNotFound {
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			switch resp.StatusCode {
+			case http.StatusNotFound:
+				// When --disable-404-retry or FISHYMETRICS_DISABLE_404_RETRY=1, skip retries.
+				if config.GetConfig().Disable404Retry {
+					return nil, fmt.Errorf("HTTP status %d", http.StatusNotFound)
+				}
 				for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
 					time.Sleep(client.RetryWaitMin)
 					resp, err = DoRequest(client, req)
@@ -63,12 +68,10 @@ func Fetch(uri, host, profile string, client *retryablehttp.Client) func() ([]by
 					defer EmptyAndCloseBody(resp)
 					retryCount++
 				}
-				if err != nil {
-					return nil, err
-				} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+				if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 					return nil, fmt.Errorf("HTTP status %d", resp.StatusCode)
 				}
-			} else if resp.StatusCode == http.StatusUnauthorized {
+			case http.StatusUnauthorized:
 				if ChassisCreds.Vault != nil {
 					// Credentials may have rotated, clear cache, go to vault and get the latest
 					ChassisCreds.mu.Lock()
@@ -103,7 +106,7 @@ func Fetch(uri, host, profile string, client *retryablehttp.Client) func() ([]by
 				if resp.StatusCode == http.StatusUnauthorized {
 					return nil, ErrInvalidCredential
 				}
-			} else {
+			default:
 				return nil, fmt.Errorf("HTTP status %d", resp.StatusCode)
 			}
 		}
