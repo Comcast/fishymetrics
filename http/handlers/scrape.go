@@ -18,9 +18,11 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"strings"
 
 	"github.com/comcast/fishymetrics/common"
@@ -38,6 +40,7 @@ import (
 // ScrapeConfig holds configuration for scrape handlers
 type ScrapeConfig struct {
 	Vault              *fishy_vault.Vault
+	CredentialsScript  string
 	Excludes           map[string]interface{}
 	URLExtraParamsMap  map[string]string
 	ExtraParamsAliases map[string]string
@@ -113,6 +116,25 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 
 	// Set configurations in common package for use in credential retrieval
 	common.ExtraParamsAliases = extraParamsAliases
+
+	// check if credentials script is configured
+	if cfg.CredentialsScript != "" {
+		// Don't check if we already have credentials for this target. The script feature is there for custom scenarii where the credentials might be temporary.
+		// Running e.g. "/usr/bin/my-script bmc-password 10.2.1.42" should return a json like {"user":"root", "pass":"toor"}
+		out, err := exec.Command(cfg.CredentialsScript, "bmc-password", target).Output()
+		if err != nil {
+			log.Error("issue retrieving credentials from script using target "+target, zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		credential := &common.Credential{}
+		if err = json.Unmarshal(out, credential); err != nil {
+			log.Error("issue parsing credentials retrieved from script using target "+target, zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		common.ChassisCreds.Set(target, credential)
+	}
 
 	// check if vault is configured
 	if cfg.Vault != nil {
