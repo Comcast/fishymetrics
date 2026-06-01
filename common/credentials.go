@@ -47,8 +47,8 @@ type ChassisCredentials struct {
 }
 
 type Credential struct {
-	User string
-	Pass string
+	User string `json:"user"`
+	Pass string `json:"pass"`
 }
 
 type ProfileFlag struct {

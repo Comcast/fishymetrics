@@ -38,6 +38,7 @@ import (
 // ScrapeConfig holds configuration for scrape handlers
 type ScrapeConfig struct {
 	Vault              *fishy_vault.Vault
+	CredentialsScript  string
 	Excludes           map[string]interface{}
 	URLExtraParamsMap  map[string]string
 	ExtraParamsAliases map[string]string
@@ -114,6 +115,18 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 	// Set configurations in common package for use in credential retrieval
 	common.ExtraParamsAliases = extraParamsAliases
 
+	ctx, ok := withProxyOverride(ctx, w, query)
+	if !ok {
+		return
+	}
+
+	// check if credentials script is configured
+	if cfg.CredentialsScript != "" {
+		if ok := setCredentialsFromScript(ctx, w, target, cfg.CredentialsScript); !ok {
+			return
+		}
+	}
+
 	// check if vault is configured
 	if cfg.Vault != nil {
 		// check if ChassisCredentials hashmap contains the credentials we need otherwise get them from vault
@@ -129,20 +142,6 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 	}
 
 	registry := prometheus.NewRegistry()
-
-	if proxyHost := query.Get("proxy_host"); proxyHost != "" {
-		if !strings.Contains(proxyHost, "://") {
-			proxyHost = "http://" + proxyHost
-		}
-		// Basic validation: if malformed, return 400
-		if _, err := url.Parse(proxyHost); err != nil {
-			log.Error("invalid proxy_host parameter", zap.Error(err), zap.String("proxy_host", proxyHost),
-				zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
-			http.Error(w, "invalid proxy_host parameter", http.StatusBadRequest)
-			return
-		}
-		ctx = exporter.WithProxyURL(ctx, proxyHost)
-	}
 
 	if model == "moonshot" {
 		uri = "/rest/v1/chassis/1"
@@ -162,6 +161,42 @@ func handler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *S
 	// Delegate http serving to Prometheus client library, which will call collector.Collect.
 	h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 	h.ServeHTTP(w, r)
+}
+
+func setCredentialsFromScript(ctx context.Context, w http.ResponseWriter, target, script string) bool {
+	log := zap.L()
+	if err := validateCredentialsScriptTarget(target); err != nil {
+		log.Error("invalid target for credentials script", zap.String("target", target), zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+		http.Error(w, "invalid target parameter", http.StatusBadRequest)
+		return false
+	}
+
+	credential, out, err := credentialsFromScript(ctx, script, target)
+	if err != nil {
+		log.Error("issue retrieving credentials from script using target "+target, zap.Error(err), zap.ByteString("stdout", out.stdout), zap.ByteString("stderr", out.stderr), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+		http.Error(w, credentialsRetrievalFailure, http.StatusInternalServerError)
+		return false
+	}
+	common.ChassisCreds.Set(target, credential)
+	return true
+}
+
+func withProxyOverride(ctx context.Context, w http.ResponseWriter, query url.Values) (context.Context, bool) {
+	proxyHost := query.Get("proxy_host")
+	if proxyHost == "" {
+		return ctx, true
+	}
+	if !strings.Contains(proxyHost, "://") {
+		proxyHost = "http://" + proxyHost
+	}
+	if _, err := url.Parse(proxyHost); err != nil {
+		log := zap.L()
+		log.Error("invalid proxy_host parameter", zap.Error(err), zap.String("proxy_host", proxyHost),
+			zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
+		http.Error(w, "invalid proxy_host parameter", http.StatusBadRequest)
+		return ctx, false
+	}
+	return exporter.WithProxyURL(ctx, proxyHost), true
 }
 
 func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *ScrapeConfig) {
@@ -242,7 +277,18 @@ func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	// check if vault is configured
+	ctx, ok := withProxyOverride(ctx, w, query)
+	if !ok {
+		return
+	}
+
+	// check if credentials script is configured
+	if cfg.CredentialsScript != "" {
+		if ok := setCredentialsFromScript(ctx, w, target, cfg.CredentialsScript); !ok {
+			return
+		}
+	}
+
 	if cfg.Vault != nil {
 		// check if ChassisCredentials hashmap contains the credentials we need otherwise get them from vault
 		if _, ok := common.ChassisCreds.Get(target); !ok {
@@ -259,20 +305,6 @@ func partialHandler(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	}
 
 	registry := prometheus.NewRegistry()
-
-	// Optional per-request proxy override
-	if proxyHost := query.Get("proxy_host"); proxyHost != "" {
-		if !strings.Contains(proxyHost, "://") {
-			proxyHost = "http://" + proxyHost
-		}
-		if _, err := url.Parse(proxyHost); err != nil {
-			log.Error("invalid proxy_host parameter", zap.Error(err), zap.String("proxy_host", proxyHost),
-				zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
-			http.Error(w, "invalid proxy_host parameter", http.StatusBadRequest)
-			return
-		}
-		ctx = exporter.WithProxyURL(ctx, proxyHost)
-	}
 
 	// Moonshot model doesn't support partial scraping yet
 	if model == "moonshot" {

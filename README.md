@@ -51,6 +51,7 @@ Flags:
       --collector.firmware.modules-exclude=""
                                 regex of firmware module to exclude from the scrape
       --url.extra-params=""     extra parameter(s) to parse from the URL. --url.extra-params="param1:alias1,param2:alias2"
+      --credentials-script=""   script to run to get the BMC credentials
       --credentials.profiles=CREDENTIALS.PROFILES
                                 profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
 
@@ -86,10 +87,11 @@ BMC_PASSWORD=<string>
 BMC_TIMEOUT=<duration> (Default: 15s)
 BMC_SCHEME=<string> (Default: https)
 EXPORTER_PORT=<int> (Default: 10023)
-LOG_PATH=<string> (Default: /var/log/fishymetrics)
+LOG_FILE_PATH=<string> (Default: /var/log/fishymetrics)
 VAULT_ADDRESS=<string>
 VAULT_ROLE_ID=<string>
 VAULT_SECRET_ID=<string>
+BMC_CREDENTIALS_SCRIPT=<string>
 HTTP_PROXY=<url>        # proxy for http targets
 HTTPS_PROXY=<url>       # proxy for https targets
 NO_PROXY=<hosts,...>    # comma-separated list of hosts/CIDRs to bypass proxy
