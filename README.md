@@ -51,6 +51,7 @@ Flags:
       --collector.firmware.modules-exclude=""
                                 regex of firmware module to exclude from the scrape
       --url.extra-params=""     extra parameter(s) to parse from the URL. --url.extra-params="param1:alias1,param2:alias2"
+      --credentials-script=""   script to run to get the BMC credentials
       --credentials.profiles=CREDENTIALS.PROFILES
                                 profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
 
@@ -61,10 +62,21 @@ Flags:
                                         path: "path/to/secret"
                                         userField: "user"
                                         passwordField: "password"
+                                        kvVersion: 2
                                       ...
                                   "
 
-                                --credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'
+                                --credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password","kvVersion":2},...]}'
+
+                                Profile Fields:
+                                  - name: Profile identifier (required)
+                                  - mountPath: Vault mount path (required)
+                                  - path: Path to secret within mount (required)
+                                  - userField: Field name for username in secret (required for KV secrets without userName)
+                                  - passwordField: Field name for password in secret (required)
+                                  - kvVersion: Vault KV engine version - 1 or 2 (optional, default: 1)
+                                  - secretName: Use a fixed secret name instead of target hostname (optional)
+                                  - userName: Use a fixed username instead of reading from secret (optional)
 ```
 
 Or set the following ENV Variables:
@@ -75,10 +87,11 @@ BMC_PASSWORD=<string>
 BMC_TIMEOUT=<duration> (Default: 15s)
 BMC_SCHEME=<string> (Default: https)
 EXPORTER_PORT=<int> (Default: 10023)
-LOG_PATH=<string> (Default: /var/log/fishymetrics)
+LOG_FILE_PATH=<string> (Default: /var/log/fishymetrics)
 VAULT_ADDRESS=<string>
 VAULT_ROLE_ID=<string>
 VAULT_SECRET_ID=<string>
+BMC_CREDENTIALS_SCRIPT=<string>
 HTTP_PROXY=<url>        # proxy for http targets
 HTTPS_PROXY=<url>       # proxy for https targets
 NO_PROXY=<hosts,...>    # comma-separated list of hosts/CIDRs to bypass proxy

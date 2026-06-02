@@ -58,6 +58,7 @@ profiles:
     path: "bmc/{environment}/credentials"
     userField: "username"
     passwordField: "password"
+    kvVersion: 2
 ```
 
 The `{environment}` placeholder will be replaced with `production`, resulting in the Vault path:
@@ -87,6 +88,7 @@ profiles:
     path: "customers/{customer}/dc/{datacenter}/bmc"
     userField: "user"
     passwordField: "pass"
+    kvVersion: 2
 ```
 
 Results in Vault path:
@@ -186,6 +188,7 @@ credentials:
       path: "bmc/{environment}/{rack}/credentials"
       userField: "username"
       passwordField: "password"
+      kvVersion: 2
 ```
 
 ### JSON Configuration
@@ -198,8 +201,24 @@ credentials:
       "mountPath": "kv2",
       "path": "bmc/{environment}/{rack}/credentials",
       "userField": "username",
-      "passwordField": "password"
+      "passwordField": "password",
+      "kvVersion": 2
     }
   ]
 }
 ```
+
+### Profile Field Reference
+
+- **name** (required): Unique identifier for the profile
+- **mountPath** (required): Vault mount point for the secrets engine
+- **path** (required): Path to the secret within the mount (supports placeholders)
+- **userField** (required*): Field name containing the username in the secret
+- **passwordField** (required): Field name containing the password in the secret
+- **kvVersion** (optional): Vault KV secrets engine version - `1` or `2` (default: `1`)
+- **secretName** (optional): Use a fixed secret name instead of the target hostname
+- **userName** (optional): Use a fixed username instead of reading from the secret
+
+\* Required unless `userName` is specified
+
+**Note**: When using Vault KV version 2, ensure `kvVersion: 2` is set in your profile. KV v2 automatically handles the `/data/` path segment in the API request. If not specified, the default is KV v1.
