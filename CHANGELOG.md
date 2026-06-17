@@ -6,6 +6,20 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.19.0]
+
+## Added
+
+- Add flags to disable retry on 404 responses [#164](https://github.com/Comcast/fishymetrics/pull/164)
+- Add support for fetching credentials through an external script [#166](https://github.com/Comcast/fishymetrics/pull/166)
+- Add Vault KV v2 support for custom mount paths [#168](https://github.com/Comcast/fishymetrics/pull/168)
+
+## Updated
+
+- Bump github.com/go-jose/go-jose/v4 from 4.0.5 to 4.1.4 [#165](https://github.com/Comcast/fishymetrics/pull/165)
+- Bump github.com/containerd/containerd from 1.7.29 to 1.7.32 [#170](https://github.com/Comcast/fishymetrics/pull/170)
+- Bump Go toolchain to 1.25.11 and golang.org/x/net to 0.55.0 to resolve Snyk security findings [#172](https://github.com/Comcast/fishymetrics/pull/172)
+
 ## [0.18.2]
 
 ## Fixed
