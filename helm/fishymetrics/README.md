@@ -46,6 +46,7 @@ The following table lists the configurable parameters of the fishymetrics chart 
 | `bmc.timeout`                                               | baseboard management controller request timeout                                            | `15s`                     |
 | `bmc.insecureSkipVerify`                                    | boolean flag to enable/disable TLS verification to baseboard management controller         | `false`                   |
 | `bmc.disable404Retry`                                       | boolean flag to disable retrying on HTTP 404 responses (no 404 retry loop)                 | `false`                   |
+| `bmc.credentialsScript`                                     | path to script for retrieving BMC credentials dynamically (optional)                       | `""`                      |
 | `proxy.httpProxy`                                           | HTTP proxy URL used for outbound requests (optional)                                       | `""`                      |
 | `proxy.httpsProxy`                                          | HTTPS proxy URL used for outbound requests (optional)                                      | `""`                      |
 | `proxy.noProxy`                                             | Comma-separated hosts/CIDRs that bypass proxy (optional)                                   | `""`                      |

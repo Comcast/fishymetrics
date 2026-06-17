@@ -76,6 +76,9 @@ spec:
           {{- if .Values.bmc.disable404Retry }}
             - --disable-404-retry
           {{- end }}
+          {{- if .Values.bmc.credentialsScript }}
+            - --credentials-script={{ .Values.bmc.credentialsScript }}
+          {{- end }}
           env:
             - name: BMC_USERNAME
               valueFrom:

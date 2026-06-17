@@ -23,6 +23,7 @@ bmc:
   scheme: "https"
   insecureSkipVerify: false
   disable404Retry: false
+  credentialsScript: ""
 
 url:
   extraParams: ""
