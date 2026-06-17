@@ -73,6 +73,9 @@ spec:
           {{- if .Values.url.extraParams }}
             - --url.extra-params={{ .Values.url.extraParams }}
           {{- end }}
+          {{- if .Values.bmc.disable404Retry }}
+            - --disable-404-retry
+          {{- end }}
           env:
             - name: BMC_USERNAME
               valueFrom:

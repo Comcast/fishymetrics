@@ -22,6 +22,7 @@ bmc:
   timeout: 15s
   scheme: "https"
   insecureSkipVerify: false
+  disable404Retry: false
 
 url:
   extraParams: ""
@@ -49,6 +50,7 @@ collector:
 credentials: {}
 # profiles:
 #   - name: profile1
+#     kvVersion: 2 # Optional, default is 1
 #     mountPath: "kv2"
 #     path: "path/to/secret"
 #     userField: "user"
