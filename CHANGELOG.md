@@ -16,6 +16,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Updated
 
+- Update Helm chart to include disable-404-retry and BMC credential script [#174](https://github.com/Comcast/fishymetrics/pull/174)
 - Bump github.com/go-jose/go-jose/v4 from 4.0.5 to 4.1.4 [#165](https://github.com/Comcast/fishymetrics/pull/165)
 - Bump github.com/containerd/containerd from 1.7.29 to 1.7.32 [#170](https://github.com/Comcast/fishymetrics/pull/170)
 - Bump Go toolchain to 1.25.11 and golang.org/x/net to 0.55.0 to resolve Snyk security findings [#172](https://github.com/Comcast/fishymetrics/pull/172)
