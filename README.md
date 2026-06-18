@@ -51,6 +51,7 @@ Flags:
       --collector.firmware.modules-exclude=""
                                 regex of firmware module to exclude from the scrape
       --url.extra-params=""     extra parameter(s) to parse from the URL. --url.extra-params="param1:alias1,param2:alias2"
+      --disable-404-retry        Skip retrying on HTTP 404 (no 404 retry loop)
       --credentials-script=""   script to run to get the BMC credentials
       --credentials.profiles=CREDENTIALS.PROFILES
                                 profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
@@ -91,6 +92,7 @@ LOG_FILE_PATH=<string> (Default: /var/log/fishymetrics)
 VAULT_ADDRESS=<string>
 VAULT_ROLE_ID=<string>
 VAULT_SECRET_ID=<string>
+FISHYMETRICS_DISABLE_404_RETRY=<bool> (Default: false)
 BMC_CREDENTIALS_SCRIPT=<string>
 HTTP_PROXY=<url>        # proxy for http targets
 HTTPS_PROXY=<url>       # proxy for https targets
