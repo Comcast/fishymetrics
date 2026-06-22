@@ -48,5 +48,5 @@ type Temperature struct {
 	SensorNumber           int         `json:"SensorNumber"`
 	Status                 Status      `json:"Status"`
 	UpperThresholdCritical interface{} `json:"UpperThresholdCritical"`
-	UpperThresholdFatal    int         `json:"UpperThresholdFatal"`
+	UpperThresholdFatal    interface{} `json:"UpperThresholdFatal"`
 }
