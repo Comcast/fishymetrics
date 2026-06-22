@@ -6,6 +6,11 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## Added
+
+- Capture critical threshold in temperature reading [#176](https://github.com/Comcast/fishymetrics/issues/176)
+
+
 ## [0.19.0]
 
 ## Added
