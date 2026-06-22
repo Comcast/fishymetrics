@@ -8,7 +8,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Added
 
-- Capture critical threshold in temperature reading [#176](https://github.com/Comcast/fishymetrics/issues/176)
+- Capture critical threshold in sensor temperature [#176](https://github.com/Comcast/fishymetrics/issues/176)
 
 
 ## [0.19.0]
