@@ -40,11 +40,12 @@ func NewDeviceMetrics() *map[string]*metrics {
 		}
 
 		ThermalMetrics = &metrics{
-			"fanSpeed":          newServerMetric("redfish_thermal_fan_speed", "Current fan speed in the unit of percentage, possible values are 0 - 100", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
-			"fanStatus":         newServerMetric("redfish_thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
-			"sensorTemperature": newServerMetric("redfish_thermal_sensor_temperature", "Current sensor temperature reading in Celsius", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
-			"sensorStatus":      newServerMetric("redfish_thermal_sensor_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
-			"thermalSummary":    newServerMetric("redfish_thermal_summary_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"url", "chassisSerialNumber", "chassisModel"}),
+			"fanSpeed":                newServerMetric("redfish_thermal_fan_speed", "Current fan speed in the unit of percentage, possible values are 0 - 100", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
+			"fanStatus":               newServerMetric("redfish_thermal_fan_status", "Current fan status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
+			"sensorTemperature":       newServerMetric("redfish_thermal_sensor_temperature", "Current sensor temperature reading in Celsius", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
+			"sensorThresholdCritical": newServerMetric("redfish_thermal_sensor_threshold_critical", "Current sensor upper threshold critical reading in Celsius", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
+			"sensorStatus":            newServerMetric("redfish_thermal_sensor_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"name", "chassisSerialNumber", "chassisModel"}),
+			"thermalSummary":          newServerMetric("redfish_thermal_summary_status", "Current sensor status 1 = OK, 0 = BAD", nil, []string{"url", "chassisSerialNumber", "chassisModel"}),
 		}
 
 		PowerMetrics = &metrics{

@@ -115,6 +115,11 @@ const (
         # TYPE redfish_thermal_sensor_temperature gauge
         redfish_thermal_sensor_temperature{chassisModel="model a",chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 22
 	`
+	GoodThermalSensorThresholdCriticalExpected = `
+        # HELP redfish_thermal_sensor_threshold_critical Current sensor upper threshold critical reading in Celsius
+        # TYPE redfish_thermal_sensor_threshold_critical gauge
+        redfish_thermal_sensor_threshold_critical{chassisModel="model a",chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 42
+	`
 	GoodPowerVoltageOutputExpected = `
         # HELP redfish_power_voltage_output Power voltage output in volts
         # TYPE redfish_power_voltage_output gauge
@@ -1366,6 +1371,15 @@ func Test_Exporter_Metrics_Handling(t *testing.T) {
 			handleFunc: thermMetrics,
 			response:   GoodThermalSensorTempResponse,
 			expected:   GoodThermalSensorTempExpected,
+		},
+		{
+			name:       "Good Thermal Sensor Threshold Critical",
+			metricName: "redfish_thermal_sensor_threshold_critical",
+			metricRef1: "thermalMetrics",
+			metricRef2: "sensorThresholdCritical",
+			handleFunc: thermMetrics,
+			response:   GoodThermalSensorTempResponse,
+			expected:   GoodThermalSensorThresholdCriticalExpected,
 		},
 		{
 			name:       "Good Power Voltage Output",

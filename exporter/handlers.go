@@ -299,6 +299,21 @@ func (e *Exporter) exportThermalMetrics(body []byte) error {
 				celsTemp = sensor.ReadingCelsius.(float64)
 			}
 			(*therm)["sensorTemperature"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.ChassisSerialNumber, e.Model).Set(celsTemp)
+
+			// Handle UpperThresholdCritical - it can be null, int, or float64
+			if sensor.UpperThresholdCritical != nil {
+				var thresholdCritical float64
+				switch sensor.UpperThresholdCritical.(type) {
+				case string:
+					thresholdCritical, _ = strconv.ParseFloat(sensor.UpperThresholdCritical.(string), 32)
+				case int:
+					thresholdCritical = float64(sensor.UpperThresholdCritical.(int))
+				case float64:
+					thresholdCritical = sensor.UpperThresholdCritical.(float64)
+				}
+				(*therm)["sensorThresholdCritical"].WithLabelValues(strings.TrimRight(sensor.Name, " "), e.ChassisSerialNumber, e.Model).Set(thresholdCritical)
+			}
+
 			if sensor.Status.Health == "OK" {
 				state = OK
 			} else {
