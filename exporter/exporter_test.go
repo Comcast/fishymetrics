@@ -117,7 +117,7 @@ const (
 	`
 	GoodThermalSensorThresholdCriticalExpected = `
         # HELP redfish_thermal_sensor_threshold_critical Current sensor upper threshold critical reading in Celsius
-				# TYPE redfish_thermal_sensor_threshold_critical gauge
+        # TYPE redfish_thermal_sensor_threshold_critical gauge
         redfish_thermal_sensor_threshold_critical{chassisModel="model a",chassisSerialNumber="SN98765",name="01-Inlet Ambient"} 42
 	`
 	GoodPowerVoltageOutputExpected = `
