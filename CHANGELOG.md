@@ -6,10 +6,15 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.19.1]
+
 ## Added
 
 - Capture critical threshold in sensor temperature [#176](https://github.com/Comcast/fishymetrics/issues/176)
 
+## Updated
+
+- Bump github.com/containerd/containerd from 1.7.32 to 1.7.33 [#178](https://github.com/Comcast/fishymetrics/pull/178)
 
 ## [0.19.0]
 
