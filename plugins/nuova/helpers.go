@@ -79,16 +79,27 @@ func checkRaidController(url, host string, client *retryablehttp.Client) (bool, 
 	if err != nil {
 		return false, nil
 	}
-	defer resp.Body.Close()
+	defer common.EmptyAndCloseBody(resp)
+
+	if resp == nil {
+		return false, nil
+	}
+
 	if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 		if resp.StatusCode == http.StatusNotFound {
 			for retryCount < 3 && resp.StatusCode == http.StatusNotFound {
 				time.Sleep(client.RetryWaitMin)
+
+				// Close the previous response before making a new request
+				common.EmptyAndCloseBody(resp)
+
 				resp, err = common.DoRequest(client, req)
 				if err != nil {
 					return false, nil
 				}
-				defer common.EmptyAndCloseBody(resp)
+				if resp == nil {
+					return false, nil
+				}
 				retryCount++
 			}
 			if err != nil {

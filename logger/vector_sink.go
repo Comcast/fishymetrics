@@ -92,9 +92,16 @@ func (v vectorSink) Write(b []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	if resp == nil {
+		return 0, fmt.Errorf("received nil response from vector endpoint")
+	}
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, err
+		return 0, fmt.Errorf("vector endpoint returned HTTP status %d", resp.StatusCode)
 	}
 
 	return len(b), nil

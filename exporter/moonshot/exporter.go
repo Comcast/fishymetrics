@@ -201,33 +201,39 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 				} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 					return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
 				}
-			} else if resp.StatusCode == http.StatusUnauthorized {
-				if common.ChassisCreds.Vault != nil {
-					// Credentials may have rotated, go to vault and get the latest
-					credential, err := common.ChassisCreds.GetCredentials(context.Background(), profile, host)
-					if err != nil {
-						return nil, device, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
-					}
-					common.ChassisCreds.Set(host, credential)
-				} else {
-					return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
-				}
-
-				// build new request with updated credentials
-				req, err = common.BuildRequest(uri, host)
+		} else if resp.StatusCode == http.StatusUnauthorized {
+			if common.ChassisCreds.Vault != nil {
+				// Credentials may have rotated, go to vault and get the latest
+				credential, err := common.ChassisCreds.GetCredentials(context.Background(), profile, host)
 				if err != nil {
-					return nil, device, metricType, err
+					return nil, device, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
 				}
-
-				time.Sleep(client.RetryWaitMin)
-				resp, err = common.DoRequest(client, req)
-				defer common.EmptyAndCloseBody(resp)
-				if err != nil {
-					return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
-				}
+				common.ChassisCreds.Set(host, credential)
 			} else {
+				return nil, device, metricType, common.ErrInvalidCredential
+			}
+
+			// build new request with updated credentials
+			req, err = common.BuildRequest(uri, host)
+			if err != nil {
+				return nil, device, metricType, err
+			}
+
+			time.Sleep(client.RetryWaitMin)
+			resp, err = common.DoRequest(client, req)
+			if err != nil {
+				return nil, device, metricType, err
+			}
+			defer common.EmptyAndCloseBody(resp)
+			if resp.StatusCode == http.StatusUnauthorized {
+				return nil, device, metricType, common.ErrInvalidCredential
+			}
+			if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 				return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
 			}
+		} else {
+			return nil, device, metricType, common.ErrInvalidCredential
+		}
 		}
 
 		body, err := io.ReadAll(resp.Body)
