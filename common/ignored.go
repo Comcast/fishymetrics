@@ -133,6 +133,21 @@ func TestConn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure response body is closed
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	// Check if response is nil
+	if res == nil {
+		log.Error("received nil response for test connection call", zap.String("path", r.URL.Path))
+		response["error"] = "received nil response from target"
+		resp, _ := marshalResponse(&response, r)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(resp)
+		return
+	}
+
 	if res.StatusCode != 401 {
 		response["connectionTest"] = true
 	} else {

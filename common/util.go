@@ -122,7 +122,7 @@ func Fetch(uri, host, profile string, client *retryablehttp.Client) func() ([]by
 // This is required to have a proper cleanup of the response body
 // to have correctly working keep-alive connections
 func EmptyAndCloseBody(resp *http.Response) {
-	if resp.Body != nil {
+	if resp != nil && resp.Body != nil {
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 	}
