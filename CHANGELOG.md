@@ -6,25 +6,33 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+### Updated
+
+- Bump golang.org/x/crypto from 0.51.0 to 0.52.0 [#180](https://github.com/Comcast/fishymetrics/pull/180)
+
+### Fixed
+
+- Nil pointer deference issue in Moonshot Exporter [#181](https://github.com/Comcast/fishymetrics/issues/181)
+
 ## [0.19.1]
 
-## Added
+### Added
 
 - Capture critical threshold in sensor temperature [#176](https://github.com/Comcast/fishymetrics/issues/176)
 
-## Updated
+### Updated
 
 - Bump github.com/containerd/containerd from 1.7.32 to 1.7.33 [#178](https://github.com/Comcast/fishymetrics/pull/178)
 
 ## [0.19.0]
 
-## Added
+### Added
 
 - Add flags to disable retry on 404 responses [#164](https://github.com/Comcast/fishymetrics/pull/164)
 - Add support for fetching credentials through an external script [#166](https://github.com/Comcast/fishymetrics/pull/166)
 - Add Vault KV v2 support for custom mount paths [#168](https://github.com/Comcast/fishymetrics/pull/168)
 
-## Updated
+### Updated
 
 - Update Helm chart to include disable-404-retry and BMC credential script [#174](https://github.com/Comcast/fishymetrics/pull/174)
 - Bump github.com/go-jose/go-jose/v4 from 4.0.5 to 4.1.4 [#165](https://github.com/Comcast/fishymetrics/pull/165)
@@ -33,83 +41,83 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## [0.18.2]
 
-## Fixed
+### Fixed
 
 - Invalid credentials not reported when fetching secrets from vault [#162](https://github.com/Comcast/fishymetrics/issues/162)
 
 ## [0.18.1]
 
-## Added
+### Added
 
 - Add static binary build [#160](https://github.com/Comcast/fishymetrics/pull/160)
 
-## Updated
+### Updated
 
 - Bump github.com/containerd/containerd from 1.7.27 to 1.7.29 [#156](https://github.com/Comcast/fishymetrics/pull/156)
 - Bump golang.org/x/crypto from 0.36.0 to 0.45.0 [#158](https://github.com/Comcast/fishymetrics/pull/158)
 
-## Fixed
+### Fixed
 
 - Storage drives not included in scrapes when collector.drives.modules-exclude flag is not passed [#157](https://github.com/Comcast/fishymetrics/issues/157)
 - Credential rotation not happening after fetching secrets from vault [#161](https://github.com/Comcast/fishymetrics/issues/161)
 
 ## [0.18.0]
 
-## Added
+### Added
 
 - Add http proxy support feature [#152](https://github.com/Comcast/fishymetrics/pull/152)
 
-## Updated
+### Updated
 
 - Include logical drive capacity in metrics collection [#153](https://github.com/Comcast/fishymetrics/issues/153)
 
 ## [0.17.0]
 
-## Added
+### Added
 
 - Add /scrape/partial endpoint for component-specific metric collection [#148](https://github.com/Comcast/fishymetrics/issues/148)
 
-## Updated
+### Updated
 
 - Update Power Metrics collection to include LineInputVoltage [#149](https://github.com/Comcast/fishymetrics/issues/149)
 
 ## [0.16.2]
 
-## Fixed
+### Fixed
 
 - cannot unmarshal array into Go struct field PowerMetrics.PowerControl.PowerMetrics [#146](https://github.com/Comcast/fishymetrics/issues/146)
 
 ## [0.16.1]
 
-## Fixed
+### Fixed
 
 - null trace_id in logging output [#143](https://github.com/Comcast/fishymetrics/issues/143)
 
 ## [0.16.0]
 
-## Fixed
+### Fixed
 
 - nil pointer dereference [#118](https://github.com/Comcast/fishymetrics/issues/118)
 - power: fix PSU index for everything other than HPE [#140](https://github.com/Comcast/fishymetrics/pull/140)
 
-## Updated
+### Updated
 
 - Include predictive failure label to SATA and NVMe disk metrics [#137](https://github.com/Comcast/fishymetrics/issues/137)
 - linter, spelling nits + panic fix [#138](https://github.com/Comcast/fishymetrics/pull/138)
 
 ## [0.15.0]
 
-## Updated
+### Updated
 
 - Rename up metric to redfish_up to follow Prometheus naming conventions [#134](https://github.com/Comcast/fishymetrics/pull/134)
 
 ## [0.14.0]
 
-## Added
+### Added
 
 - Added option to parse extra parameter(s) from URL [#122](https://github.com/Comcast/fishymetrics/issues/122)
 
-## Updated
+### Updated
 
 - Bump github.com/go-jose/go-jose/v4 from 4.0.1 to 4.0.5 [#117](https://github.com/Comcast/fishymetrics/pull/117)
 - Bump golang.org/x/net from 0.33.0 to 0.36.0 [#119](https://github.com/Comcast/fishymetrics/pull/119)
@@ -121,29 +129,29 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## [0.13.1]
 
-## Fixed
+### Fixed
 
 - include nil reference check during retires [#114](https://github.com/Comcast/fishymetrics/pull/114)
 - Fix leaks in go routines and handling of response body [#115](https://github.com/Comcast/fishymetrics/pull/115)
 
-## Updated
+### Updated
 - Bump golang.org/x/net from 0.25.0 to 0.33.0 [#113](https://github.com/Comcast/fishymetrics/pull/113)
 - Bump golang.org/x/crypto from 0.23.0 to 0.31.0 [#110](https://github.com/Comcast/fishymetrics/pull/110)
 
 ## [0.13.0]
 
-## Updated
+### Updated
 
 - increase security context for kubernetes helm chart deployment [#102](https://github.com/Comcast/fishymetrics/issues/102)
 - metric names in moonshot exporter to generic names as seen in other models [#106](https://github.com/Comcast/fishymetrics/issues/106)
 
 ## [0.12.1]
 
-## Fixed
+### Fixed
 
 - nil pointer dereference during a scrape [#97](https://github.com/Comcast/fishymetrics/issues/97)
 
-## Updated
+### Updated
 
  - Removed trailing spaces in label values [#96](https://github.com/Comcast/fishymetrics/issues/96)
  - Add missing language fences to README [#95](https://github.com/Comcast/fishymetrics/pull/95)
@@ -151,7 +159,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## [0.12.0]
 
-## Added
+### Added
 
 - Add ability to reference different vault paths for credential retrieval [#25](https://github.com/Comcast/fishymetrics/issues/25)
 - Added HPE DL380 Gen10 support [#17](https://github.com/Comcast/fishymetrics/issues/17)
@@ -168,7 +176,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Added support for Supermicro models metrics collection [#87](https://github.com/Comcast/fishymetrics/issues/87)
 - Added option to skip/unskip TLS verification [#94](https://github.com/Comcast/fishymetrics/issues/94)
 
-## Fixed
+### Fixed
 
 - Cisco UCS C220 - add additional edge cases when collecting memory metrics [#2](https://github.com/Comcast/fishymetrics/issues/2)
 - null pointer dereference errors when using incorrect credentials [#36](https://github.com/Comcast/fishymetrics/issues/36)
@@ -182,7 +190,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 - Power supply status duplicate bay number metrics [#85](https://github.com/Comcast/fishymetrics/issues/85)
 - Capturing Model field in finished scrape log message [#94](https://github.com/Comcast/fishymetrics/issues/94)
 
-## Updated
+### Updated
 
 - Enhanced drive metrics collection for HPE DL360 model servers to include NVME, Storage Disk Drives, and Logical Drives. [#31](https://github.com/Comcast/fishymetrics/issues/31)
 - Removed references to internal URLs/FQDNs to opensource the project
@@ -200,33 +208,33 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## [0.7.1]
 
-## Added
+### Added
 
 - added a mux prometheus middleware to collect and export metrics for every http request
 
-## Fixed
+### Fixed
 
 - fix route issue from the /ignored html template
 
 ## [0.7.0]
 
-## Fixed
+### Fixed
 
 - fixed Horizontal Pod Autoscaling k8s resource in helm chart
 
-## Updated
+### Updated
 
 - move buildinfo package to inside the fishymetrics repo
 - update all go dependencies in project to remove any potential security bugs
 
 ## [0.6.16]
 
-## Added
+### Added
 
 - add Horizontal Pod Autoscaling capabilities
 - add ability to customize container resource limits/requests
 
-## Fixed
+### Fixed
 
 - route prefix for metrics and info API paths
 
@@ -234,7 +242,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 - remove route prefix configuration
 
-## Updated
+### Updated
 
 - rename app container port name to exporter from metrics
 - improve README documentation
@@ -243,44 +251,44 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## [0.6.15]
 
-## Changed
+### Updated
 
 - Modified vector config in the helm chart to fix structured json log messages to elastic
 
 ## [0.6.14]
 
-## Added
+### Added
 
 - added trace_id to all logging messages
 
-## Changed
+### Updated
 
 - fixed for loop logic for a targets scrape
 - updated vector config to include a json remap transform
 
 ## [0.6.13]
 
-## Added
+### Added
 
 - added ability to forward logs to an elastic cluster using vector
 
-## Changed
+### Updated
 
 - changed logging from oyez to zap package
 
 ## [0.6.12]
 
-## Added
+### Added
 
 - add BIOS version to device_info metric
 - add more labels to cisco device metrics to help with RMA automation
 
-## Changed
+### Updated
 
 - increase scrape timeout to 90 seconds for c220 devices
 - update helm chart to reflect updated env vars
 
-## Fixed
+### Fixed
 
 - fix CI bug with Dockerfile
 - add DISABLED state for power and drive metric scrapes
@@ -288,91 +296,91 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## [0.6.3]
 
-## Added
+### Added
 
 - Added metrics for C220 storage/raid controllers and drives when applicable
 
 ## [0.6.2]
 
-## Changed
+### Updated
 
 - Change _url_ label to be _name_ and use the url path base for _name_ label value
 
 ## [0.6.1]
 
-## Added
+### Added
 
 - Added storage controller status metric for all cisco modules
 - Added overall temperature status metric for all cisco modules
 
-## Fixed
+### Fixed
 
 - Fix s3260m4 exporter module scrape endpoints
 - Fix retry logic for certain cisco redfish API calls
 
 ## [0.6.0]
 
-## Added
+### Added
 
 - Add vault integration for chassis credentials
 - Add graceful shutdown of newly added go routines
 
 ## [0.5.1]
 
-## Changed
+### Updated
 
 - Temporarily removed drive scrapes from Cisco devices until we figure out the best plan forward
 
 ## [0.5.0]
 
-## Added
+### Added
 
 - Create new prometheus exporters for Cisco UCS C220, S3260 M4, and S3260 M5 devices
 
 ## [0.4.1]
 
-## Added
+### Added
 
 - Added support for DL20 devices
 
-## Fixed
+### Fixed
 
 - Fix nil pointer reference for when module name in scrape request does not exist
 
 ## [0.4.0]
 
-## Added
+### Added
 
 - Add support for scrapes to HP DL360s w/ iLO 5
 
 ## [0.3.1]
 
-## Fixed
+### Fixed
 
 - Metrics are not resetting the way it used to
 - Web UI not routing correctly when app is behind nginx-ingress
 
 ## [0.3.0]
 
-## Changed
+### Updated
 
 - Centralize fishymetrics exporter to handle more than 1 scrape endpoints
 
 ## [0.2.0]
 
-## Added
+### Added
 
 - Add moonshot switch metrics collection for status, thermal, and power
 
 ## [0.1.1]
 
-## Added
+### Added
 
 - Created Helm chart for deployment
 - Add limiter and route-prefix flags/env variables
 
 ## [0.1.0]
 
-## Added
+### Added
 
 - Initial commit of fishymetrics exporter
