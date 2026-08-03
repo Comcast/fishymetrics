@@ -6,6 +6,9 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+
+## [0.19.2]
+
 ### Updated
 
 - Bump golang.org/x/crypto from 0.51.0 to 0.52.0 [#180](https://github.com/Comcast/fishymetrics/pull/180)
