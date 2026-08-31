@@ -29,6 +29,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// waitForCondition waits until the expected condition is true or the timeout
+// expires. This avoids unnecessary fixed sleeps in token lifecycle tests.
+func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool, message string) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	t.Fatal(message)
+}
+
 func createVaultTestCluster(t *testing.T) (*docker.DockerCluster, string, string) {
 	t.Helper()
 
@@ -79,9 +96,16 @@ func createVaultTestCluster(t *testing.T) (*docker.DockerCluster, string, string
 	}
 
 	// create an approle
+	//
+	// Use short token TTL values so the test can verify the same lifecycle
+	// used in production: renew the token until max TTL, then authenticate
+	// again using AppRole and obtain a new token.
 	if _, err := client.Logical().Write("auth/approle/role/testrole", map[string]interface{}{
-		"policies": []string{"testrole"},
-		"period":   "10s",
+		"token_policies":     []string{"testrole"},
+		"token_ttl":          "5s",
+		"token_max_ttl":      "12s",
+		"secret_id_ttl":      "0",
+		"secret_id_num_uses": 0,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +415,7 @@ func Test_Vault_Auth(t *testing.T) {
 			expectErr:     false,
 		},
 		{
-			name:              "Token Renewal",
+			name:              "Token Reauthentication After Max TTL",
 			ctx:               ctx,
 			vaultParams:       goodParams,
 			appRoleClientFunc: createAppRoleClient,
@@ -403,20 +427,69 @@ func Test_Vault_Auth(t *testing.T) {
 				var wg = sync.WaitGroup{}
 				doneRenew := make(chan bool, 1)
 				tokenLifecycle := make(chan bool, 1)
+
 				wg.Add(1)
 				go tc.vaultClient.RenewToken(ctx, doneRenew, tokenLifecycle, &wg)
-				// wait 10 seconds for the token to renew
-				time.Sleep(10 * time.Second)
-				_, err := getSecret(t, tc.ctx, tc.vaultClient, tc.secretProps, "")
+
+				defer func() {
+					select {
+					case tokenLifecycle <- true:
+					default:
+					}
+
+					select {
+					case doneRenew <- true:
+					default:
+					}
+
+					wg.Wait()
+				}()
+
+				// wait for the initial AppRole login
+				waitForCondition(
+					t,
+					5*time.Second,
+					func() bool {
+						return tc.vaultClient.IsLoggedIn() &&
+							tc.vaultClient.client.Token() != ""
+					},
+					"vault client did not authenticate",
+				)
+
+				initialToken := tc.vaultClient.client.Token()
+				assert.NotEmpty(initialToken)
+
+				// wait for the token to reach max TTL and a fresh AppRole
+				// login to replace the old token
+				waitForCondition(
+					t,
+					25*time.Second,
+					func() bool {
+						currentToken := tc.vaultClient.client.Token()
+
+						return tc.vaultClient.IsLoggedIn() &&
+							currentToken != "" &&
+							currentToken != initialToken
+					},
+					"vault token was not replaced after reaching max TTL",
+				)
+
+				newToken := tc.vaultClient.client.Token()
+
+				assert.NotEqual(initialToken, newToken)
+				assert.True(tc.vaultClient.IsLoggedIn())
+
+				// verify Vault can still read secrets using the new token
+				_, err := getSecret(
+					t,
+					tc.ctx,
+					tc.vaultClient,
+					tc.secretProps,
+					"testkv2secret",
+				)
 				if err != nil {
 					return err
 				}
-
-				assert.True(tc.vaultClient.IsLoggedIn())
-				tokenLifecycle <- true
-				doneRenew <- true
-
-				wg.Wait()
 
 				return nil
 			},
@@ -435,26 +508,41 @@ func Test_Vault_Auth(t *testing.T) {
 				var wg = sync.WaitGroup{}
 				doneRenew := make(chan bool, 1)
 				tokenLifecycle := make(chan bool, 1)
+
 				wg.Add(1)
 				go tc.vaultClient.RenewToken(ctx, doneRenew, tokenLifecycle, &wg)
 
-				// wait 1 second for token to setup
-				time.Sleep(1 * time.Second)
+				// wait for token to setup
+				waitForCondition(
+					t,
+					5*time.Second,
+					tc.vaultClient.IsLoggedIn,
+					"vault client did not authenticate",
+				)
 
 				assert.True(tc.vaultClient.IsLoggedIn())
+
 				tokenLifecycle <- true
 				doneRenew <- true
 
 				wg.Wait()
 
-				_, err := getSecret(t, tc.ctx, tc.vaultClient, tc.secretProps, "")
-				if err != nil {
-					return err
-				}
+				assert.False(tc.vaultClient.IsLoggedIn())
+
+				// the current token should be revoked after shutdown
+				_, err := getSecret(
+					t,
+					tc.ctx,
+					tc.vaultClient,
+					tc.secretProps,
+					"testkv2secret",
+				)
+
+				assert.Error(err)
 
 				return nil
 			},
-			expectErr: true,
+			expectErr: false,
 		},
 		{
 			name: "Token Retry",
@@ -470,27 +558,44 @@ func Test_Vault_Auth(t *testing.T) {
 				var wg = sync.WaitGroup{}
 				doneRenew := make(chan bool, 1)
 				tokenLifecycle := make(chan bool, 1)
+
 				wg.Add(1)
 				go tc.vaultClient.RenewToken(ctx, doneRenew, tokenLifecycle, &wg)
 
+				defer func() {
+					select {
+					case tokenLifecycle <- true:
+					default:
+					}
+
+					select {
+					case doneRenew <- true:
+					default:
+					}
+
+					wg.Wait()
+				}()
+
 				time.Sleep(2 * time.Second)
 				assert.False(tc.vaultClient.IsLoggedIn())
+
 				tc.vaultClient.mu.Lock()
 				tc.vaultClient.Parameters.ApproleSecretID = goodParams.ApproleSecretID
 				tc.vaultClient.mu.Unlock()
 
-				// wait 15 seconds for token retry to happen
-				time.Sleep(15 * time.Second)
+				// wait up to 15 seconds for token retry to happen
+				waitForCondition(
+					t,
+					15*time.Second,
+					tc.vaultClient.IsLoggedIn,
+					"vault client did not authenticate after retry",
+				)
 
 				assert.True(tc.vaultClient.IsLoggedIn())
-				tokenLifecycle <- true
-				doneRenew <- true
-
-				wg.Wait()
 
 				return nil
 			},
-			expectErr: true,
+			expectErr: false,
 		},
 	}
 
@@ -548,5 +653,4 @@ func Test_Vault_Auth(t *testing.T) {
 			}
 		})
 	}
-
 }
