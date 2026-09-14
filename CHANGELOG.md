@@ -6,6 +6,9 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+### Added
+
+- Gossip-based clustering (HashiCorp memberlist) for sharing the ignored-devices list across replicas, with Kubernetes/DNS/static peer discovery, `/cluster/status` and `/cluster/health` endpoints, and Helm chart support (`cluster.*` values)
 
 ## [0.19.2]
 

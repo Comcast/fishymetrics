@@ -140,12 +140,12 @@ func NewPartialExporter(ctx context.Context, target, uri, profile, model string,
 	if err != nil {
 		// Check if device should be ignored
 		if errors.Is(err, common.ErrInvalidCredential) {
-			common.IgnoredDevices[exp.host] = common.IgnoredDevice{
+			common.AddIgnoredDevice(common.IgnoredDevice{
 				Name:              exp.host,
 				Endpoint:          "https://" + exp.host + "/redfish/v1/Chassis/",
 				Model:             exp.Model,
 				CredentialProfile: exp.credProfile,
-			}
+			})
 			log.Info("added host "+exp.host+" to ignored list",
 				zap.Any("trace_id", exp.ctx.Value(logging.TraceIDKey("traceID"))))
 			var upMetric = (*exp.DeviceMetrics)["up"]

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Comcast Cable Communications Management, LLC
+ * Copyright 2026 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ func NewExporter(ctx context.Context, target, uri, profile string) (*Exporter, e
 	exp.host = fqdn.String()
 
 	// check if host is on the ignored list, if so we immediately return
-	if _, ok := common.IgnoredDevices[exp.host]; ok {
+	if common.IsIgnored(exp.host) {
 		var upMetric = (*exp.deviceMetrics)["up"]
 		(*upMetric)["up"].WithLabelValues().Set(float64(2))
 		return &exp, nil
@@ -146,7 +146,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.resetMetrics()
 
 	// perform scrape if target is not on ignored list
-	if _, ok := common.IgnoredDevices[e.host]; !ok {
+	if !common.IsIgnored(e.host) {
 		e.scrape()
 	} else {
 		var upMetric = (*e.deviceMetrics)["up"]
@@ -201,39 +201,39 @@ func fetch(uri, device, metricType, host, profile string, client *retryablehttp.
 				} else if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
 					return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
 				}
-		} else if resp.StatusCode == http.StatusUnauthorized {
-			if common.ChassisCreds.Vault != nil {
-				// Credentials may have rotated, go to vault and get the latest
-				credential, err := common.ChassisCreds.GetCredentials(context.Background(), profile, host)
-				if err != nil {
-					return nil, device, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
+			} else if resp.StatusCode == http.StatusUnauthorized {
+				if common.ChassisCreds.Vault != nil {
+					// Credentials may have rotated, go to vault and get the latest
+					credential, err := common.ChassisCreds.GetCredentials(context.Background(), profile, host)
+					if err != nil {
+						return nil, device, metricType, fmt.Errorf("issue retrieving credentials from vault using target: %s", host)
+					}
+					common.ChassisCreds.Set(host, credential)
+				} else {
+					return nil, device, metricType, common.ErrInvalidCredential
 				}
-				common.ChassisCreds.Set(host, credential)
+
+				// build new request with updated credentials
+				req, err = common.BuildRequest(uri, host)
+				if err != nil {
+					return nil, device, metricType, err
+				}
+
+				time.Sleep(client.RetryWaitMin)
+				resp, err = common.DoRequest(client, req)
+				if err != nil {
+					return nil, device, metricType, err
+				}
+				defer common.EmptyAndCloseBody(resp)
+				if resp.StatusCode == http.StatusUnauthorized {
+					return nil, device, metricType, common.ErrInvalidCredential
+				}
+				if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
+					return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
+				}
 			} else {
 				return nil, device, metricType, common.ErrInvalidCredential
 			}
-
-			// build new request with updated credentials
-			req, err = common.BuildRequest(uri, host)
-			if err != nil {
-				return nil, device, metricType, err
-			}
-
-			time.Sleep(client.RetryWaitMin)
-			resp, err = common.DoRequest(client, req)
-			if err != nil {
-				return nil, device, metricType, err
-			}
-			defer common.EmptyAndCloseBody(resp)
-			if resp.StatusCode == http.StatusUnauthorized {
-				return nil, device, metricType, common.ErrInvalidCredential
-			}
-			if !(resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices) {
-				return nil, device, metricType, fmt.Errorf("HTTP status %d", resp.StatusCode)
-			}
-		} else {
-			return nil, device, metricType, common.ErrInvalidCredential
-		}
 		}
 
 		body, err := io.ReadAll(resp.Body)
@@ -259,12 +259,12 @@ func (e *Exporter) scrape() {
 			deviceState := uint8(0)
 			// If credentials are incorrect we will add host to be ignored until manual intervention
 			if errors.Is(task.Err, common.ErrInvalidCredential) {
-				common.IgnoredDevices[e.host] = common.IgnoredDevice{
+				common.AddIgnoredDevice(common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/rest/v1/chassis/1",
 					Model:             MOONSHOT,
 					CredentialProfile: e.credProfile,
-				}
+				})
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value(logging.TraceIDKey("traceID"))))
 				deviceState = 2
 			} else {

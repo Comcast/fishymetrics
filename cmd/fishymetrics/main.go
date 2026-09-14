@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Comcast Cable Communications Management, LLC
+ * Copyright 2026 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import (
 	"github.com/comcast/fishymetrics/buildinfo"
 	"github.com/comcast/fishymetrics/common"
 	"github.com/comcast/fishymetrics/config"
+	"github.com/comcast/fishymetrics/gossip"
 	"github.com/comcast/fishymetrics/http/handlers"
 	"github.com/comcast/fishymetrics/logger"
 	"github.com/comcast/fishymetrics/middleware/logging"
@@ -75,7 +76,18 @@ var (
 	urlExtraParams     = a.Flag("url.extra-params", `extra parameter(s) to parse from the URL. --url.extra-params="param1:alias1,param2:alias2"`).Default("").Envar("URL_EXTRA_PARAMS").String()
 	disable404Retry    = a.Flag("disable-404-retry", "Skip retrying on HTTP 404 (no 404 retry loop).").Default("false").Envar("FISHYMETRICS_DISABLE_404_RETRY").Bool()
 	credentialsScript  = a.Flag("credentials-script", "script to run to get the BMC credentials").Default("").Envar("BMC_CREDENTIALS_SCRIPT").String()
-	_                  = common.CredentialProf(a.Flag("credentials.profiles",
+
+	// Cluster configuration flags
+	clusterEnabled    = a.Flag("cluster.enabled", "Enable clustering with gossip-based membership (memberlist)").Default("false").Envar("CLUSTER_ENABLED").Bool()
+	clusterNodeID     = a.Flag("cluster.node-id", "Unique node ID for this instance").Default("").Envar("CLUSTER_NODE_ID").String()
+	clusterBindAddr   = a.Flag("cluster.bind-addr", "Address to bind gossip listener").Default("0.0.0.0").Envar("CLUSTER_BIND_ADDR").String()
+	clusterAdvAddr    = a.Flag("cluster.advertise-addr", "Address to advertise to other nodes").Default("").Envar("CLUSTER_ADVERTISE_ADDR").String()
+	clusterGossipPort = a.Flag("cluster.gossip-port", "Port for gossip communication").Default("7946").Envar("CLUSTER_GOSSIP_PORT").Int()
+	clusterDiscMode   = a.Flag("cluster.discovery-mode", "Discovery mode: kubernetes, dns, or static").Default("kubernetes").Envar("CLUSTER_DISCOVERY_MODE").String()
+	clusterService    = a.Flag("cluster.service-name", "Kubernetes headless service name or DNS name for discovery").Default("fishymetrics-headless").Envar("CLUSTER_SERVICE_NAME").String()
+	clusterNamespace  = a.Flag("cluster.namespace", "Kubernetes namespace").Default("").Envar("CLUSTER_NAMESPACE").String()
+	clusterPeers      = a.Flag("cluster.static-peers", "Static list of peers for static discovery mode").Default("").Envar("CLUSTER_STATIC_PEERS").String()
+	_                 = common.CredentialProf(a.Flag("credentials.profiles",
 		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
   --credentials.profiles="
     profiles:
@@ -242,6 +254,75 @@ func main() {
 		}
 	}
 
+	// Initialize gossip cluster manager if clustering is enabled
+	if *clusterEnabled {
+		log.Info("initializing gossip cluster manager")
+
+		// Parse static peers if provided
+		var staticPeers []string
+		if *clusterPeers != "" {
+			staticPeers = strings.Split(*clusterPeers, ",")
+		}
+
+		// Determine discovery mode
+		var discoveryMode gossip.DiscoveryMode
+		switch *clusterDiscMode {
+		case "kubernetes":
+			discoveryMode = gossip.DiscoveryModeKubernetes
+		case "dns":
+			discoveryMode = gossip.DiscoveryModeDNS
+		case "static":
+			discoveryMode = gossip.DiscoveryModeStatic
+		default:
+			log.Fatal("invalid cluster discovery mode", zap.String("mode", *clusterDiscMode))
+		}
+
+		// Get advertise address
+		advertiseAddr := *clusterAdvAddr
+		if advertiseAddr == "" {
+			// Try to detect the pod IP in Kubernetes
+			advertiseAddr = os.Getenv("POD_IP")
+			if advertiseAddr == "" {
+				advertiseAddr = *clusterBindAddr
+			}
+		}
+
+		gossipConfig := &gossip.Config{
+			NodeID:        *clusterNodeID,
+			BindAddr:      *clusterBindAddr,
+			AdvertiseAddr: advertiseAddr,
+			GossipPort:    *clusterGossipPort,
+			DiscoveryMode: discoveryMode,
+			ServiceName:   *clusterService,
+			Namespace:     *clusterNamespace,
+			StaticPeers:   staticPeers,
+			Logger:        log,
+		}
+
+		gossipManager, err := gossip.NewManager(gossipConfig)
+		if err != nil {
+			log.Fatal("failed to create gossip cluster manager", zap.Error(err))
+		}
+
+		if err := gossipManager.Start(ctx); err != nil {
+			log.Fatal("failed to start gossip cluster manager", zap.Error(err))
+		}
+
+		common.ClusterBroadcaster = gossipManager
+		common.ClusterStatusProvider = gossipManager
+
+		log.Info("gossip cluster manager started",
+			zap.String("local_node", gossipManager.LocalNodeName()),
+			zap.Int("member_count", gossipManager.MemberCount()))
+
+		// Add cleanup for gossip manager
+		defer func() {
+			if err := gossipManager.Shutdown(); err != nil {
+				log.Error("failed to stop gossip cluster manager", zap.Error(err))
+			}
+		}()
+	}
+
 	// Create scrape handler configuration
 	scrapeConfig := &handlers.ScrapeConfig{
 		Vault:              vault,
@@ -280,7 +361,18 @@ func main() {
 	})
 
 	mux.HandleFunc("POST /ignored/test-conn", common.TestConn)
-	mux.HandleFunc("POST /ignored/remove", common.RemoveHost)
+
+	// Use gossip-aware handler if clustering is enabled
+	if *clusterEnabled {
+		mux.HandleFunc("POST /ignored/remove", common.GossipAwareRemoveHost)
+		mux.HandleFunc("POST /ignored/add", common.GossipAwareAddHost)
+
+		// Add cluster status endpoints
+		mux.HandleFunc("GET /cluster/status", common.ClusterStatus)
+		mux.HandleFunc("GET /cluster/health", common.ClusterHealth)
+	} else {
+		mux.HandleFunc("POST /ignored/remove", common.RemoveHost)
+	}
 
 	mux.HandleFunc("GET /verbosity", logger.Verbosity)
 	mux.HandleFunc("PUT /verbosity", logger.SetVerbosity)

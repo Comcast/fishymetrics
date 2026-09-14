@@ -48,6 +48,14 @@ spec:
           ports:
             - containerPort: {{ .Values.exporter.port }}
               name: exporter
+            {{- if .Values.cluster.enabled }}
+            - containerPort: {{ .Values.cluster.gossipPort }}
+              name: gossip-tcp
+              protocol: TCP
+            - containerPort: {{ .Values.cluster.gossipPort }}
+              name: gossip-udp
+              protocol: UDP
+            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -78,6 +86,15 @@ spec:
           {{- end }}
           {{- if .Values.bmc.credentialsScript }}
             - --credentials-script={{ .Values.bmc.credentialsScript }}
+          {{- end }}
+          {{- if .Values.cluster.enabled }}
+            - --cluster.enabled
+            - --cluster.gossip-port={{ .Values.cluster.gossipPort }}
+            - --cluster.discovery-mode={{ .Values.cluster.discoveryMode }}
+            - --cluster.service-name={{ include "fishymetrics.cluster.serviceName" . }}
+            {{- if .Values.cluster.staticPeers }}
+            - --cluster.static-peers={{ .Values.cluster.staticPeers }}
+            {{- end }}
           {{- end }}
           env:
             - name: BMC_USERNAME
@@ -133,6 +150,20 @@ spec:
               value: {{ .Values.bmc.scheme | quote }}
             - name: BMC_TIMEOUT
               value: {{ .Values.bmc.timeout | quote }}
+            {{- if .Values.cluster.enabled }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CLUSTER_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: CLUSTER_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- end }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
       {{- if .Values.vector.enabled }}

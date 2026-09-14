@@ -48,6 +48,15 @@ collector:
 # firmware:
 #   modulesExclude: "(?i)(BIOS2|BMC2|Disk|HDD|Installed|Previous)"
 
+cluster:
+  enabled: false
+  gossipPort: 7946
+  discoveryMode: "kubernetes" # Options: kubernetes, dns, static
+  serviceName: "" # defaults to "<release-name>-fishymetrics-headless" if empty
+  namespace: "" # defaults to the pod's own namespace if empty
+  staticPeers: "" # comma-separated ip:port list, used when discoveryMode is "static"
+
+
 credentials: {}
 # profiles:
 #   - name: profile1

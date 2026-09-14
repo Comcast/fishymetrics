@@ -1,0 +1,24 @@
+{{- if .Values.cluster.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "fishymetrics.cluster.serviceName" . }}
+  labels:
+    {{- include "fishymetrics.common.metaLabels" . | nindent 4 }}
+    {{- include "fishymetrics.common.matchLabels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - port: {{ .Values.cluster.gossipPort }}
+      targetPort: {{ .Values.cluster.gossipPort }}
+      protocol: TCP
+      name: gossip-tcp
+    - port: {{ .Values.cluster.gossipPort }}
+      targetPort: {{ .Values.cluster.gossipPort }}
+      protocol: UDP
+      name: gossip-udp
+  selector:
+    app: {{ template "fishymetrics.name" . }}
+    release: {{ .Release.Name }}
+{{- end }}

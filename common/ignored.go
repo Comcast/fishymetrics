@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2026 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/comcast/fishymetrics/config"
@@ -30,8 +31,21 @@ import (
 )
 
 var (
+	ignoredMu      sync.RWMutex
 	IgnoredDevices = make(map[string]IgnoredDevice)
 )
+
+// Broadcaster is implemented by the clustering layer (e.g. gossip.Manager) to
+// propagate ignored-host changes to the rest of the cluster. When nil, ignored
+// host changes only apply to local in-memory state.
+type Broadcaster interface {
+	BroadcastAdd(device IgnoredDevice) error
+	BroadcastRemove(host string) error
+}
+
+// ClusterBroadcaster is set by main() when clustering is enabled. All calls to
+// AddIgnoredDevice/RemoveIgnoredDeviceHost will broadcast to the cluster when set.
+var ClusterBroadcaster Broadcaster
 
 type host struct {
 	H string `json:"host"`
@@ -42,6 +56,89 @@ type IgnoredDevice struct {
 	Endpoint          string
 	Model             string
 	CredentialProfile string
+}
+
+// AddIgnoredDevice safely adds/updates a device in the local ignored-hosts map
+// and, if clustering is enabled, broadcasts the change to the rest of the cluster.
+func AddIgnoredDevice(device IgnoredDevice) {
+	ignoredMu.Lock()
+	IgnoredDevices[device.Name] = device
+	ignoredMu.Unlock()
+
+	if ClusterBroadcaster != nil {
+		if err := ClusterBroadcaster.BroadcastAdd(device); err != nil {
+			log = zap.L()
+			log.Error("failed to broadcast ignored device add", zap.Error(err), zap.String("host", device.Name))
+		}
+	}
+}
+
+// RemoveIgnoredDeviceHost safely removes a host from the local ignored-hosts map
+// and, if clustering is enabled, broadcasts the removal to the rest of the cluster.
+func RemoveIgnoredDeviceHost(hostname string) {
+	ignoredMu.Lock()
+	delete(IgnoredDevices, hostname)
+	ignoredMu.Unlock()
+
+	if ClusterBroadcaster != nil {
+		if err := ClusterBroadcaster.BroadcastRemove(hostname); err != nil {
+			log = zap.L()
+			log.Error("failed to broadcast ignored device removal", zap.Error(err), zap.String("host", hostname))
+		}
+	}
+}
+
+// SetIgnoredDeviceLocal updates the local ignored-hosts map only, without
+// broadcasting to the cluster. Used by the clustering layer itself (e.g.
+// gossip anti-entropy merge / incoming gossip messages) where the change is
+// already being disseminated through the cluster and re-broadcasting would
+// cause redundant traffic or feedback loops.
+func SetIgnoredDeviceLocal(device IgnoredDevice) {
+	ignoredMu.Lock()
+	IgnoredDevices[device.Name] = device
+	ignoredMu.Unlock()
+}
+
+// UnsetIgnoredDeviceLocal removes a host from the local ignored-hosts map
+// only, without broadcasting to the cluster. See SetIgnoredDeviceLocal.
+func UnsetIgnoredDeviceLocal(hostname string) {
+	ignoredMu.Lock()
+	delete(IgnoredDevices, hostname)
+	ignoredMu.Unlock()
+}
+
+// IsIgnored returns true if the given host is currently on the ignored list
+func IsIgnored(hostname string) bool {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+	_, ok := IgnoredDevices[hostname]
+	return ok
+}
+
+// GetIgnoredDevice returns the IgnoredDevice for a host, if present
+func GetIgnoredDevice(hostname string) (IgnoredDevice, bool) {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+	d, ok := IgnoredDevices[hostname]
+	return d, ok
+}
+
+// GetAllIgnoredDevices returns a snapshot slice of all currently ignored devices
+func GetAllIgnoredDevices() []IgnoredDevice {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+	devices := make([]IgnoredDevice, 0, len(IgnoredDevices))
+	for _, d := range IgnoredDevices {
+		devices = append(devices, d)
+	}
+	return devices
+}
+
+// IgnoredDeviceCount returns the number of currently ignored devices
+func IgnoredDeviceCount() int {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+	return len(IgnoredDevices)
 }
 
 func TestConn(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +168,8 @@ func TestConn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := IgnoredDevices[h.H]; !ok {
+	device, ok := GetIgnoredDevice(h.H)
+	if !ok {
 		log.Error("missing host from ignored hosts list", zap.Error(err), zap.String("path", r.URL.Path))
 		response["error"] = "missing host from ignored hosts list"
 		resp, _ := marshalResponse(&response, r)
@@ -79,8 +177,8 @@ func TestConn(w http.ResponseWriter, r *http.Request) {
 		w.Write(resp)
 		return
 	}
-	path = IgnoredDevices[h.H].Endpoint
-	credProfile := IgnoredDevices[h.H].CredentialProfile
+	path = device.Endpoint
+	credProfile := device.CredentialProfile
 	// get credentials from vault
 	credential, err := ChassisCreds.GetCredentials(context.Background(), credProfile, h.H)
 	if err != nil {
@@ -174,7 +272,7 @@ func RemoveHost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	delete(IgnoredDevices, h.H)
+	RemoveIgnoredDeviceHost(h.H)
 	log.Info("remove host " + h.H + " from ignored list")
 	w.WriteHeader(http.StatusOK)
 }

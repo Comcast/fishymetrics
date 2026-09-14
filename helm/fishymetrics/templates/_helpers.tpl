@@ -36,3 +36,14 @@ release: {{ .Release.Name }}
 chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 heritage: {{ .Release.Service }}
 {{- end -}}
+
+{{/*
+Name of the headless service used for gossip cluster peer discovery.
+*/}}
+{{- define "fishymetrics.cluster.serviceName" -}}
+{{- if .Values.cluster.serviceName -}}
+{{- .Values.cluster.serviceName -}}
+{{- else -}}
+{{- printf "%s-headless" (include "fishymetrics.name" .) -}}
+{{- end -}}
+{{- end -}}
