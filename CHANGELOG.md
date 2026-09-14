@@ -6,9 +6,19 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.19.3]
+
 ### Added
 
-- Gossip-based clustering (HashiCorp memberlist) for sharing the ignored-devices list across replicas, with Kubernetes/DNS/static peer discovery, `/cluster/status` and `/cluster/health` endpoints, and Helm chart support (`cluster.*` values)
+- Gossip-based clustering support for ignored host list across replicas [#186](https://github.com/Comcast/fishymetrics/issues/186)
+
+### Updated
+
+- Bump github.com/containerd/containerd from 1.7.33 to 1.7.35 [#185](https://github.com/Comcast/fishymetrics/pull/185)
+
+### Fixed
+
+- Vault reauthenticate AppRole token after max TTL [#184](https://github.com/Comcast/fishymetrics/pull/184)
 
 ## [0.19.2]
 
