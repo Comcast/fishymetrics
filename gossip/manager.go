@@ -228,10 +228,11 @@ func (m *Manager) discoverAndJoin() (bool, bool) {
 	return true, false
 }
 
-// reconcileLoop periodically checks membership and attempts to (re)join
-// peers if this node appears isolated. This protects against transient
-// failures (CoreDNS restarts, brief network partitions, etc.) causing
-// permanent split-brain for the lifetime of the pod.
+// reconcileLoop periodically rediscovers and joins peers regardless of
+// current member count - a partition can split the cluster into groups
+// that each still have 2+ members, so isolation alone isn't a reliable
+// signal. Join is idempotent against already-known peers; ReconcileInterval
+// bounds how often this runs.
 func (m *Manager) reconcileLoop(ctx context.Context) {
 	ticker := time.NewTicker(m.cfg.ReconcileInterval)
 	defer ticker.Stop()
@@ -243,13 +244,11 @@ func (m *Manager) reconcileLoop(ctx context.Context) {
 		case <-m.stopReconcile:
 			return
 		case <-ticker.C:
-			if m.ml.NumMembers() > 1 {
-				continue
-			}
-
-			m.log.Debug("node appears isolated, attempting to rejoin cluster")
-			if ok, _ := m.discoverAndJoin(); ok && m.ml.NumMembers() > 1 {
-				m.log.Info("recovered from isolation, rejoined cluster", zap.Int("member_count", m.ml.NumMembers()))
+			before := m.ml.NumMembers()
+			if ok, _ := m.discoverAndJoin(); ok {
+				if after := m.ml.NumMembers(); after > before {
+					m.log.Info("reconciliation discovered additional peers", zap.Int("member_count", after))
+				}
 			}
 		}
 	}

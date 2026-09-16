@@ -444,3 +444,86 @@ func TestReconcileLoopRecoversFromIsolation(t *testing.T) {
 
 	waitForMemberCount(t, node2, 2, 5*time.Second)
 }
+
+// TestReconcileLoopMergesMultiNodePartitions is a regression test for a P2
+// bug: reconcileLoop only retried discovery when isolated, so two
+// healthy-looking 2-node partitions would never rediscover each other.
+func TestReconcileLoopMergesMultiNodePartitions(t *testing.T) {
+	basePort := 27990
+
+	addr := func(port int) string { return fmt.Sprintf("127.0.0.1:%d", port) }
+
+	cfgFor := func(id string, port int, peer string) *Config {
+		return &Config{
+			NodeID:            id,
+			BindAddr:          "127.0.0.1",
+			AdvertiseAddr:     "127.0.0.1",
+			GossipPort:        port,
+			DiscoveryMode:     DiscoveryModeStatic,
+			StaticPeers:       []string{peer},
+			JoinRetries:       3,
+			JoinRetryBackoff:  100 * time.Millisecond,
+			ReconcileInterval: 300 * time.Millisecond,
+			Logger:            zap.NewNop(),
+		}
+	}
+
+	// Partition A: node1 <-> node2, only aware of each other.
+	cfg1 := cfgFor("node1-partition", basePort, addr(basePort+1))
+	cfg2 := cfgFor("node2-partition", basePort+1, addr(basePort))
+	node1, err := NewManager(cfg1)
+	if err != nil {
+		t.Fatalf("failed to create node1: %v", err)
+	}
+	t.Cleanup(func() { _ = node1.Shutdown() })
+	node2, err := NewManager(cfg2)
+	if err != nil {
+		t.Fatalf("failed to create node2: %v", err)
+	}
+	t.Cleanup(func() { _ = node2.Shutdown() })
+
+	if err := node1.Start(context.Background()); err != nil {
+		t.Fatalf("failed to start node1: %v", err)
+	}
+	if err := node2.Start(context.Background()); err != nil {
+		t.Fatalf("failed to start node2: %v", err)
+	}
+	waitForMemberCount(t, node1, 2, 5*time.Second)
+	waitForMemberCount(t, node2, 2, 5*time.Second)
+
+	// Partition B: node3 <-> node4, only aware of each other.
+	cfg3 := cfgFor("node3-partition", basePort+2, addr(basePort+3))
+	cfg4 := cfgFor("node4-partition", basePort+3, addr(basePort+2))
+	node3, err := NewManager(cfg3)
+	if err != nil {
+		t.Fatalf("failed to create node3: %v", err)
+	}
+	t.Cleanup(func() { _ = node3.Shutdown() })
+	node4, err := NewManager(cfg4)
+	if err != nil {
+		t.Fatalf("failed to create node4: %v", err)
+	}
+	t.Cleanup(func() { _ = node4.Shutdown() })
+
+	if err := node3.Start(context.Background()); err != nil {
+		t.Fatalf("failed to start node3: %v", err)
+	}
+	if err := node4.Start(context.Background()); err != nil {
+		t.Fatalf("failed to start node4: %v", err)
+	}
+	waitForMemberCount(t, node3, 2, 5*time.Second)
+	waitForMemberCount(t, node4, 2, 5*time.Second)
+
+	// Both partitions are now healthy 2-node groups (MemberCount() > 1 on
+	// every node), but unaware of each other. Simulate the configured
+	// discovery mechanism becoming able to resolve the other partition
+	// (e.g. a DNS record catching up) by growing node1's static peer list.
+	cfg1.StaticPeers = []string{addr(basePort + 1), addr(basePort + 2), addr(basePort + 3)}
+
+	// The reconciliation loop (not a direct/manual discoverAndJoin call)
+	// must merge all four nodes into one cluster on its own.
+	waitForMemberCount(t, node1, 4, 5*time.Second)
+	waitForMemberCount(t, node2, 4, 5*time.Second)
+	waitForMemberCount(t, node3, 4, 5*time.Second)
+	waitForMemberCount(t, node4, 4, 5*time.Second)
+}
