@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.25 AS build
+FROM golang:1.25.13 AS build
 COPY . /go/src/github.com/comcast/fishymetrics
 WORKDIR /go/src/github.com/comcast/fishymetrics
 

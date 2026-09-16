@@ -2,7 +2,7 @@ module github.com/comcast/fishymetrics
 
 go 1.25.0
 
-toolchain go1.25.11
+toolchain go1.25.13
 
 require (
 	github.com/hashicorp/go-hclog v1.6.3

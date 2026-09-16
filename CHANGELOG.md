@@ -15,6 +15,7 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 ### Updated
 
 - Bump github.com/containerd/containerd from 1.7.33 to 1.7.35 [#185](https://github.com/Comcast/fishymetrics/pull/185)
+- Bump Go toolchain from 1.25.11 to 1.25.13 to address CVE in `std/crypto/tls` (DoS) [#186](https://github.com/Comcast/fishymetrics/issues/186)
 
 ### Fixed
 
