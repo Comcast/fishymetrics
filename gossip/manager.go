@@ -213,7 +213,7 @@ func (m *Manager) discoverAndJoin() (bool, bool) {
 	}
 
 	if len(peers) == 0 {
-		m.log.Info("no peers discovered")
+		m.log.Debug("no peers discovered")
 		return false, true
 	}
 
@@ -224,7 +224,10 @@ func (m *Manager) discoverAndJoin() (bool, bool) {
 		return false, false
 	}
 
-	m.log.Info("joined cluster", zap.Int("peers_contacted", numJoined), zap.Int("member_count", m.ml.NumMembers()))
+	// reconcileLoop calls this on every tick even when membership hasn't changed,
+	// and callers that care about a meaningful join already log at Info themselves
+	// (e.g. main.go after Start(), or reconcileLoop when member count increases).
+	m.log.Debug("joined cluster", zap.Int("peers_contacted", numJoined), zap.Int("member_count", m.ml.NumMembers()))
 	return true, false
 }
 
