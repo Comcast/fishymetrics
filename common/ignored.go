@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -38,17 +39,36 @@ var (
 	// reads always match what was broadcast. See applyLocked, ApplyRemoteRecord.
 	records     = make(map[string]IgnoredRecord)
 	lastVersion int64
+
+	// TombstoneRetention/MaxTombstones bound the memory and anti-entropy
+	// sync cost of removed-host tombstones, which would otherwise grow
+	// unbounded (every remove - including of a host that never existed -
+	// permanently adds an entry). TombstoneRetention must exceed the time
+	// window in which reachable peers are expected to observe a removal
+	// (via broadcast or anti-entropy sync); a peer partitioned longer than
+	// this can still resurrect a compacted host with a stale snapshot, the
+	// same tradeoff Cassandra makes with gc_grace_seconds. Active
+	// (non-removed) entries are never compacted or capped - they're
+	// bounded by real inventory size, not removal churn.
+	TombstoneRetention = 24 * time.Hour
+	MaxTombstones      = 5000
 )
 
 // IgnoredRecord is the versioned, tombstone-aware state of a single host,
 // exchanged with peers via gossip broadcast and anti-entropy sync. Removed
 // is a tombstone flag so a stale peer view can't resurrect a removed host.
 // NodeID breaks ties when two nodes produce the same Version - see recordWins.
+//
+// LocalTimestamp is this node's own wall-clock observation time, used only
+// for tombstone retention (compactLocked) - deliberately not Version, since
+// Version is an opaque logical clock for conflict resolution, not
+// guaranteed to be real time. It's local-only and never transmitted.
 type IgnoredRecord struct {
-	Device  IgnoredDevice `json:"device"`
-	Removed bool          `json:"removed"`
-	Version int64         `json:"version"`
-	NodeID  string        `json:"node_id"`
+	Device         IgnoredDevice `json:"device"`
+	Removed        bool          `json:"removed"`
+	Version        int64         `json:"version"`
+	NodeID         string        `json:"node_id"`
+	LocalTimestamp int64         `json:"-"`
 }
 
 // recordWins reports whether (version, nodeID) should replace existing.
@@ -119,6 +139,33 @@ func nextVersionLocked() int64 {
 	return v
 }
 
+// compactLocked evicts tombstones older than TombstoneRetention, then caps
+// the remainder at MaxTombstones (oldest first). Callers MUST hold
+// ignoredMu for write.
+func compactLocked() {
+	cutoff := time.Now().UnixNano() - TombstoneRetention.Nanoseconds()
+	var tombstoneHosts []string
+	for host, rec := range records {
+		if !rec.Removed {
+			continue
+		}
+		if rec.LocalTimestamp < cutoff {
+			delete(records, host)
+			continue
+		}
+		tombstoneHosts = append(tombstoneHosts, host)
+	}
+
+	if excess := len(tombstoneHosts) - MaxTombstones; excess > 0 {
+		sort.Slice(tombstoneHosts, func(i, j int) bool {
+			return records[tombstoneHosts[i]].LocalTimestamp < records[tombstoneHosts[j]].LocalTimestamp
+		})
+		for _, host := range tombstoneHosts[:excess] {
+			delete(records, host)
+		}
+	}
+}
+
 // applyLocked allocates a version and commits this node's own add/remove as
 // one atomic operation, under the same lock used for reads and for applying
 // incoming gossip records (ApplyRemoteRecord). Returns the version so the
@@ -128,7 +175,10 @@ func applyLocked(hostname string, device IgnoredDevice, removed bool) int64 {
 	defer ignoredMu.Unlock()
 
 	version := nextVersionLocked()
-	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version, NodeID: LocalNodeID}
+	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version, NodeID: LocalNodeID, LocalTimestamp: time.Now().UnixNano()}
+	if removed {
+		compactLocked()
+	}
 	return version
 }
 
@@ -183,9 +233,12 @@ func ApplyRemoteRecord(hostname string, device IgnoredDevice, removed bool, vers
 		return false
 	}
 
-	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version, NodeID: nodeID}
+	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version, NodeID: nodeID, LocalTimestamp: time.Now().UnixNano()}
 	if version > lastVersion {
 		lastVersion = version
+	}
+	if removed {
+		compactLocked()
 	}
 	return true
 }

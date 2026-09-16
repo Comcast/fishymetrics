@@ -19,6 +19,7 @@ package common
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -36,12 +37,16 @@ func resetIgnoredDevices(t *testing.T) {
 	lastVersion = 0
 	ignoredMu.Unlock()
 	ClusterBroadcaster = nil
+	origRetention := TombstoneRetention
+	origMax := MaxTombstones
 	t.Cleanup(func() {
 		ignoredMu.Lock()
 		records = make(map[string]IgnoredRecord)
 		lastVersion = 0
 		ignoredMu.Unlock()
 		ClusterBroadcaster = nil
+		TombstoneRetention = origRetention
+		MaxTombstones = origMax
 	})
 }
 
@@ -188,6 +193,71 @@ func Test_ApplyRemoteRecord_TieBreakIsOrderIndependent(t *testing.T) {
 			t.Fatal("expected node-b to still win regardless of arrival order")
 		}
 	})
+}
+
+// Test_CompactLocked_EvictsOldTombstones is a regression test for a P2 bug:
+// tombstones (removed-host records) were kept forever, growing memory and
+// anti-entropy sync cost unboundedly. Tombstones older than
+// TombstoneRetention must be evicted; active (non-removed) records and
+// recent tombstones must not be touched.
+func Test_CompactLocked_EvictsOldTombstones(t *testing.T) {
+	resetIgnoredDevices(t)
+	TombstoneRetention = time.Hour
+
+	now := time.Now().UnixNano()
+	ignoredMu.Lock()
+	records["old-tombstone"] = IgnoredRecord{Removed: true, Version: 1, LocalTimestamp: now - 2*time.Hour.Nanoseconds()}
+	records["recent-tombstone"] = IgnoredRecord{Removed: true, Version: 2, LocalTimestamp: now}
+	records["active-host"] = IgnoredRecord{Device: IgnoredDevice{Name: "active-host"}, Removed: false, Version: 3, LocalTimestamp: now - 2*time.Hour.Nanoseconds()}
+	compactLocked()
+	_, oldStillThere := records["old-tombstone"]
+	_, recentStillThere := records["recent-tombstone"]
+	_, activeStillThere := records["active-host"]
+	ignoredMu.Unlock()
+
+	if oldStillThere {
+		t.Error("expected tombstone older than TombstoneRetention to be evicted")
+	}
+	if !recentStillThere {
+		t.Error("expected tombstone within TombstoneRetention to be kept")
+	}
+	if !activeStillThere {
+		t.Error("expected active (non-removed) record to never be evicted regardless of age")
+	}
+}
+
+// Test_CompactLocked_CapsMaxTombstones is a regression test proving a hard
+// cap on tombstone count independent of age, protecting against a burst of
+// removals (including of hosts that never existed) inflating memory faster
+// than TombstoneRetention alone would catch.
+func Test_CompactLocked_CapsMaxTombstones(t *testing.T) {
+	resetIgnoredDevices(t)
+	MaxTombstones = 3
+
+	for i := 0; i < 10; i++ {
+		RemoveIgnoredDeviceHost(fmt.Sprintf("never-existed-host-%d", i))
+	}
+
+	ignoredMu.RLock()
+	count := 0
+	_, newestStillThere := records["never-existed-host-9"]
+	_, oldestStillThere := records["never-existed-host-0"]
+	for _, rec := range records {
+		if rec.Removed {
+			count++
+		}
+	}
+	ignoredMu.RUnlock()
+
+	if count > MaxTombstones {
+		t.Errorf("expected at most %d tombstones, got %d", MaxTombstones, count)
+	}
+	if oldestStillThere {
+		t.Error("expected oldest tombstone to be evicted first")
+	}
+	if !newestStillThere {
+		t.Error("expected newest tombstone to be kept")
+	}
 }
 
 func Test_BuildIgnoredDeviceEndpoint(t *testing.T) {

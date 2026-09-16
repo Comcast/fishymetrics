@@ -65,26 +65,38 @@ host on every node it synced with. To prevent this, ignored-host state is
 implemented as a small last-write-wins CRDT (conflict-free replicated data
 type):
 
-- Every `Message` (`gossip/messages.go`) carries a `Version int64` field —
-  a logical clock derived from `time.Now().UnixNano()`, with a monotonic
-  guard in `Manager.nextVersion()` so two rapid local calls (or a backwards
-  system clock) can never produce a non-increasing value.
-- `Manager` (`gossip/manager.go`) keeps an in-memory `map[string]versionedRecord`
-  keyed by host, where each record stores the device data, a `Removed`
-  tombstone flag, and the `Version` at which that state was last set. A
-  remove is stored as a tombstone record rather than simply deleting the
-  map entry — this is what allows a later, older-versioned "add" to be
-  correctly rejected instead of resurrecting the host.
+- Every `Message` (`gossip/messages.go`) and `IgnoredRecord` (`common/ignored.go`)
+  carries a `Version int64` field — a logical clock derived from
+  `time.Now().UnixNano()`, with a monotonic guard so two rapid calls (or a
+  backwards system clock) can never produce a non-increasing value. Ties
+  (two nodes producing the same Version) are broken deterministically by
+  `NodeID`.
+- `common.records` (`common/ignored.go`) is the single source of truth,
+  keyed by host, storing the device data, a `Removed` tombstone flag, and
+  the `Version`/`NodeID` the state was last set at. A remove is stored as a
+  tombstone rather than simply deleting the entry — this is what allows a
+  later, older-versioned "add" to be correctly rejected instead of
+  resurrecting the host.
 - Both `NotifyMsg` (broadcast path) and `MergeRemoteState` (anti-entropy
-  path) funnel every incoming add/remove through a single method,
-  `Manager.applyIfNewer(host, record)`, which only accepts the incoming
-  record if `record.Version` is strictly greater than what's currently
-  tracked for that host. Anything with an equal or older version is
-  discarded as stale.
-- `LocalState` serializes the full versioned/tombstoned state map (not just
-  the currently-ignored hosts), so a peer that receives it during
-  anti-entropy sync has enough information to correctly resolve removals,
-  not just additions.
+  path) funnel every incoming add/remove through `common.ApplyRemoteRecord`,
+  which only accepts a record if it wins conflict resolution against
+  what's currently tracked for that host. Anything older (or losing the
+  NodeID tie-break) is discarded as stale.
+- `LocalState` serializes the full versioned/tombstoned state (not just the
+  currently-ignored hosts), so a peer that receives it during anti-entropy
+  sync has enough information to correctly resolve removals, not just
+  additions.
+
+Tombstones (removed-host records) are retained for `TombstoneRetention`
+(default 24h) and hard-capped at `MaxTombstones` (default 5000) regardless
+of age, so memory and anti-entropy sync cost stay bounded even under
+repeated add/remove churn or removal of hosts that never existed. Active
+(non-removed) records are never compacted. `TombstoneRetention` must exceed
+the time a reachable peer needs to observe a removal (via broadcast or
+anti-entropy); a peer partitioned longer than that risks resurrecting a
+compacted host with a stale snapshot - the same tradeoff Cassandra makes
+with `gc_grace_seconds`.
+
 
 The net effect: no matter which of the two propagation paths a peer's view
 of a host arrives through, and no matter what order updates are received
