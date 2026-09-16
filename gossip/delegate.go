@@ -64,7 +64,7 @@ func (d *MessageDelegate) NotifyMsg(msg []byte) {
 
 	// ApplyRemoteRecord does version comparison + local mutation atomically,
 	// since memberlist may invoke delegate callbacks concurrently.
-	if !common.ApplyRemoteRecord(key, device, removed, parsedMsg.Version) {
+	if !common.ApplyRemoteRecord(key, device, removed, parsedMsg.Version, parsedMsg.NodeID) {
 		d.log.Debug("ignoring stale gossip message", zap.String("host", key), zap.Int64("version", parsedMsg.Version))
 		return
 	}
@@ -100,10 +100,8 @@ func (d *MessageDelegate) LocalState(join bool) []byte {
 
 // MergeRemoteState implements memberlist.Delegate.MergeRemoteState
 // This is called to merge a remote peer's full state with local state.
-// Each host entry (add or tombstoned remove) is resolved using
-// last-write-wins on the logical Version clock, so a peer that hasn't yet
-// observed a removal will not resurrect the host once the removal's version
-// is known to be newer.
+// Conflicts are resolved via common.ApplyRemoteRecord/recordWins (Version,
+// then NodeID as a tie-breaker).
 func (d *MessageDelegate) MergeRemoteState(buf []byte, join bool) {
 	remoteState := map[string]common.IgnoredRecord{}
 	if len(buf) > 0 {
@@ -116,7 +114,7 @@ func (d *MessageDelegate) MergeRemoteState(buf []byte, join bool) {
 	for host, remoteRecord := range remoteState {
 		// See NotifyMsg for why version comparison + local application must
 		// be one atomic operation rather than two separately-locked steps.
-		if !common.ApplyRemoteRecord(host, remoteRecord.Device, remoteRecord.Removed, remoteRecord.Version) {
+		if !common.ApplyRemoteRecord(host, remoteRecord.Device, remoteRecord.Removed, remoteRecord.Version, remoteRecord.NodeID) {
 			continue
 		}
 

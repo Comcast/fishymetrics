@@ -310,6 +310,7 @@ func main() {
 
 		common.ClusterBroadcaster = gossipManager
 		common.ClusterStatusProvider = gossipManager
+		common.LocalNodeID = gossipManager.LocalNodeName()
 
 		log.Info("gossip cluster manager started",
 			zap.String("local_node", gossipManager.LocalNodeName()),

@@ -42,13 +42,28 @@ var (
 
 // IgnoredRecord is the versioned, tombstone-aware state of a single host,
 // exchanged with peers via gossip broadcast and anti-entropy sync. Removed
-// is a tombstone flag so a peer with a stale view can't resurrect a host
-// once a newer removal is known.
+// is a tombstone flag so a stale peer view can't resurrect a removed host.
+// NodeID breaks ties when two nodes produce the same Version - see recordWins.
 type IgnoredRecord struct {
 	Device  IgnoredDevice `json:"device"`
 	Removed bool          `json:"removed"`
 	Version int64         `json:"version"`
+	NodeID  string        `json:"node_id"`
 }
+
+// recordWins reports whether (version, nodeID) should replace existing.
+// Ties on Version are broken by the lexicographically greater NodeID, so
+// every node resolves the conflict the same way.
+func recordWins(version int64, nodeID string, existing IgnoredRecord) bool {
+	if version != existing.Version {
+		return version > existing.Version
+	}
+	return nodeID > existing.NodeID
+}
+
+// LocalNodeID identifies this node for tie-breaking equal-Version records.
+// Set by main() when clustering is enabled (e.g. to the gossip node name).
+var LocalNodeID string
 
 // Broadcaster is implemented by the clustering layer (e.g. gossip.Manager) to
 // propagate ignored-host changes to the rest of the cluster. When nil, ignored
@@ -113,7 +128,7 @@ func applyLocked(hostname string, device IgnoredDevice, removed bool) int64 {
 	defer ignoredMu.Unlock()
 
 	version := nextVersionLocked()
-	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version}
+	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version, NodeID: LocalNodeID}
 	return version
 }
 
@@ -151,18 +166,12 @@ func RemoveIgnoredDeviceHost(hostname string) {
 }
 
 // ApplyRemoteRecord atomically applies an incoming add/remove from a peer
-// (via NotifyMsg or MergeRemoteState), using last-write-wins conflict
-// resolution keyed on version. Returns true if applied, false if stale.
-//
-// Version comparison and the local-map mutation happen under one lock
-// (ignoredMu), the same lock applyLocked uses - memberlist may invoke
-// delegate callbacks concurrently, so without a shared lock two operations
-// for the same host could interleave and leave local state inconsistent
-// with the version this node reported to its peers.
+// (via NotifyMsg or MergeRemoteState), using recordWins for conflict
+// resolution. Returns true if applied, false if stale.
 //
 // device.Endpoint is always re-derived, ignoring whatever was received over
 // the wire - see BuildIgnoredDeviceEndpoint.
-func ApplyRemoteRecord(hostname string, device IgnoredDevice, removed bool, version int64) bool {
+func ApplyRemoteRecord(hostname string, device IgnoredDevice, removed bool, version int64, nodeID string) bool {
 	device.Name = strings.TrimSpace(device.Name)
 	device.Endpoint = BuildIgnoredDeviceEndpoint(device.Name, device.Model)
 
@@ -170,11 +179,11 @@ func ApplyRemoteRecord(hostname string, device IgnoredDevice, removed bool, vers
 	defer ignoredMu.Unlock()
 
 	existing, ok := records[hostname]
-	if ok && version <= existing.Version {
+	if ok && !recordWins(version, nodeID, existing) {
 		return false
 	}
 
-	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version}
+	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version, NodeID: nodeID}
 	if version > lastVersion {
 		lastVersion = version
 	}

@@ -231,7 +231,7 @@ func TestMergeRemoteStateDoesNotResurrectRemovedHost(t *testing.T) {
 		common.RemoveIgnoredDeviceHost("merge-test-host")
 	}()
 
-	nodeA := &Manager{log: zap.NewNop()}
+	nodeA := &Manager{log: zap.NewNop(), cfg: &Config{NodeID: "node-a"}}
 	nodeA.queue = &memberlist.TransmitLimitedQueue{
 		NumNodes:       func() int { return 1 },
 		RetransmitMult: 3,
@@ -270,6 +270,44 @@ func TestMergeRemoteStateDoesNotResurrectRemovedHost(t *testing.T) {
 
 	if common.IsIgnored(device.Name) {
 		t.Fatal("anti-entropy merge incorrectly resurrected a host that was removed at a newer version")
+	}
+}
+
+// TestMergeRemoteStateBreaksTiesDeterministically is a regression test for
+// a P2 bug: Version is only monotonic per-node, so two nodes can produce
+// the same Version for conflicting updates. Without a tie-breaker, this
+// would be permanent split-brain even across anti-entropy sync.
+func TestMergeRemoteStateBreaksTiesDeterministically(t *testing.T) {
+	defer func() {
+		common.RemoveIgnoredDeviceHost("tie-test-host")
+	}()
+
+	device := common.IgnoredDevice{Name: "tie-test-host", Endpoint: "https://tie-test-host/redfish/v1/Chassis/"}
+	const sharedVersion = 42
+
+	nodeA := &Manager{log: zap.NewNop(), cfg: &Config{NodeID: "node-a"}}
+	delegateA := &MessageDelegate{manager: nodeA, log: zap.NewNop()}
+
+	// Node A believes it added the host at sharedVersion.
+	if !common.ApplyRemoteRecord(device.Name, device, false, sharedVersion, "node-a") {
+		t.Fatal("expected node-a's record to apply")
+	}
+
+	// Node B independently produced the SAME version but removed the host.
+	// Deliver node B's snapshot to node A via anti-entropy sync.
+	remoteSnapshot := map[string]common.IgnoredRecord{
+		device.Name: {Device: device, Removed: true, Version: sharedVersion, NodeID: "node-b"},
+	}
+	buf, err := json.Marshal(remoteSnapshot)
+	if err != nil {
+		t.Fatalf("failed to marshal remote snapshot: %v", err)
+	}
+	delegateA.MergeRemoteState(buf, false)
+
+	// "node-b" > "node-a" lexicographically, so node B's remove must win
+	// the tie deterministically on node A too.
+	if common.IsIgnored(device.Name) {
+		t.Fatal("expected node-b's remove to win the tie over node-a's add during anti-entropy merge")
 	}
 }
 

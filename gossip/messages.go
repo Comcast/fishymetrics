@@ -36,6 +36,7 @@ type Message struct {
 	Device  common.IgnoredDevice `json:"device,omitempty"`
 	Host    string               `json:"host,omitempty"` // Used for remove operations
 	Version int64                `json:"version"`        // logical clock (UnixNano) used to resolve conflicting/out-of-order updates and prevent tombstoned removals from being resurrected by anti-entropy sync
+	NodeID  string               `json:"node_id"`        // originating node's ID, used as a deterministic tie-breaker when two nodes produce the same Version
 }
 
 // Encode marshals the message to JSON

@@ -115,6 +115,81 @@ func Test_ConcurrentAddRemove_LocalStateMatchesBroadcastVersion(t *testing.T) {
 	}
 }
 
+// Test_RecordWins_TieBreaksOnNodeID verifies the (Version, NodeID) total
+// order used by ApplyRemoteRecord to resolve equal-version conflicts.
+func Test_RecordWins_TieBreaksOnNodeID(t *testing.T) {
+	existing := IgnoredRecord{Version: 5, NodeID: "node-a"}
+
+	if recordWins(5, "node-a", existing) {
+		t.Error("identical (version, nodeID) should not win")
+	}
+	if !recordWins(5, "node-b", existing) {
+		t.Error("expected node-b to win tie over node-a")
+	}
+	if recordWins(5, "node-", existing) {
+		t.Error("expected lexicographically smaller NodeID to lose the tie")
+	}
+	if !recordWins(6, "node-a", existing) {
+		t.Error("strictly greater version should win regardless of NodeID")
+	}
+	if recordWins(4, "node-z", existing) {
+		t.Error("strictly smaller version should lose regardless of NodeID")
+	}
+}
+
+// Test_ApplyRemoteRecord_DeterministicTieBreakAcrossNodes is a regression
+// test for a P2 bug: two nodes can independently produce the same Version
+// for conflicting updates. Without a tie-breaker, both would reject each
+// other's record forever - permanent split-brain.
+func Test_ApplyRemoteRecord_DeterministicTieBreakAcrossNodes(t *testing.T) {
+	resetIgnoredDevices(t)
+
+	device := IgnoredDevice{Name: "split-brain-host", Model: "iLO5"}
+	const sharedVersion = 12345
+
+	if !ApplyRemoteRecord(device.Name, device, false, sharedVersion, "node-a") {
+		t.Fatal("expected first record to be applied")
+	}
+
+	// node-b independently produced the SAME version but removed the host.
+	if !ApplyRemoteRecord(device.Name, device, true, sharedVersion, "node-b") {
+		t.Fatal("expected node-b's record to win the tie over node-a")
+	}
+	if IsIgnored(device.Name) {
+		t.Fatal("expected host to be removed after node-b's tie-winning remove")
+	}
+
+	// Re-applying node-a's losing record must still be rejected.
+	if ApplyRemoteRecord(device.Name, device, false, sharedVersion, "node-a") {
+		t.Fatal("expected node-a's record to remain the loser of the tie even when reapplied")
+	}
+}
+
+// Test_ApplyRemoteRecord_TieBreakIsOrderIndependent proves the tie-break is
+// commutative: either arrival order must converge on the same winner.
+func Test_ApplyRemoteRecord_TieBreakIsOrderIndependent(t *testing.T) {
+	device := IgnoredDevice{Name: "order-independent-host", Model: "iLO5"}
+	const sharedVersion = 99
+
+	t.Run("node-a then node-b", func(t *testing.T) {
+		resetIgnoredDevices(t)
+		ApplyRemoteRecord(device.Name, device, false, sharedVersion, "node-a")
+		ApplyRemoteRecord(device.Name, device, true, sharedVersion, "node-b")
+		if IsIgnored(device.Name) {
+			t.Fatal("expected node-b to win regardless of arrival order")
+		}
+	})
+
+	t.Run("node-b then node-a", func(t *testing.T) {
+		resetIgnoredDevices(t)
+		ApplyRemoteRecord(device.Name, device, true, sharedVersion, "node-b")
+		ApplyRemoteRecord(device.Name, device, false, sharedVersion, "node-a")
+		if IsIgnored(device.Name) {
+			t.Fatal("expected node-b to still win regardless of arrival order")
+		}
+	})
+}
+
 func Test_BuildIgnoredDeviceEndpoint(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -173,7 +248,7 @@ func Test_ApplyRemoteRecord_IgnoresRemoteSuppliedEndpoint(t *testing.T) {
 		Endpoint:          "http://attacker.example.com/collect",
 		Model:             "iLO5",
 		CredentialProfile: "default",
-	}, false, 1)
+	}, false, 1, "peer-1")
 	if !applied {
 		t.Fatal("expected first record for a host to be applied")
 	}

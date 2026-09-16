@@ -282,6 +282,7 @@ func (m *Manager) BroadcastAdd(device common.IgnoredDevice, version int64) error
 		Type:    MessageTypeAddIgnored,
 		Device:  device,
 		Version: version,
+		NodeID:  m.cfg.NodeID,
 	}
 	data, err := msg.Encode()
 	if err != nil {
@@ -300,6 +301,7 @@ func (m *Manager) BroadcastRemove(host string, version int64) error {
 		Type:    MessageTypeRemoveIgnored,
 		Host:    host,
 		Version: version,
+		NodeID:  m.cfg.NodeID,
 	}
 	data, err := msg.Encode()
 	if err != nil {
