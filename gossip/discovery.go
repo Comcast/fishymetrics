@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
@@ -104,10 +105,15 @@ func (d *ClusterDiscovery) resolveDNS(hostname string) ([]string, error) {
 
 	var peers []string
 	for _, ip := range ips {
-		// Include both IPv4 and IPv6
-		peer := fmt.Sprintf("%s:%d", ip.String(), d.config.GossipPort)
-		peers = append(peers, peer)
+		peers = append(peers, formatPeerAddr(ip, d.config.GossipPort))
 	}
 
 	return peers, nil
+}
+
+// formatPeerAddr formats an IP+port as a peer address usable by
+// memberlist.Join. net.JoinHostPort brackets IPv6 addresses (e.g.
+// "[::1]:7946")
+func formatPeerAddr(ip net.IP, port int) string {
+	return net.JoinHostPort(ip.String(), strconv.Itoa(port))
 }
