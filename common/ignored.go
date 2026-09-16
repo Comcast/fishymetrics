@@ -32,16 +32,33 @@ import (
 )
 
 var (
-	ignoredMu      sync.RWMutex
-	IgnoredDevices = make(map[string]IgnoredDevice)
+	ignoredMu sync.RWMutex
+	// records is the single source of truth for both "is this host
+	// ignored" and version/tombstone state, guarded by one lock so local
+	// reads always match what was broadcast. See applyLocked, ApplyRemoteRecord.
+	records     = make(map[string]IgnoredRecord)
+	lastVersion int64
 )
+
+// IgnoredRecord is the versioned, tombstone-aware state of a single host,
+// exchanged with peers via gossip broadcast and anti-entropy sync. Removed
+// is a tombstone flag so a peer with a stale view can't resurrect a host
+// once a newer removal is known.
+type IgnoredRecord struct {
+	Device  IgnoredDevice `json:"device"`
+	Removed bool          `json:"removed"`
+	Version int64         `json:"version"`
+}
 
 // Broadcaster is implemented by the clustering layer (e.g. gossip.Manager) to
 // propagate ignored-host changes to the rest of the cluster. When nil, ignored
 // host changes only apply to local in-memory state.
+//
+// version is already committed to local state by applyLocked - the
+// clustering layer must only relay it, not allocate its own.
 type Broadcaster interface {
-	BroadcastAdd(device IgnoredDevice) error
-	BroadcastRemove(host string) error
+	BroadcastAdd(device IgnoredDevice, version int64) error
+	BroadcastRemove(host string, version int64) error
 }
 
 // ClusterBroadcaster is set by main() when clustering is enabled. All calls to
@@ -64,15 +81,10 @@ type IgnoredDevice struct {
 // imports common.
 const moonshotModel = "Moonshot"
 
-// BuildIgnoredDeviceEndpoint derives the canonical BMC API endpoint for a
-// given host name and hardware model. This is the single source of truth
-// for how an IgnoredDevice's Endpoint is computed, and callers MUST NOT
-// accept an Endpoint value from untrusted input (HTTP request bodies,
-// gossip messages from peers, etc.) — TestConn combines the stored Endpoint
-// with real Vault-backed BMC credentials resolved for Name, so an
-// independently-controllable Endpoint would allow an attacker to redirect
-// those credentials to a host of their choosing. See AddIgnoredDevice and
-// SetIgnoredDeviceLocal, which both enforce this derivation.
+// BuildIgnoredDeviceEndpoint derives the canonical BMC API endpoint from a
+// host name and model. This is the single source of truth for Endpoint -
+// callers must NOT accept it from untrusted input (HTTP bodies, gossip
+// messages), since TestConn combines it with real Vault credentials.
 func BuildIgnoredDeviceEndpoint(name, model string) string {
 	name = strings.TrimSpace(name)
 	if model == moonshotModel {
@@ -81,22 +93,43 @@ func BuildIgnoredDeviceEndpoint(name, model string) string {
 	return "https://" + name + "/redfish/v1/Chassis/"
 }
 
+// nextVersionLocked returns a strictly increasing logical clock value.
+// Callers MUST hold ignoredMu for write.
+func nextVersionLocked() int64 {
+	v := time.Now().UnixNano()
+	if v <= lastVersion {
+		v = lastVersion + 1
+	}
+	lastVersion = v
+	return v
+}
+
+// applyLocked allocates a version and commits this node's own add/remove as
+// one atomic operation, under the same lock used for reads and for applying
+// incoming gossip records (ApplyRemoteRecord). Returns the version so the
+// caller can pass it, already-committed, to ClusterBroadcaster.
+func applyLocked(hostname string, device IgnoredDevice, removed bool) int64 {
+	ignoredMu.Lock()
+	defer ignoredMu.Unlock()
+
+	version := nextVersionLocked()
+	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version}
+	return version
+}
+
 // AddIgnoredDevice safely adds/updates a device in the local ignored-hosts map
 // and, if clustering is enabled, broadcasts the change to the rest of the cluster.
 //
-// Endpoint is always derived from Name/Model via BuildIgnoredDeviceEndpoint
-// regardless of what was passed in device.Endpoint - see that function for
-// why this is a security boundary, not just a convenience.
+// Endpoint is always derived from Name/Model, ignoring whatever was passed
+// in device.Endpoint - see BuildIgnoredDeviceEndpoint.
 func AddIgnoredDevice(device IgnoredDevice) {
 	device.Name = strings.TrimSpace(device.Name)
 	device.Endpoint = BuildIgnoredDeviceEndpoint(device.Name, device.Model)
 
-	ignoredMu.Lock()
-	IgnoredDevices[device.Name] = device
-	ignoredMu.Unlock()
+	version := applyLocked(device.Name, device, false)
 
 	if ClusterBroadcaster != nil {
-		if err := ClusterBroadcaster.BroadcastAdd(device); err != nil {
+		if err := ClusterBroadcaster.BroadcastAdd(device, version); err != nil {
 			log = zap.L()
 			log.Error("failed to broadcast ignored device add", zap.Error(err), zap.String("host", device.Name))
 		}
@@ -106,68 +139,90 @@ func AddIgnoredDevice(device IgnoredDevice) {
 // RemoveIgnoredDeviceHost safely removes a host from the local ignored-hosts map
 // and, if clustering is enabled, broadcasts the removal to the rest of the cluster.
 func RemoveIgnoredDeviceHost(hostname string) {
-	ignoredMu.Lock()
-	delete(IgnoredDevices, hostname)
-	ignoredMu.Unlock()
+	hostname = strings.TrimSpace(hostname)
+	version := applyLocked(hostname, IgnoredDevice{Name: hostname}, true)
 
 	if ClusterBroadcaster != nil {
-		if err := ClusterBroadcaster.BroadcastRemove(hostname); err != nil {
+		if err := ClusterBroadcaster.BroadcastRemove(hostname, version); err != nil {
 			log = zap.L()
 			log.Error("failed to broadcast ignored device removal", zap.Error(err), zap.String("host", hostname))
 		}
 	}
 }
 
-// SetIgnoredDeviceLocal updates the local ignored-hosts map only, without
-// broadcasting to the cluster. Used by the clustering layer itself (e.g.
-// gossip anti-entropy merge / incoming gossip messages) where the change is
-// already being disseminated through the cluster and re-broadcasting would
-// cause redundant traffic or feedback loops.
+// ApplyRemoteRecord atomically applies an incoming add/remove from a peer
+// (via NotifyMsg or MergeRemoteState), using last-write-wins conflict
+// resolution keyed on version. Returns true if applied, false if stale.
 //
-// Endpoint is always re-derived from Name/Model via BuildIgnoredDeviceEndpoint,
-// regardless of what was received over the wire from a peer - a compromised
-// or misbehaving peer must not be able to inject an arbitrary Endpoint that
-// gets combined with real Vault credentials by TestConn.
-func SetIgnoredDeviceLocal(device IgnoredDevice) {
+// Version comparison and the local-map mutation happen under one lock
+// (ignoredMu), the same lock applyLocked uses - memberlist may invoke
+// delegate callbacks concurrently, so without a shared lock two operations
+// for the same host could interleave and leave local state inconsistent
+// with the version this node reported to its peers.
+//
+// device.Endpoint is always re-derived, ignoring whatever was received over
+// the wire - see BuildIgnoredDeviceEndpoint.
+func ApplyRemoteRecord(hostname string, device IgnoredDevice, removed bool, version int64) bool {
 	device.Name = strings.TrimSpace(device.Name)
 	device.Endpoint = BuildIgnoredDeviceEndpoint(device.Name, device.Model)
 
 	ignoredMu.Lock()
-	IgnoredDevices[device.Name] = device
-	ignoredMu.Unlock()
+	defer ignoredMu.Unlock()
+
+	existing, ok := records[hostname]
+	if ok && version <= existing.Version {
+		return false
+	}
+
+	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version}
+	if version > lastVersion {
+		lastVersion = version
+	}
+	return true
 }
 
-// UnsetIgnoredDeviceLocal removes a host from the local ignored-hosts map
-// only, without broadcasting to the cluster. See SetIgnoredDeviceLocal.
-func UnsetIgnoredDeviceLocal(hostname string) {
-	ignoredMu.Lock()
-	delete(IgnoredDevices, hostname)
-	ignoredMu.Unlock()
+// SnapshotIgnoredRecords returns a deep copy of the full versioned/tombstoned
+// state, for anti-entropy full-state sync (memberlist's LocalState).
+func SnapshotIgnoredRecords() map[string]IgnoredRecord {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+
+	snapshot := make(map[string]IgnoredRecord, len(records))
+	for k, v := range records {
+		snapshot[k] = v
+	}
+	return snapshot
 }
 
 // IsIgnored returns true if the given host is currently on the ignored list
 func IsIgnored(hostname string) bool {
 	ignoredMu.RLock()
 	defer ignoredMu.RUnlock()
-	_, ok := IgnoredDevices[hostname]
-	return ok
+	rec, ok := records[hostname]
+	return ok && !rec.Removed
 }
 
 // GetIgnoredDevice returns the IgnoredDevice for a host, if present
 func GetIgnoredDevice(hostname string) (IgnoredDevice, bool) {
 	ignoredMu.RLock()
 	defer ignoredMu.RUnlock()
-	d, ok := IgnoredDevices[hostname]
-	return d, ok
+	rec, ok := records[hostname]
+	if !ok || rec.Removed {
+		return IgnoredDevice{}, false
+	}
+	return rec.Device, true
 }
 
 // GetAllIgnoredDevices returns a snapshot slice of all currently ignored devices
 func GetAllIgnoredDevices() []IgnoredDevice {
 	ignoredMu.RLock()
 	defer ignoredMu.RUnlock()
-	devices := make([]IgnoredDevice, 0, len(IgnoredDevices))
-	for _, d := range IgnoredDevices {
-		devices = append(devices, d)
+	devices := make([]IgnoredDevice, 0, len(records))
+	for _, rec := range records {
+		if rec.Removed {
+			continue
+		}
+		devices = append(devices, rec.Device)
 	}
 	return devices
 }
@@ -176,7 +231,13 @@ func GetAllIgnoredDevices() []IgnoredDevice {
 func IgnoredDeviceCount() int {
 	ignoredMu.RLock()
 	defer ignoredMu.RUnlock()
-	return len(IgnoredDevices)
+	count := 0
+	for _, rec := range records {
+		if !rec.Removed {
+			count++
+		}
+	}
+	return count
 }
 
 func TestConn(w http.ResponseWriter, r *http.Request) {

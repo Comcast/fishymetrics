@@ -21,7 +21,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -30,15 +32,87 @@ func resetIgnoredDevices(t *testing.T) {
 	t.Helper()
 	log = zap.NewNop()
 	ignoredMu.Lock()
-	IgnoredDevices = make(map[string]IgnoredDevice)
+	records = make(map[string]IgnoredRecord)
+	lastVersion = 0
 	ignoredMu.Unlock()
 	ClusterBroadcaster = nil
 	t.Cleanup(func() {
 		ignoredMu.Lock()
-		IgnoredDevices = make(map[string]IgnoredDevice)
+		records = make(map[string]IgnoredRecord)
+		lastVersion = 0
 		ignoredMu.Unlock()
 		ClusterBroadcaster = nil
 	})
+}
+
+// recordingBroadcaster observes what version/operation was last broadcast,
+// so tests can assert local state never diverges from it. A small sleep
+// widens the race window that used to exist before applyLocked/ApplyRemoteRecord.
+type recordingBroadcaster struct {
+	mu          sync.Mutex
+	lastVersion int64
+	lastRemoved bool
+}
+
+func (r *recordingBroadcaster) BroadcastAdd(device IgnoredDevice, version int64) error {
+	time.Sleep(time.Millisecond)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if version > r.lastVersion {
+		r.lastVersion = version
+		r.lastRemoved = false
+	}
+	return nil
+}
+
+func (r *recordingBroadcaster) BroadcastRemove(hostname string, version int64) error {
+	time.Sleep(time.Millisecond)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if version > r.lastVersion {
+		r.lastVersion = version
+		r.lastRemoved = true
+	}
+	return nil
+}
+
+// Test_ConcurrentAddRemove_LocalStateMatchesBroadcastVersion is a regression
+// test for a P1 race where local map mutation and versioned broadcast were
+// separate, independently-locked steps, letting local state disagree with
+// the version broadcast to peers under concurrent Add/Remove of the same
+// host. Now both happen atomically in applyLocked, so this always holds.
+func Test_ConcurrentAddRemove_LocalStateMatchesBroadcastVersion(t *testing.T) {
+	resetIgnoredDevices(t)
+
+	rb := &recordingBroadcaster{}
+	ClusterBroadcaster = rb
+
+	device := IgnoredDevice{Name: "race-host", Model: "iLO5", CredentialProfile: "default"}
+
+	const iterations = 50
+	var wg sync.WaitGroup
+	wg.Add(iterations * 2)
+	for i := 0; i < iterations; i++ {
+		go func() {
+			defer wg.Done()
+			AddIgnoredDevice(device)
+		}()
+		go func() {
+			defer wg.Done()
+			RemoveIgnoredDeviceHost(device.Name)
+		}()
+	}
+	wg.Wait()
+
+	rb.mu.Lock()
+	wantIgnored := !rb.lastRemoved
+	rb.mu.Unlock()
+
+	gotIgnored := IsIgnored(device.Name)
+	if gotIgnored != wantIgnored {
+		t.Fatalf("local state (ignored=%v) is inconsistent with the highest-version broadcast operation (ignored=%v) - "+
+			"local state and replicated/broadcast state diverged", gotIgnored, wantIgnored)
+	}
 }
 
 func Test_BuildIgnoredDeviceEndpoint(t *testing.T) {
@@ -64,12 +138,10 @@ func Test_BuildIgnoredDeviceEndpoint(t *testing.T) {
 	}
 }
 
-// Test_AddIgnoredDevice_IgnoresClientSuppliedEndpoint is a regression test
-// for a credential-exfiltration vulnerability: AddIgnoredDevice must always
-// derive Endpoint from Name/Model itself, never trust the Endpoint field on
-// the passed-in IgnoredDevice, since that value could otherwise be combined
-// with real Vault-backed credentials (via TestConn) and redirected to a
-// destination of an attacker's choosing.
+// Test_AddIgnoredDevice_IgnoresClientSuppliedEndpoint is a regression test:
+// AddIgnoredDevice must always derive Endpoint from Name/Model, never trust
+// the caller's Endpoint, since that could redirect real Vault credentials
+// (via TestConn) to an attacker-controlled destination.
 func Test_AddIgnoredDevice_IgnoresClientSuppliedEndpoint(t *testing.T) {
 	resetIgnoredDevices(t)
 
@@ -90,19 +162,21 @@ func Test_AddIgnoredDevice_IgnoresClientSuppliedEndpoint(t *testing.T) {
 	}
 }
 
-// Test_SetIgnoredDeviceLocal_IgnoresRemoteSuppliedEndpoint is a regression
-// test covering the same vulnerability but for the gossip apply path: a
-// compromised or misbehaving peer must not be able to inject an arbitrary
-// Endpoint via a gossip add/merge message.
-func Test_SetIgnoredDeviceLocal_IgnoresRemoteSuppliedEndpoint(t *testing.T) {
+// Test_ApplyRemoteRecord_IgnoresRemoteSuppliedEndpoint covers the same
+// vulnerability for the gossip apply path: a compromised peer must not be
+// able to inject an arbitrary Endpoint.
+func Test_ApplyRemoteRecord_IgnoresRemoteSuppliedEndpoint(t *testing.T) {
 	resetIgnoredDevices(t)
 
-	SetIgnoredDeviceLocal(IgnoredDevice{
+	applied := ApplyRemoteRecord("real-host", IgnoredDevice{
 		Name:              "real-host",
 		Endpoint:          "http://attacker.example.com/collect",
 		Model:             "iLO5",
 		CredentialProfile: "default",
-	})
+	}, false, 1)
+	if !applied {
+		t.Fatal("expected first record for a host to be applied")
+	}
 
 	stored, ok := GetIgnoredDevice("real-host")
 	if !ok {
@@ -131,10 +205,8 @@ func Test_GossipAwareAddHost_RejectsEmptyName(t *testing.T) {
 }
 
 // Test_GossipAwareAddHost_IgnoresClientSuppliedEndpoint is an end-to-end
-// regression test for the credential-exfiltration vulnerability through the
-// actual HTTP handler: a caller supplying an attacker-controlled Endpoint
-// alongside a legitimate Name must have that Endpoint silently discarded and
-// replaced with the canonical, derived one.
+// regression test: a caller-supplied Endpoint must be discarded and
+// replaced with the derived one.
 func Test_GossipAwareAddHost_IgnoresClientSuppliedEndpoint(t *testing.T) {
 	resetIgnoredDevices(t)
 

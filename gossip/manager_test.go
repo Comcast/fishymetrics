@@ -126,8 +126,7 @@ func TestNotifyMsgAppliesToLocalState(t *testing.T) {
 	}()
 
 	m := &Manager{
-		log:   zap.NewNop(),
-		state: make(map[string]versionedRecord),
+		log: zap.NewNop(),
 	}
 	delegate := &MessageDelegate{
 		manager: m,
@@ -184,8 +183,7 @@ func TestNotifyMsgIgnoresStaleMessages(t *testing.T) {
 	}()
 
 	m := &Manager{
-		log:   zap.NewNop(),
-		state: make(map[string]versionedRecord),
+		log: zap.NewNop(),
 	}
 	delegate := &MessageDelegate{manager: m, log: zap.NewNop()}
 
@@ -228,12 +226,12 @@ func TestNotifyMsgIgnoresStaleMessages(t *testing.T) {
 // (LocalState/MergeRemoteState) must not resurrect it on node A using B's
 // stale (pre-removal) snapshot.
 func TestMergeRemoteStateDoesNotResurrectRemovedHost(t *testing.T) {
-	common.ClusterBroadcaster = nil
 	defer func() {
+		common.ClusterBroadcaster = nil
 		common.RemoveIgnoredDeviceHost("merge-test-host")
 	}()
 
-	nodeA := &Manager{log: zap.NewNop(), state: make(map[string]versionedRecord)}
+	nodeA := &Manager{log: zap.NewNop()}
 	nodeA.queue = &memberlist.TransmitLimitedQueue{
 		NumNodes:       func() int { return 1 },
 		RetransmitMult: 3,
@@ -242,17 +240,14 @@ func TestMergeRemoteStateDoesNotResurrectRemovedHost(t *testing.T) {
 
 	device := common.IgnoredDevice{Name: "merge-test-host", Endpoint: "https://merge-test-host/redfish/v1/Chassis/"}
 
-	// Node A adds the host (version 1) then removes it (version 2) -
-	// mirroring "add replicated, then user clicks remove".
-	if err := nodeA.BroadcastAdd(device); err != nil {
-		t.Fatalf("failed to broadcast add: %v", err)
-	}
-	common.SetIgnoredDeviceLocal(device)
-
-	if err := nodeA.BroadcastRemove(device.Name); err != nil {
-		t.Fatalf("failed to broadcast remove: %v", err)
-	}
-	common.UnsetIgnoredDeviceLocal(device.Name)
+	// Node A adds the host then removes it - mirroring "add replicated,
+	// then user clicks remove" - via the real production call path
+	// (common.AddIgnoredDevice/RemoveIgnoredDeviceHost with
+	// ClusterBroadcaster set to nodeA), so that local state and version
+	// allocation happen exactly as they would in production, atomically.
+	common.ClusterBroadcaster = nodeA
+	common.AddIgnoredDevice(device)
+	common.RemoveIgnoredDeviceHost(device.Name)
 
 	if common.IsIgnored(device.Name) {
 		t.Fatal("expected host to be removed on node A before merge")
@@ -260,8 +255,8 @@ func TestMergeRemoteStateDoesNotResurrectRemovedHost(t *testing.T) {
 
 	// Node B never saw the removal - its snapshot still shows the host as
 	// present, with an OLDER version than node A's removal.
-	nodeAVersion := nodeA.state[device.Name].Version
-	remoteSnapshot := map[string]versionedRecord{
+	nodeAVersion := common.SnapshotIgnoredRecords()[device.Name].Version
+	remoteSnapshot := map[string]common.IgnoredRecord{
 		device.Name: {Device: device, Removed: false, Version: nodeAVersion - 1},
 	}
 	buf, err := json.Marshal(remoteSnapshot)
@@ -290,7 +285,7 @@ func TestBroadcastQueue(t *testing.T) {
 		CredentialProfile: "default",
 	}
 
-	if err := m.BroadcastAdd(device); err != nil {
+	if err := m.BroadcastAdd(device, 1); err != nil {
 		t.Fatalf("failed to broadcast add: %v", err)
 	}
 

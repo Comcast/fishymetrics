@@ -74,11 +74,10 @@ func GossipAwareRemoveHost(w http.ResponseWriter, r *http.Request) {
 // cluster may service this request; the change is broadcast to the rest of
 // the cluster via ClusterBroadcaster when clustering is enabled.
 //
-// The client-supplied Endpoint field is intentionally ignored: AddIgnoredDevice
-// always re-derives Endpoint from Name/Model (see BuildIgnoredDeviceEndpoint).
-// Accepting an arbitrary, independently-controlled Endpoint here would let a
-// caller point a legitimate host's Name (and therefore its real Vault-backed
-// credentials, retrieved by TestConn) at a URL of their choosing.
+// The client-supplied Endpoint is ignored - AddIgnoredDevice always
+// re-derives it from Name/Model, since trusting it would let a caller
+// redirect a legitimate host's real Vault credentials (via TestConn) to a
+// URL of their choosing.
 func GossipAwareAddHost(w http.ResponseWriter, r *http.Request) {
 	log = zap.L()
 

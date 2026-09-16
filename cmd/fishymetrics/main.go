@@ -354,7 +354,7 @@ func main() {
 
 	tmplIgnored := template.Must(template.New("ignored").Parse(ignoredTmpl))
 	mux.HandleFunc("GET /ignored", func(w http.ResponseWriter, r *http.Request) {
-		err := tmplIgnored.Execute(w, common.IgnoredDevices)
+		err := tmplIgnored.Execute(w, common.GetAllIgnoredDevices())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}

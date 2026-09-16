@@ -18,10 +18,8 @@ package gossip
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/comcast/fishymetrics/common"
@@ -56,30 +54,18 @@ type Config struct {
 	Logger *zap.Logger
 }
 
-// versionedRecord tracks the last known state of a single ignored host,
-// including whether it was removed (tombstoned), so that memberlist's
-// periodic full-state anti-entropy sync (LocalState/MergeRemoteState) can
-// correctly resolve conflicts using last-write-wins semantics instead of
-// resurrecting hosts that were intentionally removed by a peer that hasn't
-// yet observed the removal.
-type versionedRecord struct {
-	Device  common.IgnoredDevice `json:"device"`
-	Removed bool                 `json:"removed"`
-	Version int64                `json:"version"`
-}
-
 // Manager wraps a memberlist.Memberlist instance and provides
 // a simple API for broadcasting and applying ignored-host changes
 // across the cluster via gossip.
+//
+// Manager holds no ignored-host state or version bookkeeping itself - that
+// lives entirely in the common package (see common.ApplyRemoteRecord,
+// common.SnapshotIgnoredRecords) as the single atomic source of truth.
 type Manager struct {
 	ml    *memberlist.Memberlist
 	queue *memberlist.TransmitLimitedQueue
 	log   *zap.Logger
 	cfg   *Config
-
-	stateMu     sync.Mutex
-	state       map[string]versionedRecord
-	lastVersion int64
 
 	stopReconcile chan struct{}
 }
@@ -115,7 +101,6 @@ func NewManager(cfg *Config) (*Manager, error) {
 	m := &Manager{
 		log:           cfg.Logger,
 		cfg:           cfg,
-		state:         make(map[string]versionedRecord),
 		stopReconcile: make(chan struct{}),
 	}
 
@@ -270,55 +255,6 @@ func (m *Manager) reconcileLoop(ctx context.Context) {
 	}
 }
 
-// applyIfNewer updates the manager's tracked version state for the given
-// host if the supplied record is newer than what's currently tracked (or
-// nothing is tracked yet), returning true if the record was applied. This
-// is the single source of truth used to resolve conflicting/out-of-order
-// add and remove operations (whether arriving via NotifyMsg broadcast or
-// MergeRemoteState anti-entropy sync) so that a stale "add" can never
-// resurrect a host after a newer "remove" tombstone has been recorded, and
-// vice versa.
-func (m *Manager) applyIfNewer(host string, record versionedRecord) bool {
-	m.stateMu.Lock()
-	defer m.stateMu.Unlock()
-
-	existing, ok := m.state[host]
-	if ok && record.Version <= existing.Version {
-		return false
-	}
-
-	m.state[host] = record
-	if record.Version > m.lastVersion {
-		m.lastVersion = record.Version
-	}
-	return true
-}
-
-// encodeState returns a JSON snapshot of the manager's full versioned state
-// (including tombstones for removed hosts), used by LocalState.
-func (m *Manager) encodeState() ([]byte, error) {
-	m.stateMu.Lock()
-	snapshot := make(map[string]versionedRecord, len(m.state))
-	for k, v := range m.state {
-		snapshot[k] = v
-	}
-	m.stateMu.Unlock()
-
-	return json.Marshal(snapshot)
-}
-
-// decodeState unmarshals a JSON state snapshot produced by encodeState.
-func decodeState(buf []byte) (map[string]versionedRecord, error) {
-	state := map[string]versionedRecord{}
-	if len(buf) == 0 {
-		return state, nil
-	}
-	if err := json.Unmarshal(buf, &state); err != nil {
-		return nil, err
-	}
-	return state, nil
-}
-
 // Shutdown gracefully leaves the cluster and shuts down the local memberlist instance
 func (m *Manager) Shutdown() error {
 	close(m.stopReconcile)
@@ -335,15 +271,13 @@ func (m *Manager) Shutdown() error {
 	return m.ml.Shutdown()
 }
 
-// AddIgnoredDevice updates local state and broadcasts the addition to the cluster.
-// Implements common.Broadcaster.
-func (m *Manager) BroadcastAdd(device common.IgnoredDevice) error {
-	version := m.nextVersion()
-
-	m.stateMu.Lock()
-	m.state[device.Name] = versionedRecord{Device: device, Removed: false, Version: version}
-	m.stateMu.Unlock()
-
+// BroadcastAdd queues a message announcing the addition of device to the
+// cluster. Implements common.Broadcaster.
+//
+// version must already be committed to local state by the caller
+// (common.AddIgnoredDevice) - Manager doesn't allocate its own versions, so
+// there's exactly one place deciding "what version did this node commit".
+func (m *Manager) BroadcastAdd(device common.IgnoredDevice, version int64) error {
 	msg := &Message{
 		Type:    MessageTypeAddIgnored,
 		Device:  device,
@@ -358,15 +292,10 @@ func (m *Manager) BroadcastAdd(device common.IgnoredDevice) error {
 	return nil
 }
 
-// BroadcastRemove broadcasts the removal of a host to the cluster.
-// Implements common.Broadcaster.
-func (m *Manager) BroadcastRemove(host string) error {
-	version := m.nextVersion()
-
-	m.stateMu.Lock()
-	m.state[host] = versionedRecord{Device: common.IgnoredDevice{Name: host}, Removed: true, Version: version}
-	m.stateMu.Unlock()
-
+// BroadcastRemove queues a message announcing the removal of host from the
+// cluster. Implements common.Broadcaster. See BroadcastAdd for why version
+// is supplied by the caller rather than allocated here.
+func (m *Manager) BroadcastRemove(host string, version int64) error {
 	msg := &Message{
 		Type:    MessageTypeRemoveIgnored,
 		Host:    host,
@@ -379,22 +308,6 @@ func (m *Manager) BroadcastRemove(host string) error {
 
 	m.queue.QueueBroadcast(&broadcast{msg: data})
 	return nil
-}
-
-// nextVersion returns a strictly increasing logical clock value used to
-// order ignored-host state changes for conflict resolution. Guards against
-// two calls within the same nanosecond (or a system clock that moves
-// backwards) ever producing a non-increasing value.
-func (m *Manager) nextVersion() int64 {
-	m.stateMu.Lock()
-	defer m.stateMu.Unlock()
-
-	v := time.Now().UnixNano()
-	if v <= m.lastVersion {
-		v = m.lastVersion + 1
-	}
-	m.lastVersion = v
-	return v
 }
 
 // MemberCount returns the number of members currently in the cluster

@@ -17,6 +17,8 @@
 package gossip
 
 import (
+	"encoding/json"
+
 	"github.com/comcast/fishymetrics/common"
 	"github.com/hashicorp/memberlist"
 	"go.uber.org/zap"
@@ -44,30 +46,32 @@ func (d *MessageDelegate) NotifyMsg(msg []byte) {
 	}
 
 	var key string
-	var record versionedRecord
+	var device common.IgnoredDevice
+	var removed bool
 
 	switch parsedMsg.Type {
 	case MessageTypeAddIgnored:
 		key = parsedMsg.Device.Name
-		record = versionedRecord{Device: parsedMsg.Device, Removed: false, Version: parsedMsg.Version}
+		device = parsedMsg.Device
 	case MessageTypeRemoveIgnored:
 		key = parsedMsg.Host
-		record = versionedRecord{Device: common.IgnoredDevice{Name: parsedMsg.Host}, Removed: true, Version: parsedMsg.Version}
+		device = common.IgnoredDevice{Name: parsedMsg.Host}
+		removed = true
 	default:
 		d.log.Warn("unknown message type", zap.String("type", string(parsedMsg.Type)))
 		return
 	}
 
-	if !d.manager.applyIfNewer(key, record) {
+	// ApplyRemoteRecord does version comparison + local mutation atomically,
+	// since memberlist may invoke delegate callbacks concurrently.
+	if !common.ApplyRemoteRecord(key, device, removed, parsedMsg.Version) {
 		d.log.Debug("ignoring stale gossip message", zap.String("host", key), zap.Int64("version", parsedMsg.Version))
 		return
 	}
 
-	if record.Removed {
-		common.UnsetIgnoredDeviceLocal(key)
+	if removed {
 		d.log.Debug("applied remove_ignored from gossip", zap.String("host", key))
 	} else {
-		common.SetIgnoredDeviceLocal(record.Device)
 		d.log.Debug("applied add_ignored from gossip", zap.String("host", key))
 	}
 }
@@ -85,7 +89,8 @@ func (d *MessageDelegate) GetBroadcasts(overhead, limit int) [][]byte {
 // including tombstones for removed hosts, so that removals are not lost or
 // resurrected during state reconciliation with peers.
 func (d *MessageDelegate) LocalState(join bool) []byte {
-	data, err := d.manager.encodeState()
+	snapshot := common.SnapshotIgnoredRecords()
+	data, err := json.Marshal(snapshot)
 	if err != nil {
 		d.log.Error("failed to marshal local state", zap.Error(err))
 		return []byte("{}")
@@ -100,22 +105,24 @@ func (d *MessageDelegate) LocalState(join bool) []byte {
 // observed a removal will not resurrect the host once the removal's version
 // is known to be newer.
 func (d *MessageDelegate) MergeRemoteState(buf []byte, join bool) {
-	remoteState, err := decodeState(buf)
-	if err != nil {
-		d.log.Error("failed to unmarshal remote state", zap.Error(err))
-		return
+	remoteState := map[string]common.IgnoredRecord{}
+	if len(buf) > 0 {
+		if err := json.Unmarshal(buf, &remoteState); err != nil {
+			d.log.Error("failed to unmarshal remote state", zap.Error(err))
+			return
+		}
 	}
 
 	for host, remoteRecord := range remoteState {
-		if !d.manager.applyIfNewer(host, remoteRecord) {
+		// See NotifyMsg for why version comparison + local application must
+		// be one atomic operation rather than two separately-locked steps.
+		if !common.ApplyRemoteRecord(host, remoteRecord.Device, remoteRecord.Removed, remoteRecord.Version) {
 			continue
 		}
 
 		if remoteRecord.Removed {
-			common.UnsetIgnoredDeviceLocal(host)
 			d.log.Debug("merged ignored-host removal from remote state", zap.String("host", host))
 		} else {
-			common.SetIgnoredDeviceLocal(remoteRecord.Device)
 			d.log.Debug("merged ignored device from remote state", zap.String("host", host))
 		}
 	}
