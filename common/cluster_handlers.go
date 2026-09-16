@@ -19,6 +19,7 @@ package common
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"go.uber.org/zap"
 )
@@ -72,12 +73,24 @@ func GossipAwareRemoveHost(w http.ResponseWriter, r *http.Request) {
 // GossipAwareAddHost handles adding a host to ignored devices. Any node in the
 // cluster may service this request; the change is broadcast to the rest of
 // the cluster via ClusterBroadcaster when clustering is enabled.
+//
+// The client-supplied Endpoint field is intentionally ignored: AddIgnoredDevice
+// always re-derives Endpoint from Name/Model (see BuildIgnoredDeviceEndpoint).
+// Accepting an arbitrary, independently-controlled Endpoint here would let a
+// caller point a legitimate host's Name (and therefore its real Vault-backed
+// credentials, retrieved by TestConn) at a URL of their choosing.
 func GossipAwareAddHost(w http.ResponseWriter, r *http.Request) {
 	log = zap.L()
 
 	var device IgnoredDevice
 	if err := json.NewDecoder(r.Body).Decode(&device); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	device.Name = strings.TrimSpace(device.Name)
+	if device.Name == "" {
+		http.Error(w, "\"Name\" is required", http.StatusBadRequest)
 		return
 	}
 

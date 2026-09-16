@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,9 +59,38 @@ type IgnoredDevice struct {
 	CredentialProfile string
 }
 
+// moonshotModel matches exporter/moonshot.MOONSHOT. Duplicated here (rather
+// than imported) to avoid a circular dependency, since exporter/moonshot
+// imports common.
+const moonshotModel = "Moonshot"
+
+// BuildIgnoredDeviceEndpoint derives the canonical BMC API endpoint for a
+// given host name and hardware model. This is the single source of truth
+// for how an IgnoredDevice's Endpoint is computed, and callers MUST NOT
+// accept an Endpoint value from untrusted input (HTTP request bodies,
+// gossip messages from peers, etc.) — TestConn combines the stored Endpoint
+// with real Vault-backed BMC credentials resolved for Name, so an
+// independently-controllable Endpoint would allow an attacker to redirect
+// those credentials to a host of their choosing. See AddIgnoredDevice and
+// SetIgnoredDeviceLocal, which both enforce this derivation.
+func BuildIgnoredDeviceEndpoint(name, model string) string {
+	name = strings.TrimSpace(name)
+	if model == moonshotModel {
+		return "https://" + name + "/rest/v1/chassis/1"
+	}
+	return "https://" + name + "/redfish/v1/Chassis/"
+}
+
 // AddIgnoredDevice safely adds/updates a device in the local ignored-hosts map
 // and, if clustering is enabled, broadcasts the change to the rest of the cluster.
+//
+// Endpoint is always derived from Name/Model via BuildIgnoredDeviceEndpoint
+// regardless of what was passed in device.Endpoint - see that function for
+// why this is a security boundary, not just a convenience.
 func AddIgnoredDevice(device IgnoredDevice) {
+	device.Name = strings.TrimSpace(device.Name)
+	device.Endpoint = BuildIgnoredDeviceEndpoint(device.Name, device.Model)
+
 	ignoredMu.Lock()
 	IgnoredDevices[device.Name] = device
 	ignoredMu.Unlock()
@@ -93,7 +123,15 @@ func RemoveIgnoredDeviceHost(hostname string) {
 // gossip anti-entropy merge / incoming gossip messages) where the change is
 // already being disseminated through the cluster and re-broadcasting would
 // cause redundant traffic or feedback loops.
+//
+// Endpoint is always re-derived from Name/Model via BuildIgnoredDeviceEndpoint,
+// regardless of what was received over the wire from a peer - a compromised
+// or misbehaving peer must not be able to inject an arbitrary Endpoint that
+// gets combined with real Vault credentials by TestConn.
 func SetIgnoredDeviceLocal(device IgnoredDevice) {
+	device.Name = strings.TrimSpace(device.Name)
+	device.Endpoint = BuildIgnoredDeviceEndpoint(device.Name, device.Model)
+
 	ignoredMu.Lock()
 	IgnoredDevices[device.Name] = device
 	ignoredMu.Unlock()
@@ -177,7 +215,7 @@ func TestConn(w http.ResponseWriter, r *http.Request) {
 		w.Write(resp)
 		return
 	}
-	path = device.Endpoint
+	path = BuildIgnoredDeviceEndpoint(device.Name, device.Model)
 	credProfile := device.CredentialProfile
 	// get credentials from vault
 	credential, err := ChassisCreds.GetCredentials(context.Background(), credProfile, h.H)
