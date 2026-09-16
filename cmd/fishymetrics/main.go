@@ -277,14 +277,12 @@ func main() {
 			log.Fatal("invalid cluster discovery mode", zap.String("mode", *clusterDiscMode))
 		}
 
-		// Get advertise address
+		// Get advertise address. If unset, leave it empty so memberlist can
+		// auto-detect a routable address
 		advertiseAddr := *clusterAdvAddr
 		if advertiseAddr == "" {
 			// Try to detect the pod IP in Kubernetes
 			advertiseAddr = os.Getenv("POD_IP")
-			if advertiseAddr == "" {
-				advertiseAddr = *clusterBindAddr
-			}
 		}
 
 		gossipConfig := &gossip.Config{
