@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Comcast Cable Communications Management, LLC
+ * Copyright 2026 Comcast Cable Communications Management, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/comcast/fishymetrics/config"
@@ -30,8 +33,72 @@ import (
 )
 
 var (
-	IgnoredDevices = make(map[string]IgnoredDevice)
+	ignoredMu sync.RWMutex
+	// records is the single source of truth for both "is this host
+	// ignored" and version/tombstone state, guarded by one lock so local
+	// reads always match what was broadcast. See applyLocked, ApplyRemoteRecord.
+	records     = make(map[string]IgnoredRecord)
+	lastVersion int64
+
+	// TombstoneRetention/MaxTombstones bound the memory and anti-entropy
+	// sync cost of removed-host tombstones, which would otherwise grow
+	// unbounded (every remove - including of a host that never existed -
+	// permanently adds an entry). TombstoneRetention must exceed the time
+	// window in which reachable peers are expected to observe a removal
+	// (via broadcast or anti-entropy sync); a peer partitioned longer than
+	// this can still resurrect a compacted host with a stale snapshot, the
+	// same tradeoff Cassandra makes with gc_grace_seconds. Active
+	// (non-removed) entries are never compacted or capped - they're
+	// bounded by real inventory size, not removal churn.
+	TombstoneRetention = 24 * time.Hour
+	MaxTombstones      = 5000
 )
+
+// IgnoredRecord is the versioned, tombstone-aware state of a single host,
+// exchanged with peers via gossip broadcast and anti-entropy sync. Removed
+// is a tombstone flag so a stale peer view can't resurrect a removed host.
+// NodeID breaks ties when two nodes produce the same Version - see recordWins.
+//
+// LocalTimestamp is this node's own wall-clock observation time, used only
+// for tombstone retention (compactLocked) - deliberately not Version, since
+// Version is an opaque logical clock for conflict resolution, not
+// guaranteed to be real time. It's local-only and never transmitted.
+type IgnoredRecord struct {
+	Device         IgnoredDevice `json:"device"`
+	Removed        bool          `json:"removed"`
+	Version        int64         `json:"version"`
+	NodeID         string        `json:"node_id"`
+	LocalTimestamp int64         `json:"-"`
+}
+
+// recordWins reports whether (version, nodeID) should replace existing.
+// Ties on Version are broken by the lexicographically greater NodeID, so
+// every node resolves the conflict the same way.
+func recordWins(version int64, nodeID string, existing IgnoredRecord) bool {
+	if version != existing.Version {
+		return version > existing.Version
+	}
+	return nodeID > existing.NodeID
+}
+
+// LocalNodeID identifies this node for tie-breaking equal-Version records.
+// Set by main() when clustering is enabled (e.g. to the gossip node name).
+var LocalNodeID string
+
+// Broadcaster is implemented by the clustering layer (e.g. gossip.Manager) to
+// propagate ignored-host changes to the rest of the cluster. When nil, ignored
+// host changes only apply to local in-memory state.
+//
+// version is already committed to local state by applyLocked - the
+// clustering layer must only relay it, not allocate its own.
+type Broadcaster interface {
+	BroadcastAdd(device IgnoredDevice, version int64) error
+	BroadcastRemove(host string, version int64) error
+}
+
+// ClusterBroadcaster is set by main() when clustering is enabled. All calls to
+// AddIgnoredDevice/RemoveIgnoredDeviceHost will broadcast to the cluster when set.
+var ClusterBroadcaster Broadcaster
 
 type host struct {
 	H string `json:"host"`
@@ -42,6 +109,197 @@ type IgnoredDevice struct {
 	Endpoint          string
 	Model             string
 	CredentialProfile string
+}
+
+// moonshotModel matches exporter/moonshot.MOONSHOT. Duplicated here (rather
+// than imported) to avoid a circular dependency, since exporter/moonshot
+// imports common.
+const moonshotModel = "Moonshot"
+
+// BuildIgnoredDeviceEndpoint derives the canonical BMC API endpoint from a
+// host name and model. This is the single source of truth for Endpoint -
+// callers must NOT accept it from untrusted input (HTTP bodies, gossip
+// messages), since TestConn combines it with real Vault credentials.
+func BuildIgnoredDeviceEndpoint(name, model string) string {
+	name = strings.TrimSpace(name)
+	if model == moonshotModel {
+		return "https://" + name + "/rest/v1/chassis/1"
+	}
+	return "https://" + name + "/redfish/v1/Chassis/"
+}
+
+// nextVersionLocked returns a strictly increasing logical clock value.
+// Callers MUST hold ignoredMu for write.
+func nextVersionLocked() int64 {
+	v := time.Now().UnixNano()
+	if v <= lastVersion {
+		v = lastVersion + 1
+	}
+	lastVersion = v
+	return v
+}
+
+// compactLocked evicts tombstones older than TombstoneRetention, then caps
+// the remainder at MaxTombstones (oldest first). Callers MUST hold
+// ignoredMu for write.
+func compactLocked() {
+	cutoff := time.Now().UnixNano() - TombstoneRetention.Nanoseconds()
+	var tombstoneHosts []string
+	for host, rec := range records {
+		if !rec.Removed {
+			continue
+		}
+		if rec.LocalTimestamp < cutoff {
+			delete(records, host)
+			continue
+		}
+		tombstoneHosts = append(tombstoneHosts, host)
+	}
+
+	if excess := len(tombstoneHosts) - MaxTombstones; excess > 0 {
+		sort.Slice(tombstoneHosts, func(i, j int) bool {
+			return records[tombstoneHosts[i]].LocalTimestamp < records[tombstoneHosts[j]].LocalTimestamp
+		})
+		for _, host := range tombstoneHosts[:excess] {
+			delete(records, host)
+		}
+	}
+}
+
+// applyLocked allocates a version and commits this node's own add/remove as
+// one atomic operation, under the same lock used for reads and for applying
+// incoming gossip records (ApplyRemoteRecord). Returns the version so the
+// caller can pass it, already-committed, to ClusterBroadcaster.
+func applyLocked(hostname string, device IgnoredDevice, removed bool) int64 {
+	ignoredMu.Lock()
+	defer ignoredMu.Unlock()
+
+	version := nextVersionLocked()
+	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version, NodeID: LocalNodeID, LocalTimestamp: time.Now().UnixNano()}
+	if removed {
+		compactLocked()
+	}
+	return version
+}
+
+// AddIgnoredDevice safely adds/updates a device in the local ignored-hosts map
+// and, if clustering is enabled, broadcasts the change to the rest of the cluster.
+//
+// Endpoint is always derived from Name/Model, ignoring whatever was passed
+// in device.Endpoint - see BuildIgnoredDeviceEndpoint.
+func AddIgnoredDevice(device IgnoredDevice) {
+	device.Name = strings.TrimSpace(device.Name)
+	device.Endpoint = BuildIgnoredDeviceEndpoint(device.Name, device.Model)
+
+	version := applyLocked(device.Name, device, false)
+
+	if ClusterBroadcaster != nil {
+		if err := ClusterBroadcaster.BroadcastAdd(device, version); err != nil {
+			log = zap.L()
+			log.Error("failed to broadcast ignored device add", zap.Error(err), zap.String("host", device.Name))
+		}
+	}
+}
+
+// RemoveIgnoredDeviceHost safely removes a host from the local ignored-hosts map
+// and, if clustering is enabled, broadcasts the removal to the rest of the cluster.
+func RemoveIgnoredDeviceHost(hostname string) {
+	hostname = strings.TrimSpace(hostname)
+	version := applyLocked(hostname, IgnoredDevice{Name: hostname}, true)
+
+	if ClusterBroadcaster != nil {
+		if err := ClusterBroadcaster.BroadcastRemove(hostname, version); err != nil {
+			log = zap.L()
+			log.Error("failed to broadcast ignored device removal", zap.Error(err), zap.String("host", hostname))
+		}
+	}
+}
+
+// ApplyRemoteRecord atomically applies an incoming add/remove from a peer
+// (via NotifyMsg or MergeRemoteState), using recordWins for conflict
+// resolution. Returns true if applied, false if stale.
+//
+// device.Endpoint is always re-derived, ignoring whatever was received over
+// the wire - see BuildIgnoredDeviceEndpoint.
+func ApplyRemoteRecord(hostname string, device IgnoredDevice, removed bool, version int64, nodeID string) bool {
+	device.Name = strings.TrimSpace(device.Name)
+	device.Endpoint = BuildIgnoredDeviceEndpoint(device.Name, device.Model)
+
+	ignoredMu.Lock()
+	defer ignoredMu.Unlock()
+
+	existing, ok := records[hostname]
+	if ok && !recordWins(version, nodeID, existing) {
+		return false
+	}
+
+	records[hostname] = IgnoredRecord{Device: device, Removed: removed, Version: version, NodeID: nodeID, LocalTimestamp: time.Now().UnixNano()}
+	if version > lastVersion {
+		lastVersion = version
+	}
+	if removed {
+		compactLocked()
+	}
+	return true
+}
+
+// SnapshotIgnoredRecords returns a deep copy of the full versioned/tombstoned
+// state, for anti-entropy full-state sync (memberlist's LocalState).
+func SnapshotIgnoredRecords() map[string]IgnoredRecord {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+
+	snapshot := make(map[string]IgnoredRecord, len(records))
+	for k, v := range records {
+		snapshot[k] = v
+	}
+	return snapshot
+}
+
+// IsIgnored returns true if the given host is currently on the ignored list
+func IsIgnored(hostname string) bool {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+	rec, ok := records[hostname]
+	return ok && !rec.Removed
+}
+
+// GetIgnoredDevice returns the IgnoredDevice for a host, if present
+func GetIgnoredDevice(hostname string) (IgnoredDevice, bool) {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+	rec, ok := records[hostname]
+	if !ok || rec.Removed {
+		return IgnoredDevice{}, false
+	}
+	return rec.Device, true
+}
+
+// GetAllIgnoredDevices returns a snapshot slice of all currently ignored devices
+func GetAllIgnoredDevices() []IgnoredDevice {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+	devices := make([]IgnoredDevice, 0, len(records))
+	for _, rec := range records {
+		if rec.Removed {
+			continue
+		}
+		devices = append(devices, rec.Device)
+	}
+	return devices
+}
+
+// IgnoredDeviceCount returns the number of currently ignored devices
+func IgnoredDeviceCount() int {
+	ignoredMu.RLock()
+	defer ignoredMu.RUnlock()
+	count := 0
+	for _, rec := range records {
+		if !rec.Removed {
+			count++
+		}
+	}
+	return count
 }
 
 func TestConn(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +329,8 @@ func TestConn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := IgnoredDevices[h.H]; !ok {
+	device, ok := GetIgnoredDevice(h.H)
+	if !ok {
 		log.Error("missing host from ignored hosts list", zap.Error(err), zap.String("path", r.URL.Path))
 		response["error"] = "missing host from ignored hosts list"
 		resp, _ := marshalResponse(&response, r)
@@ -79,8 +338,8 @@ func TestConn(w http.ResponseWriter, r *http.Request) {
 		w.Write(resp)
 		return
 	}
-	path = IgnoredDevices[h.H].Endpoint
-	credProfile := IgnoredDevices[h.H].CredentialProfile
+	path = BuildIgnoredDeviceEndpoint(device.Name, device.Model)
+	credProfile := device.CredentialProfile
 	// get credentials from vault
 	credential, err := ChassisCreds.GetCredentials(context.Background(), credProfile, h.H)
 	if err != nil {
@@ -174,7 +433,7 @@ func RemoveHost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	delete(IgnoredDevices, h.H)
+	RemoveIgnoredDeviceHost(h.H)
 	log.Info("remove host " + h.H + " from ignored list")
 	w.WriteHeader(http.StatusOK)
 }

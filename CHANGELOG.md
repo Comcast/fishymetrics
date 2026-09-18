@@ -6,6 +6,20 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
+## [0.19.3]
+
+### Added
+
+- Gossip-based clustering support for ignored host list across replicas [#186](https://github.com/Comcast/fishymetrics/issues/186)
+
+### Updated
+
+- Bump github.com/containerd/containerd from 1.7.33 to 1.7.35 [#185](https://github.com/Comcast/fishymetrics/pull/185)
+- Bump Go toolchain from 1.25.11 to 1.25.13 to address CVE in `std/crypto/tls` (DoS) [#186](https://github.com/Comcast/fishymetrics/issues/186)
+
+### Fixed
+
+- Vault reauthenticate AppRole token after max TTL [#184](https://github.com/Comcast/fishymetrics/pull/184)
 
 ## [0.19.2]
 

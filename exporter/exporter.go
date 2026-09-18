@@ -153,7 +153,7 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	exp.url = u.String()
 
 	// check if host is on the ignored list, if so we immediately return
-	if _, ok := common.IgnoredDevices[exp.host]; ok {
+	if common.IsIgnored(exp.host) {
 		var upMetric = (*exp.DeviceMetrics)["up"]
 		(*upMetric)["up"].WithLabelValues().Set(float64(2))
 		return &exp, nil
@@ -163,12 +163,12 @@ func NewExporter(ctx context.Context, target, uri, profile, model string, exclud
 	if err != nil {
 		log.Error("error when getting chassis url", zap.Error(err), zap.Any("trace_id", ctx.Value(logging.TraceIDKey("traceID"))))
 		if errors.Is(err, common.ErrInvalidCredential) {
-			common.IgnoredDevices[exp.host] = common.IgnoredDevice{
+			common.AddIgnoredDevice(common.IgnoredDevice{
 				Name:              exp.host,
 				Endpoint:          "https://" + exp.host + "/redfish/v1/Chassis/",
 				Model:             model,
 				CredentialProfile: exp.credProfile,
-			}
+			})
 			log.Info("added host "+exp.host+" to ignored list", zap.Any("trace_id", exp.ctx.Value(logging.TraceIDKey("traceID"))))
 			var upMetric = (*exp.DeviceMetrics)["up"]
 			(*upMetric)["up"].WithLabelValues().Set(float64(2))
@@ -475,7 +475,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.resetMetrics()
 
 	// perform scrape if target is not on ignored list
-	if _, ok := common.IgnoredDevices[e.host]; !ok {
+	if !common.IsIgnored(e.host) {
 		e.scrape()
 	} else {
 		var upMetric = (*e.DeviceMetrics)["up"]
@@ -512,12 +512,12 @@ func (e *Exporter) scrape() {
 			deviceState := uint8(0)
 			// If credentials are incorrect we will add host to be ignored until manual intervention
 			if errors.Is(task.Err, common.ErrInvalidCredential) {
-				common.IgnoredDevices[e.host] = common.IgnoredDevice{
+				common.AddIgnoredDevice(common.IgnoredDevice{
 					Name:              e.host,
 					Endpoint:          "https://" + e.host + "/redfish/v1/Chassis/",
 					Model:             e.Model,
 					CredentialProfile: e.credProfile,
-				}
+				})
 				log.Info("added host "+e.host+" to ignored list", zap.Any("trace_id", e.ctx.Value(logging.TraceIDKey("traceID"))))
 				deviceState = 2
 			} else {
