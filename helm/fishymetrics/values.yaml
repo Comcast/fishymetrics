@@ -16,6 +16,10 @@ log:
   fileMaxBackups: "1"
   fileMaxAge: "1"
 
+# Set to true to consume an existing secret. 
+# For backwards compatibility, the secret name is still expected to be {{ template "fishymetrics.name" . }}-creds
+existingSecret: false
+
 bmc:
   username: ""
   password: ""
