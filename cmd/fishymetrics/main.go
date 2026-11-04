@@ -87,7 +87,8 @@ var (
 	clusterService    = a.Flag("cluster.service-name", "Kubernetes headless service name or DNS name for discovery").Default("fishymetrics-headless").Envar("CLUSTER_SERVICE_NAME").String()
 	clusterNamespace  = a.Flag("cluster.namespace", "Kubernetes namespace").Default("").Envar("CLUSTER_NAMESPACE").String()
 	clusterPeers      = a.Flag("cluster.static-peers", "Static list of peers for static discovery mode").Default("").Envar("CLUSTER_STATIC_PEERS").String()
-	_                 = common.CredentialProf(a.Flag("credentials.profiles",
+
+	credentialProfiles = common.CredentialProf(a.Flag("credentials.profiles",
 		`profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
   --credentials.profiles="
     profiles:
@@ -99,6 +100,8 @@ var (
       ...
   "
 --credentials.profiles='{"profiles":[{"name":"profile1","mountPath":"kv2","path":"path/to/secret","userField":"user","passwordField":"password"},...]}'`))
+
+	credentialProfilesFile = a.Flag("credentials.profiles-file", "Read credential profiles from a YAML or JSON file (cannot be combined with --credentials.profiles)").String()
 
 	log *zap.Logger
 
@@ -129,6 +132,10 @@ func main() {
 	_, err = a.Parse(os.Args[1:])
 	if err != nil {
 		panic(fmt.Errorf("error parsing argument flags - %s", err.Error()))
+	}
+
+	if err := loadCredentialProfilesFile(credentialProfiles, *credentialProfilesFile); err != nil {
+		panic(fmt.Errorf("error loading credential profiles - %w", err))
 	}
 
 	// populate excludes map

@@ -79,14 +79,19 @@ type CredentialProfilesFlag struct {
 }
 
 func (cp *CredentialProfilesFlag) Set(value string) error {
-	err := yaml.Unmarshal([]byte(value), cp)
+	var profiles CredentialProfilesFlag
+	err := yaml.Unmarshal([]byte(value), &profiles)
 	if err != nil {
 		// if json was passed in we will attempt to unmarshal differently
-		err := json.Unmarshal([]byte(value), cp)
+		err := json.Unmarshal([]byte(value), &profiles)
 		if err != nil {
-			panic(fmt.Errorf("error parsing argument flag \"--credentials.profiles\" - %s", err.Error()))
+			return fmt.Errorf("error parsing credential profiles: %w", err)
 		}
 	}
+	if len(profiles.Profiles) == 0 {
+		return fmt.Errorf("credential profiles must contain at least one profile")
+	}
+	*cp = profiles
 	ChassisCreds.populateProfiles(cp)
 	return nil
 }
