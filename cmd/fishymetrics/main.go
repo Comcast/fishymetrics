@@ -134,7 +134,7 @@ func main() {
 		panic(fmt.Errorf("error parsing argument flags - %s", err.Error()))
 	}
 
-	if err := loadCredentialProfilesFile(credentialProfiles, *credentialProfilesFile); err != nil {
+	if err := common.LoadCredentialProfilesFile(credentialProfiles, *credentialProfilesFile); err != nil {
 		panic(fmt.Errorf("error loading credential profiles - %w", err))
 	}
 
