@@ -18,6 +18,8 @@ package common
 
 import (
 	"maps"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -68,5 +70,89 @@ func preserveCredentialProfileState(t *testing.T) {
 	t.Cleanup(func() {
 		ChassisCreds.Profiles = profiles
 		ChassisCreds.DefaultProfile = defaultProfile
+	})
+}
+
+func TestLoadCredentialProfilesFile(t *testing.T) {
+	preserveCredentialProfileState(t)
+	for _, tc := range []struct{ name, content string }{
+		{"yaml", "profiles:\n  - name: primary\n    mountPath: kv2\n    path: \"devices/%target%\"\n    userField: username\n    passwordField: password\n    kvVersion: 2\n  - name: secondary\n    path: other/path\n"},
+		{"json", `{"profiles":[{"name":"primary","mountPath":"kv2","path":"devices/%target%","userField":"username","passwordField":"password","kvVersion":2},{"name":"secondary","path":"other/path"}]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "profiles config")
+			if err := os.WriteFile(path, []byte(tc.content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			var profiles CredentialProfilesFlag
+			if err := LoadCredentialProfilesFile(&profiles, path); err != nil {
+				t.Fatal(err)
+			}
+			if len(profiles.Profiles) != 2 || profiles.Profiles[0].Name != "primary" {
+				t.Fatalf("incorrect profiles: %+v", profiles)
+			}
+			if ChassisCreds.DefaultProfile != "primary" {
+				t.Fatalf("incorrect default: %s", ChassisCreds.DefaultProfile)
+			}
+			got := ChassisCreds.Profiles["primary"]
+			if got.Path != "devices/%target%" || got.KVVersion != 2 || got.MountPath != "kv2" || got.UserField != "username" || got.PasswordField != "password" {
+				t.Fatalf("incorrect secret properties: %+v", got)
+			}
+		})
+	}
+}
+
+func TestLoadCredentialProfilesFileErrors(t *testing.T) {
+	preserveCredentialProfileState(t)
+	for _, tc := range []struct{ name, content string }{
+		{"empty", ""}, {"empty profiles", "profiles: []"}, {"malformed", "profiles: ["},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "profiles.yaml")
+			if err := os.WriteFile(path, []byte(tc.content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			var profiles CredentialProfilesFlag
+			if err := LoadCredentialProfilesFile(&profiles, path); err == nil {
+				t.Error("expected error")
+			}
+		})
+	}
+	t.Run("missing", func(t *testing.T) {
+		var profiles CredentialProfilesFlag
+		if err := LoadCredentialProfilesFile(&profiles, filepath.Join(t.TempDir(), "missing")); err == nil {
+			t.Error("expected missing file error")
+		}
+	})
+	t.Run("directory", func(t *testing.T) {
+		var profiles CredentialProfilesFlag
+		if err := LoadCredentialProfilesFile(&profiles, t.TempDir()); err == nil {
+			t.Error("expected directory error")
+		}
+	})
+	t.Run("conflicting flags", func(t *testing.T) {
+		var profiles CredentialProfilesFlag
+		if err := profiles.Set("profiles:\n  - name: inline\n"); err != nil {
+			t.Fatal(err)
+		}
+		err := LoadCredentialProfilesFile(&profiles, filepath.Join(t.TempDir(), "unused"))
+		if err == nil || !strings.Contains(err.Error(), "cannot combine") {
+			t.Fatalf("expected mutually exclusive flags error, got %v", err)
+		}
+		if profiles.Profiles[0].Name != "inline" {
+			t.Fatal("conflict changed inline profile")
+		}
+	})
+	t.Run("omitted file", func(t *testing.T) {
+		var profiles CredentialProfilesFlag
+		if err := profiles.Set("profiles:\n  - name: inline\n"); err != nil {
+			t.Fatal(err)
+		}
+		if err := LoadCredentialProfilesFile(&profiles, ""); err != nil {
+			t.Fatal(err)
+		}
+		if len(profiles.Profiles) != 1 || profiles.Profiles[0].Name != "inline" {
+			t.Error("omitted file changed profiles")
+		}
 	})
 }

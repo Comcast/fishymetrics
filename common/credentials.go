@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -198,4 +199,22 @@ func (c *ChassisCredentials) GetCredentials(ctx context.Context, profile, target
 	}
 
 	return credential, nil
+}
+
+// LoadCredentialProfilesFile loads file-based profiles when path is set.
+func LoadCredentialProfilesFile(profiles *CredentialProfilesFlag, path string) error {
+	if path == "" {
+		return nil
+	}
+	if len(profiles.Profiles) != 0 {
+		return fmt.Errorf("cannot combine --credentials.profiles and --credentials.profiles-file")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read credential profiles file %q: %w", path, err)
+	}
+	if err := profiles.Set(string(data)); err != nil {
+		return fmt.Errorf("parse credential profiles file %q: %w", path, err)
+	}
+	return nil
 }
