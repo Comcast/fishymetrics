@@ -26,6 +26,8 @@ spec:
             - containerPort: {{ .Values.vector.port }}
               name: vector
           env:
+            - name: VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION
+              value: "true"
             - name: ELASTICSEARCH_USERNAME
               valueFrom:
                 secretKeyRef:

@@ -7,50 +7,59 @@ metadata:
     {{- include "fishymetrics.common.metaLabels" . | nindent 4 }}
     {{- include "fishymetrics.common.matchLabels" . | nindent 4 }}
 data:
-  vector.toml: |+
-    log_schema.host_key = "host"
-    log_schema.timestamp_key = "@timestamp"
+  vector.yaml: |+
+    log_schema:
+      host_key: host
+      timestamp_key: "@timestamp"
 
-    [sources.fishymetrics]
-    type = "http_server"
-    address = "0.0.0.0:{{ .Values.vector.port }}"
-    encoding = "json"
-    headers = ["User-Agent"]
-    path_key = "vector_http_path"
+    sources:
+      fishymetrics:
+        type: http_server
+        address: "0.0.0.0:{{ .Values.vector.port }}"
+        decoding:
+          codec: json
+        framing:
+          method: newline_delimited
+        headers: ["User-Agent"]
+        path_key: vector_http_path
 
-    [transforms.structured_json]
-    type = "remap"
-    inputs = ["fishymetrics"]
-    source = '''
-      .trace.id = del(.trace_id)
-      .message = del(.msg)
-      .url.path = del(.url)
-      .error.message = del(.error)
-      if .ts != null {
-        ."@timestamp" = del(.ts)
-      }
-    '''
+    transforms:
+      structured_json:
+        type: remap
+        inputs:
+          - fishymetrics
+        source: |
+          .trace.id = del(.trace_id)
+          .message = del(.msg)
+          .url.path = del(.url)
+          .error.message = del(.error)
+          if .ts != null {
+            ."@timestamp" = del(.ts)
+          }
 
-    [sinks.daas]
-    type = "elasticsearch"
-    inputs = ["structured_json"]
-    endpoints = [{{ .Values.vector.elasticsearch.endpoint | quote }}]
-    api_version = "v7"
-    mode = "bulk"
-
-    auth.strategy = "basic"
-    auth.user = "${ELASTICSEARCH_USERNAME}"
-    auth.password = "${ELASTICSEARCH_PASSWORD}"
-
-    buffer.type = "memory"
-    buffer.max_events = 50000
-    buffer.when_full = "drop_newest"
-
-    bulk.action = "create"
-    bulk.index = {{ .Values.vector.elasticsearch.indexName | quote }}
-
-    healthcheck.enabled = false
-
-    tls.verify_certificate = false
-    tls.verify_hostname = false
+    sinks:
+      daas:
+        type: elasticsearch
+        inputs:
+          - structured_json
+        endpoints:
+          - {{ .Values.vector.elasticsearch.endpoint | quote }}
+        api_version: "v8"
+        mode: bulk
+        auth:
+          strategy: basic
+          user: "${ELASTICSEARCH_USERNAME}"
+          password: "${ELASTICSEARCH_PASSWORD}"
+        buffer:
+          type: memory
+          max_events: 50000
+          when_full: drop_newest
+        bulk:
+          action: create
+          index: {{ .Values.vector.elasticsearch.indexName | quote }}
+        healthcheck:
+          enabled: false
+        tls:
+          verify_certificate: false
+          verify_hostname: false
 {{- end -}}

@@ -1,3 +1,6 @@
+{{- if and .Values.ingress.enabled .Values.httproute.enabled }}
+  {{- fail "Error: Both ingress and httproute cannot be enabled simultaneously. Set one to false." }}
+{{- end }}
 {{- if .Values.ingress.enabled -}}
 {{- $serviceName := include "fishymetrics.name" . -}}
 {{- $servicePort := .Values.exporter.port -}}

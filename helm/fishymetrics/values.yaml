@@ -110,9 +110,11 @@ horizontalPodAutoscaler:
 
   minReplicas: 1
   maxReplicas: 1
+  targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 
 ingress:
+  # HTTPRoute and Ingress are mutually exclusive. Set httproute.enabled to false when using Ingress.
   enabled: false
   hosts:
     - chart-example.local
@@ -124,6 +126,16 @@ ingress:
   # - secretName: chart-example-tls
   #   hosts:
   #   - chart-example.local
+
+httproute:
+  # HTTPRoute and Ingress are mutually exclusive. Set ingress.enabled to false when using HTTPRoute.
+  enabled: false
+  parentRefs:
+    name: ""           # Gateway name (required if httproute.enabled is true)
+    namespace: ""      # Gateway namespace (can be different from release namespace)
+    sectionName: ""    # Optional: specific section/listener name in the gateway
+  hostnames:
+    - ""               # List of hostnames to route (e.g., metrics.example.com)
 
 affinity: {}
 # nodeAffinity:
