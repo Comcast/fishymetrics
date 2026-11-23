@@ -53,6 +53,9 @@ Flags:
       --url.extra-params=""     extra parameter(s) to parse from the URL. --url.extra-params="param1:alias1,param2:alias2"
       --disable-404-retry        Skip retrying on HTTP 404 (no 404 retry loop)
       --credentials-script=""   script to run to get the BMC credentials
+      --credentials.profiles-file=PATH
+                                Read credential profiles from a YAML or JSON file
+                                (cannot be combined with --credentials.profiles)
       --credentials.profiles=CREDENTIALS.PROFILES
                                 profile(s) with all necessary parameters to obtain BMC credential from secrets backend, i.e.
 
@@ -79,6 +82,29 @@ Flags:
                                   - secretName: Use a fixed secret name instead of target hostname (optional)
                                   - userName: Use a fixed username instead of reading from secret (optional)
 ```
+
+Credential profiles can also be loaded from a YAML or JSON file to avoid shell
+quoting and escaping. The file contains one document and uses the same `profiles` structure and
+YAML/JSON parsing as the inline flag. For example, save the following as `profiles.yaml`:
+
+```yaml
+profiles:
+  - name: profile1
+    mountPath: kv2
+    path: path/to/secret
+    userField: user
+    passwordField: password
+    kvVersion: 2
+```
+
+```bash
+./fishymetrics --credentials.profiles-file=profiles.yaml
+```
+
+Use either `--credentials.profiles` or `--credentials.profiles-file`, not both.
+The first profile remains the default. Files are read once at startup; changes
+require restarting the exporter. Missing files, parse errors, or empty profile lists cause startup to fail
+rather than silently using another configuration.
 
 Or set the following ENV Variables:
 
