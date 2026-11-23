@@ -6,7 +6,23 @@ log is based on the [Keep a CHANGELOG](http://keepachangelog.com/) project.
 
 ## Unreleased
 
-## [0.19.3]
+## [0.21.0]
+
+### Added
+
+- Load credential profiles from file [#192](https://github.com/Comcast/fishymetrics/pull/192)
+- HTTPRoute support in Helm chart [#193](https://github.com/Comcast/fishymetrics/issues/193)
+
+### Updated
+
+- Vector configuration format from TOML to default YAML [#193](https://github.com/Comcast/fishymetrics/issues/193)
+- Add CPU utilization metric to Horizontal Pod Autoscaler [#193](https://github.com/Comcast/fishymetrics/issues/193)
+- Bump github.com/containerd/containerd from 1.7.35 to 1.7.36 [#188](https://github.com/Comcast/fishymetrics/pull/188)
+- Bump github.com/moby/sys/user from 0.3.0 to 0.4.1 [#189](https://github.com/Comcast/fishymetrics/pull/189)
+- Bump github.com/klauspost/compress from 1.18.0 to 1.18.7 [#190](https://github.com/Comcast/fishymetrics/pull/190)
+- Bump github.com/go-jose/go-jose/v4 from 4.1.4 to 4.1.6 [#191](https://github.com/Comcast/fishymetrics/pull/191)
+
+## [0.20.0]
 
 ### Added
 
