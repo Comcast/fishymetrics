@@ -12,6 +12,12 @@ data:
       host_key: host
       timestamp_key: "@timestamp"
 
+    secret:
+      creds:
+        type: "directory"
+        path: "/etc/vector-secrets"
+        remove_trailing_whitespace: true
+
     sources:
       fishymetrics:
         type: http_server
@@ -48,8 +54,8 @@ data:
         mode: bulk
         auth:
           strategy: basic
-          user: "${ELASTICSEARCH_USERNAME}"
-          password: "${ELASTICSEARCH_PASSWORD}"
+          user: "SECRET[creds.elastic-user]"
+          password: "SECRET[creds.elastic-pass]"
         buffer:
           type: memory
           max_events: 50000
