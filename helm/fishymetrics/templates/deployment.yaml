@@ -25,22 +25,15 @@ spec:
           ports:
             - containerPort: {{ .Values.vector.port }}
               name: vector
-          env:
-            - name: ELASTICSEARCH_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ template "fishymetrics.name" . }}-creds
-                  key: elastic-user
-            - name: ELASTICSEARCH_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ template "fishymetrics.name" . }}-creds
-                  key: elastic-pass
           resources:
 {{ toYaml .Values.vector.resources | indent 12 }}
           volumeMounts:
             - name: vector-config
               mountPath: /etc/vector
+              readOnly: true
+            - name: vector-secrets
+              mountPath: /etc/vector-secrets
+              readOnly: true
         {{- end }}
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repo }}:{{ .Values.image.tag }}"
@@ -171,6 +164,14 @@ spec:
         - name: vector-config
           configMap:
             name: {{ template "fishymetrics.name" . }}-vector-config
+        - name: vector-secrets
+          secret:
+            secretName: {{ template "fishymetrics.name" . }}-creds
+            items:
+              - key: elastic-user
+                path: elastic-user
+              - key: elastic-pass
+                path: elastic-pass
       {{- end }}
     {{- if .Values.affinity }}
       affinity:

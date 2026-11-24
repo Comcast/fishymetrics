@@ -16,6 +16,12 @@ spec:
   metrics:
     - type: Resource
       resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.horizontalPodAutoscaler.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
         name: memory
         target:
           type: Utilization
